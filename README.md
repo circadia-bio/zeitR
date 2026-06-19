@@ -113,8 +113,8 @@ study_summary(study)
 | `RA` | Relative amplitude — contrast between the most active and least active periods (0–1) |
 | `L5` | Mean activity during the least active 5 h window |
 | `M10` | Mean activity during the most active 10 h window |
-| `L5_onset` | Clock time of L5 midpoint |
-| `M10_onset` | Clock time of M10 midpoint |
+| `L5_onset` | Clock time of L5 |
+| `M10_onset` | Clock time of M10 |
 
 All variables follow the definitions in Van Someren et al. (1999) and Marler et al. (2006).
 
