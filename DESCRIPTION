@@ -1,0 +1,42 @@
+Package: zeitR
+Title: Actigraphy Data Parsing and Analysis for R
+Version: 0.1.0
+Authors@R: c(
+    person("Lucas", "França",
+           email = "lucas.franca@northumbria.ac.uk",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-0853-1319")),
+    person("Mario", "Leocadio-Miguel",
+           email = "mario.miguel@northumbria.ac.uk",
+           role = "aut",
+           comment = c(ORCID = "0000-0002-7248-3529"))
+  )
+Description: Provides tools for importing, parsing, and analysing raw actigraphy
+    data. Supports common device file formats, computes standard rest-activity
+    variables (interdaily stability, intradaily variability, relative amplitude,
+    L5, M10), and assembles tidy data frames ready for downstream chronobiological
+    analysis. Designed to complement slumbR in the Circadia Lab ecosystem.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+VignetteBuilder: knitr
+Depends:
+    R (>= 4.1.0)
+Imports:
+    dplyr (>= 1.1.0),
+    tidyr (>= 1.3.0),
+    lubridate (>= 1.9.0),
+    purrr (>= 1.0.0),
+    rlang (>= 1.1.0),
+    cli (>= 3.6.0)
+Suggests:
+    ggplot2 (>= 3.4.0),
+    knitr,
+    pkgdown,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    tibble (>= 3.0.0)
+Config/testthat/edition: 3
+URL: https://zeitr.circadia-lab.uk, https://github.com/circadia-bio/zeitR
+BugReports: https://github.com/circadia-bio/zeitR/issues
