@@ -1,0 +1,182 @@
+url: https://zeitr.circadia-lab.uk
+
+template:
+  bootstrap: 5
+  bslib:
+    # ── Colours ──────────────────────────────────────────────────────────────
+    bg:              "#EEF5FF"
+    fg:              "#1E3A5F"
+    primary:         "#4A7BB5"
+    secondary:       "#94A3B8"
+    success:         "#4A7BB5"
+    info:            "#C8DFF5"
+    warning:         "#E07A20"          # placeholder – update with final palette
+    danger:          "#C0392B"
+
+    # ── Fonts ─────────────────────────────────────────────────────────────────
+    base_font:       {google: "Afacad"}
+    heading_font:    {google: "Livvic"}
+    code_font:       {google: "JetBrains Mono"}
+
+    # ── Typography ────────────────────────────────────────────────────────────
+    font-size-base:  "1rem"
+    headings-font-weight: 700
+
+    # ── Cards / surfaces ──────────────────────────────────────────────────────
+    card-bg:         "#FFFFFF"
+    card-border-color: "#E2EAF4"
+    card-border-radius: "0.75rem"
+
+    # ── Code blocks ───────────────────────────────────────────────────────────
+    pre-bg:          "#1E3A5F"
+    pre-color:       "#EEF5FF"
+
+  includes:
+    in_header: |
+      <!-- zeitR custom CSS -->
+      <style>
+        /* ── Navbar ── */
+        .navbar {
+          background-color: #1E3A5F !important;
+          border-bottom: 2px solid #4A7BB5;
+        }
+        .navbar .navbar-brand,
+        .navbar-nav .nav-link,
+        .navbar-nav .nav-link:hover,
+        .navbar .navbar-toggler-icon,
+        .navbar form .btn {
+          color: #EEF5FF !important;
+        }
+        .navbar-nav .nav-link:hover { opacity: 0.8; }
+        .navbar-nav .nav-link.active {
+          color: #EEF5FF !important;
+          border-bottom: 2px solid #E07A20;
+        }
+        .navbar small.nav-text { color: #E07A20 !important; }
+
+        /* ── Navbar logo size ── */
+        .navbar-brand img { height: 40px; width: auto; }
+
+        /* ── Remove border under page title ── */
+        .page-header { border-bottom: none !important; }
+
+        /* ── Sidebar TOC links ── */
+        .sidebar .nav-link,
+        .sidebar a,
+        #toc a,
+        #toc .nav-link {
+          color: #1E3A5F !important;
+        }
+        .sidebar .nav-link:hover,
+        .sidebar a:hover,
+        #toc a:hover {
+          color: #4A7BB5 !important;
+        }
+        .sidebar .nav-link.active,
+        #toc .nav-link.active {
+          color: #4A7BB5 !important;
+          border-left: 2px solid #E07A20;
+          font-weight: 600;
+        }
+
+        /* ── Kill all text-muted on light backgrounds ── */
+        .text-muted { color: #4A7BB5 !important; }
+
+        /* ── Sidebar border ── */
+        .sidebar { border-left: 3px solid #4A7BB5; padding-left: 1rem; }
+
+        /* ── Reference index section headers ── */
+        .reference-index h2 {
+          color: #E07A20;
+          font-size: 0.8rem;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        /* ── Inline code ── */
+        code { color: #4A7BB5; background: #E2EAF4;
+          border-radius: 4px; padding: 0.1em 0.35em; }
+
+        /* ── Footer ── */
+        .footer { background: #1E3A5F; color: #94A3B8; padding: 1.5rem 0; }
+        .footer a { color: #C8DFF5; }
+
+        /* ── Search ── */
+        #search-input { border-color: #4A7BB5; }
+      </style>
+
+logo: man/figures/logo.svg
+favicon: man/figures/favicon.svg
+
+home:
+  title: "zeitR — Actigraphy parsing and analysis for R"
+  description: >
+    An R package for importing, parsing, and analysing raw actigraphy data.
+    Computes standard rest-activity and circadian rhythm variables.
+    Built by the Circadia Lab at Northumbria University.
+  links:
+  - text: Circadia Lab
+    href: https://circadia-lab.uk
+  sidebar:
+    structure: [links, license, community, citation, authors, dev]
+
+navbar:
+  structure:
+    left:  [intro, reference, articles, tutorials, news]
+    right: [search, github]
+  components:
+    intro:
+      text: Get started
+      href: articles/getting-started.html
+    github:
+      icon: fab fa-github
+      href: https://github.com/circadia-bio/zeitR
+      aria-label: GitHub
+
+reference:
+- title: "Import"
+  desc: "Read raw actigraphy files into R."
+  contents:
+  - starts_with("read_")
+
+- title: "Compute"
+  desc: "Calculate rest-activity and circadian rhythm variables."
+  contents:
+  - starts_with("compute_")
+
+- title: "Utilities"
+  desc: "Helper functions for actigraphy pipelines."
+  contents:
+  - starts_with("zeitr_")
+
+- title: "Package"
+  desc: "Package-level documentation."
+  contents:
+  - zeitR-package
+
+articles:
+- title: "Getting started"
+  navbar: ~
+  contents:
+  - getting-started
+
+news:
+  releases:
+  - text: "Changelog"
+    href: news/index.html
+
+authors:
+  Lucas França:
+    href: https://orcid.org/0000-0003-0853-1319
+  Mario Leocadio-Miguel:
+    href: https://orcid.org/0000-0002-7248-3529
+
+footer:
+  structure:
+    left: [package, developed_by]
+    right: [built_with]
+  components:
+    package: >
+      **zeitR** — Circadia Lab, Northumbria University.
+    developed_by: >
+      Lucas França & Mario Leocadio-Miguel.
