@@ -152,7 +152,7 @@ All variables follow the definitions in Van Someren et al. (1999) and Marler et 
 
 ## 📄 Licence
 
-![](logo.png)
+![](inst/logo.png)
 
 Released under the [MIT License](./LICENSE).
 
