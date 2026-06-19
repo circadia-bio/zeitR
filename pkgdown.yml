@@ -1,0 +1,9 @@
+pandoc: 3.8.3
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  getting-started: getting-started.html
+last_built: 2026-06-19T22:03Z
+urls:
+  reference: https://zeitr.circadia-lab.uk/reference
+  article: https://zeitr.circadia-lab.uk/articles
