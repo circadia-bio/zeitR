@@ -121,7 +121,7 @@ study_summary(study)
 
 | Step | Algorithm | Reference |
 |---|---|---|
-| Off-wrist detection | Condor bimodal activity/temperature model | de Paula, Condor Instruments (2023) |
+| Off-wrist detection | Condor bimodal activity/temperature model | Condor Instruments |
 | Sleep period detection | Crespo adaptive median filter | Crespo et al. (2012) |
 | Nap detection | Crespo zero-proportion filter | Crespo et al. (2012) |
 | Epoch scoring | Cole-Kripke weighted ZCM sum | Cole & Kripke (1992) |
