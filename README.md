@@ -1,4 +1,4 @@
-# zeitR <img src="man/figures/logo.svg" align="right" height="140"/>
+# ⌚️ zeitR <img src="man/figures/logo.svg" align="right" height="140"/>
 
 **Actigraphy data parsing and analysis for R.**
 
