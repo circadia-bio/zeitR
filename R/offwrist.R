@@ -147,13 +147,38 @@ detect_offwrist_bimodal <- function(
   # Invert: 0 = off-wrist candidate, 1 = on-wrist  (matches Python convention)
   offwrist_raw <- 1L - offwrist_raw
 
-  # ── Stage 4: Refinement — remove short off-wrist runs ───────────────────────
-  offwrist_refined <- .remove_short_offwrist(offwrist_raw, min_offwrist_length)
+  # ── Stage 4: Full three-stage border refinement ────────────────────────────
+  # Compute inputs needed by the refiner
+  temp_var    <- var_filter(int_temp, hws)
+  norm_tv     <- norm_01(temp_var)
+  temp_deriv  <- diff5(int_temp)
+  td_var      <- var_filter(temp_deriv, hws)
+  dif_temp    <- int_temp - ext_temp
+
+  epoch_h     <- .estimate_epoch_h(x$datetime)
+
+  offwrist_refined <- .bimodal_refine_acttrust(
+    initial_offwrist      = offwrist_raw,
+    activity              = activity,
+    activity_median       = act_median,
+    temperature           = int_temp,
+    norm_temp_variance    = norm_tv,
+    temp_derivative       = temp_deriv,
+    temp_derivative_variance = td_var,
+    temperature_threshold = temp_threshold_orig,
+    ashman                = ashman,
+    activity_median_low   = as.integer(is_low_act),
+    is_low_temp           = is_low_temp,
+    filter_hws            = hws,
+    dif_temp              = dif_temp,
+    epoch_hour            = epoch_h,
+    do_near_all_off_detection = TRUE
+  )
 
   # ── Update state columns ────────────────────────────────────────────────────
-  # Convention: state == 4 → off-wrist (matches Python pipeline)
-  x$state    <- ifelse(offwrist_refined == 0, 4, x$state)
-  x$offwrist <- ifelse(offwrist_refined == 0, 0.25, 0)
+  # Convention: state == 4 -> off-wrist (matches Python pipeline)
+  x$state    <- ifelse(offwrist_refined == 0L, 4, x$state)
+  x$offwrist <- ifelse(offwrist_refined == 0L, 0.25, 0)
 
   x
 }
@@ -226,19 +251,4 @@ detect_offwrist_bimodal <- function(
   list(threshold = threshold, ashman_d = ash_d)
 }
 
-#' Remove off-wrist runs shorter than minimum_length
-#' @param x integer vector (0 = off-wrist, 1 = on-wrist)
-#' @param minimum_length integer
-#' @noRd
-.remove_short_offwrist <- function(x, minimum_length) {
-  runs <- zero_sequences(x, minimum_length = 1L)
-  if (nrow(runs) == 0L) return(x)
 
-  for (i in seq_len(nrow(runs))) {
-    run_len <- runs[i, "end"] - runs[i, "start"] + 1L
-    if (run_len < minimum_length) {
-      x[runs[i, "start"]:runs[i, "end"]] <- 1L
-    }
-  }
-  x
-}
