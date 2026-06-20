@@ -2,7 +2,7 @@
     <clipPath id="hc4">
       <polygon points="340,48 564,174 564,426 340,552 116,426 116,174"></polygon>
     </clipPath>
-  </defs><polygon points="340,48 564,174 564,426 340,552 116,426 116,174" fill="#1C1A2E"></polygon><g clip-path="url(#hc4)">
+  </defs><polygon points="340,48 564,174 564,426 340,552 116,426 116,174" fill="#2D2640"></polygon><g clip-path="url(#hc4)">
 
     <line x1="130" y1="342" x2="550" y2="342" stroke="#E8D5B0" stroke-width="0.8" opacity="0.2"></line>
 
