@@ -130,8 +130,8 @@ favicon: man/figures/favicon.svg
 
 opengraph:
   image:
-    src: man/figures/card.png
-    alt: "zeitR — Actigraphy data parsing and analysis for R"
+    src: https://zeitr.circadia-lab.uk/card.png
+    alt: "zeitR - Actigraphy parsing and analysis for R"
   twitter:
     creator: "@circadia_lab"
     card: summary_large_image
