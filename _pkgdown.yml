@@ -3,19 +3,21 @@ url: https://zeitr.circadia-lab.uk
 template:
   bootstrap: 5
   bslib:
-    # ── Colours ──────────────────────────────────────────────────────────────
-    bg:              "#EEF5FF"
-    fg:              "#1E3A5F"
-    primary:         "#4A7BB5"
-    secondary:       "#94A3B8"
-    success:         "#4A7BB5"
-    info:            "#C8DFF5"
-    warning:         "#E07A20"          # placeholder – update with final palette
-    danger:          "#C0392B"
+    # ── Colours (hex sticker palette) ────────────────────────────────────────
+    # midnight #1C1A2E | amber #F0A500 | cream #E8D5B0
+    # dusk purple #4A3F6B | burnt sienna #C25E2A
+    bg:              "#F7F3ED"          # warm off-white (lightened cream)
+    fg:              "#1C1A2E"          # midnight
+    primary:         "#F0A500"          # amber
+    secondary:       "#4A3F6B"          # dusk purple
+    success:         "#C25E2A"          # burnt sienna
+    info:            "#E8D5B0"          # cream
+    warning:         "#F0A500"          # amber
+    danger:          "#C25E2A"          # sienna
 
     # ── Fonts ─────────────────────────────────────────────────────────────────
-    base_font:       {google: "Afacad"}
-    heading_font:    {google: "Livvic"}
+    base_font:       {google: "DM Sans"}
+    heading_font:    {google: "DM Sans"}
     code_font:       {google: "JetBrains Mono"}
 
     # ── Typography ────────────────────────────────────────────────────────────
@@ -23,13 +25,13 @@ template:
     headings-font-weight: 700
 
     # ── Cards / surfaces ──────────────────────────────────────────────────────
-    card-bg:         "#FFFFFF"
-    card-border-color: "#E2EAF4"
+    card-bg:         "#FFFCF7"          # warm white
+    card-border-color: "#E8D5B0"        # cream
     card-border-radius: "0.75rem"
 
     # ── Code blocks ───────────────────────────────────────────────────────────
-    pre-bg:          "#1E3A5F"
-    pre-color:       "#EEF5FF"
+    pre-bg:          "#1C1A2E"          # midnight
+    pre-color:       "#E8D5B0"          # cream
 
   includes:
     in_header: |
@@ -37,22 +39,22 @@ template:
       <style>
         /* ── Navbar ── */
         .navbar {
-          background-color: #1E3A5F !important;
-          border-bottom: 2px solid #4A7BB5;
+          background-color: #1C1A2E !important;
+          border-bottom: 2px solid #F0A500;
         }
         .navbar .navbar-brand,
         .navbar-nav .nav-link,
         .navbar-nav .nav-link:hover,
         .navbar .navbar-toggler-icon,
         .navbar form .btn {
-          color: #EEF5FF !important;
+          color: #E8D5B0 !important;
         }
         .navbar-nav .nav-link:hover { opacity: 0.8; }
         .navbar-nav .nav-link.active {
-          color: #EEF5FF !important;
-          border-bottom: 2px solid #E07A20;
+          color: #E8D5B0 !important;
+          border-bottom: 2px solid #F0A500;
         }
-        .navbar small.nav-text { color: #E07A20 !important; }
+        .navbar small.nav-text { color: #F0A500 !important; }
 
         /* ── Navbar logo size ── */
         .navbar-brand img { height: 40px; width: auto; }
@@ -65,44 +67,59 @@ template:
         .sidebar a,
         #toc a,
         #toc .nav-link {
-          color: #1E3A5F !important;
+          color: #1C1A2E !important;
         }
         .sidebar .nav-link:hover,
         .sidebar a:hover,
         #toc a:hover {
-          color: #4A7BB5 !important;
+          color: #C25E2A !important;
         }
         .sidebar .nav-link.active,
         #toc .nav-link.active {
-          color: #4A7BB5 !important;
-          border-left: 2px solid #E07A20;
+          color: #C25E2A !important;
+          border-left: 2px solid #F0A500;
           font-weight: 600;
         }
 
-        /* ── Kill all text-muted on light backgrounds ── */
-        .text-muted { color: #4A7BB5 !important; }
+        /* ── text-muted ── */
+        .text-muted { color: #4A3F6B !important; }
 
         /* ── Sidebar border ── */
-        .sidebar { border-left: 3px solid #4A7BB5; padding-left: 1rem; }
+        .sidebar { border-left: 3px solid #F0A500; padding-left: 1rem; }
 
         /* ── Reference index section headers ── */
         .reference-index h2 {
-          color: #E07A20;
+          color: #C25E2A;
           font-size: 0.8rem;
           text-transform: uppercase;
           letter-spacing: 0.08em;
         }
 
         /* ── Inline code ── */
-        code { color: #4A7BB5; background: #E2EAF4;
+        code { color: #C25E2A; background: #F0E8D8;
           border-radius: 4px; padding: 0.1em 0.35em; }
 
+        /* ── Links ── */
+        a { color: #C25E2A; }
+        a:hover { color: #F0A500; }
+
         /* ── Footer ── */
-        .footer { background: #1E3A5F; color: #94A3B8; padding: 1.5rem 0; }
-        .footer a { color: #C8DFF5; }
+        .footer { background: #1C1A2E; color: #E8D5B0; padding: 1.5rem 0; }
+        .footer a { color: #F0A500; }
 
         /* ── Search ── */
-        #search-input { border-color: #4A7BB5; }
+        #search-input { border-color: #F0A500; }
+
+        /* ── Buttons ── */
+        .btn-primary {
+          background-color: #F0A500 !important;
+          border-color: #F0A500 !important;
+          color: #1C1A2E !important;
+        }
+        .btn-primary:hover {
+          background-color: #C25E2A !important;
+          border-color: #C25E2A !important;
+        }
       </style>
 
 logo: man/figures/logo.svg
