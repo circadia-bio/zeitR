@@ -6,11 +6,15 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>zeitR — Actigraphy parsing and analysis for R • zeitR</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" sizes="any" href="favicon.ico">
+<link rel="manifest" href="site.webmanifest">
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
-<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/Afacad-0.4.10/font.css" rel="stylesheet">
+<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/DM_Sans-0.4.10/font.css" rel="stylesheet">
 <link href="deps/JetBrains_Mono-0.4.10/font.css" rel="stylesheet">
-<link href="deps/Livvic-0.4.10/font.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="zeitR — Actigraphy parsing and analysis for R">
@@ -18,25 +22,26 @@
 ">
 <meta property="og:description" content="An R package for importing, parsing, and analysing raw actigraphy data. Computes standard rest-activity and circadian rhythm variables. Built by the Circadia Lab at Northumbria University.
 ">
+<meta property="og:image" content="https://zeitr.circadia-lab.uk/logo.svg">
 <!-- zeitR custom CSS --><style>
   /* ── Navbar ── */
   .navbar {
-    background-color: #1E3A5F !important;
-    border-bottom: 2px solid #4A7BB5;
+    background-color: #2D2640 !important;
+    border-bottom: 2px solid #F0A500;
   }
   .navbar .navbar-brand,
   .navbar-nav .nav-link,
   .navbar-nav .nav-link:hover,
   .navbar .navbar-toggler-icon,
   .navbar form .btn {
-    color: #EEF5FF !important;
+    color: #E8D5B0 !important;
   }
   .navbar-nav .nav-link:hover { opacity: 0.8; }
   .navbar-nav .nav-link.active {
-    color: #EEF5FF !important;
-    border-bottom: 2px solid #E07A20;
+    color: #E8D5B0 !important;
+    border-bottom: 2px solid #F0A500;
   }
-  .navbar small.nav-text { color: #E07A20 !important; }
+  .navbar small.nav-text { color: #F0A500 !important; }
 
   /* ── Navbar logo size ── */
   .navbar-brand img { height: 40px; width: auto; }
@@ -49,44 +54,59 @@
   .sidebar a,
   #toc a,
   #toc .nav-link {
-    color: #1E3A5F !important;
+    color: #1C1A2E !important;
   }
   .sidebar .nav-link:hover,
   .sidebar a:hover,
   #toc a:hover {
-    color: #4A7BB5 !important;
+    color: #C25E2A !important;
   }
   .sidebar .nav-link.active,
   #toc .nav-link.active {
-    color: #4A7BB5 !important;
-    border-left: 2px solid #E07A20;
+    color: #C25E2A !important;
+    border-left: 2px solid #F0A500;
     font-weight: 600;
   }
 
-  /* ── Kill all text-muted on light backgrounds ── */
-  .text-muted { color: #4A7BB5 !important; }
+  /* ── text-muted ── */
+  .text-muted { color: #4A3F6B !important; }
 
   /* ── Sidebar border ── */
-  .sidebar { border-left: 3px solid #4A7BB5; padding-left: 1rem; }
+  .sidebar { border-left: 3px solid #F0A500; padding-left: 1rem; }
 
   /* ── Reference index section headers ── */
   .reference-index h2 {
-    color: #E07A20;
+    color: #C25E2A;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
 
   /* ── Inline code ── */
-  code { color: #4A7BB5; background: #E2EAF4;
+  code { color: #C25E2A; background: #F0E8D8;
     border-radius: 4px; padding: 0.1em 0.35em; }
 
+  /* ── Links ── */
+  a { color: #C25E2A; }
+  a:hover { color: #F0A500; }
+
   /* ── Footer ── */
-  .footer { background: #1E3A5F; color: #94A3B8; padding: 1.5rem 0; }
-  .footer a { color: #C8DFF5; }
+  .footer { background: #2D2640; color: #E8D5B0; padding: 1.5rem 0; }
+  .footer a { color: #F0A500; }
 
   /* ── Search ── */
-  #search-input { border-color: #4A7BB5; }
+  #search-input { border-color: #F0A500; }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    background-color: #F0A500 !important;
+    border-color: #F0A500 !important;
+    color: #1C1A2E !important;
+  }
+  .btn-primary:hover {
+    background-color: #C25E2A !important;
+    border-color: #C25E2A !important;
+  }
 </style>
 </head>
 <body>
@@ -139,8 +159,10 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="zeitr-">zeitR <img src="reference/figures/logo.svg" align="right" height="140"><a class="anchor" aria-label="anchor" href="#zeitr-"></a>
-</h1></div>
+<div class="page-header">
+<img src="logo.svg" class="logo" alt=""><h1 id="zeitr-">zeitR <a class="anchor" aria-label="anchor" href="#zeitr-"></a>
+</h1>
+</div>
 <p><strong>Actigraphy data parsing and analysis for R.</strong></p>
 <p><a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a> <a href="https://www.r-project.org/" class="external-link"><img src="https://img.shields.io/badge/R-%3E%3D4.1-276DC3" alt="R"></a> <a href="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R CMD CHECK"></a> <a href="https://github.com/circadia-bio/zeitR" class="external-link"><img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status"></a> <a href="https://zeitr.circadia-lab.uk"><img src="https://img.shields.io/badge/docs-zeitr.circadia--lab.uk-4A7BB5" alt="pkgdown"></a></p>
 <hr>

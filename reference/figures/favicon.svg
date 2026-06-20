@@ -1,0 +1,24 @@
+<svg width="100%" viewBox="0 0 680 720" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>zeitR favicon</title>
+  <desc>zeitR hex favicon</desc>
+
+  <defs>
+    <clipPath id="fav-clip">
+      <polygon points="340,48 564,174 564,426 340,552 116,426 116,174"/>
+    </clipPath>
+  </defs>
+
+  <polygon points="340,48 564,174 564,426 340,552 116,426 116,174" fill="#2D2640"/>
+
+  <g clip-path="url(#fav-clip)">
+    <text x="340" y="370"
+          text-anchor="middle"
+          font-family="'DM Sans', sans-serif"
+          font-size="160" font-weight="700"
+          fill="#E8D5B0" letter-spacing="-4">z<tspan fill="#F0A500">R</tspan></text>
+  </g>
+
+  <polygon points="340,48 564,174 564,426 340,552 116,426 116,174"
+           fill="none" stroke="#F0A500" stroke-width="4.5"/>
+
+</svg>

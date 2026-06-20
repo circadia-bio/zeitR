@@ -1,4 +1,4 @@
-# zeitR ![](reference/figures/logo.svg)
+# zeitR
 
 **Actigraphy data parsing and analysis for R.**
 
