@@ -139,15 +139,36 @@ reference:
   contents:
   - starts_with("read_")
 
-- title: "Compute"
-  desc: "Calculate rest-activity and circadian rhythm variables."
+- title: "Prepare & validate"
+  desc: "Prepare recordings for analysis and check data quality."
+  contents:
+  - prepare_actigraphy
+  - check_consistency
+
+- title: "Detection"
+  desc: "Off-wrist, sleep period, and epoch-level scoring algorithms."
+  contents:
+  - detect_offwrist_bimodal
+  - detect_sleep_crespo
+  - detect_naps_crespo
+  - score_epochs_cole_kripke
+  - compute_waso
+
+- title: "Circadian analysis"
+  desc: "Non-parametric circadian rhythm variables."
   contents:
   - starts_with("compute_")
 
-- title: "Utilities"
-  desc: "Helper functions for actigraphy pipelines."
+- title: "Study-level"
+  desc: "Summarise results across multiple participants."
   contents:
-  - starts_with("zeitr_")
+  - study_summary
+
+- title: "Pipeline"
+  desc: "Run the full analysis pipeline on one file or a directory."
+  contents:
+  - run_pipeline
+  - run_pipeline_batch
 
 - title: "Package"
   desc: "Package-level documentation."
