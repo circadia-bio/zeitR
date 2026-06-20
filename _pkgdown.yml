@@ -159,6 +159,8 @@ articles:
   navbar: ~
   contents:
   - getting-started
+  - npcra
+  - study-analysis
 
 news:
   releases:

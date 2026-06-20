@@ -1,0 +1,180 @@
+---
+title: "Study-level analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Study-level analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+library(zeitR)
+```
+
+## Overview
+
+When a study contains multiple participants, zeitR provides two functions to
+work at the group level:
+
+- `read_actigraphy_dir()` — reads all actigraphy files in a folder into a
+  `zeitr_study` object.
+- `study_summary()` — computes per-participant NPCRA variables and recording
+  quality metrics across the whole study.
+
+---
+
+## Reading a directory of files
+
+Place all recording files (one per participant) in a single folder. The
+filename stem is used as the participant ID.
+
+```r
+study <- read_actigraphy_dir(
+  "recordings/",
+  device  = "acttrust",
+  pattern = "*.txt",
+  tz      = "America/Sao_Paulo"
+)
+study
+```
+
+```
+## zeitr_study: 12 recording(s)
+## * P001: 10080 epochs
+## * P002:  9950 epochs
+## * P003: 10056 epochs
+## ...
+```
+
+A `zeitr_study` is a named list of `zeitr_recording` objects. Individual
+recordings are accessed by participant ID:
+
+```r
+study[["P001"]]$epochs
+study[["P001"]]$metadata
+```
+
+---
+
+## Participant-level summary
+
+`study_summary()` iterates over every recording in the study, calls
+`compute_npcra()` for each participant, and returns a single summary tibble:
+
+```r
+summary_df <- study_summary(study)
+summary_df
+```
+
+```
+## # A tibble: 12 x 12
+##    participant_id n_epochs n_days start               end                    IS    IV    RA    L5 L5_onset   M10 M10_onset
+##    <chr>           <int>  <dbl> <dttm>              <dttm>              <dbl> <dbl> <dbl> <dbl> <chr>    <dbl> <chr>
+##  1 P001            10080   7.00 2021-05-27 11:10:15 2021-06-03 11:09:15  0.72  0.43  0.89  12.3 02:30     84.7 11:00
+##  2 P002             9950   6.91 2021-05-28 08:02:00 2021-06-04 07:59:00  0.68  0.51  0.85  10.1 03:00     79.4 10:30
+##  3 P003            10056   6.98 2021-05-27 09:44:00 2021-06-03 09:41:00  0.55  0.72  0.74   8.9 04:00     61.2 12:00
+## ...
+```
+
+### Column reference
+
+| Column | Description |
+|---|---|
+| `participant_id` | Filename stem |
+| `n_epochs` | Total epochs in the recording |
+| `n_days` | Recording duration in days |
+| `start` / `end` | First and last epoch timestamps |
+| `IS` | Interdaily stability |
+| `IV` | Intradaily variability |
+| `RA` | Relative amplitude |
+| `L5` / `L5_onset` | Least active 5 h mean and onset time |
+| `M10` / `M10_onset` | Most active 10 h mean and onset time |
+
+---
+
+## Running the full pipeline across a study
+
+`run_pipeline_batch()` runs the complete pipeline (off-wrist detection, Crespo
+sleep detection, Cole-Kripke WASO) for every file in a folder:
+
+```r
+results <- run_pipeline_batch(
+  "recordings/",
+  pattern = "*.txt",
+  tz      = "America/Sao_Paulo"
+)
+```
+
+Each element of `results` is a `zeitr_result` (see `vignette("getting-started")`).
+To extract all nightly statistics into a single data frame:
+
+```r
+library(dplyr)
+
+all_nights <- lapply(names(results), function(pid) {
+  df <- results[[pid]]$nights
+  df$participant_id <- pid
+  df
+}) |>
+  bind_rows()
+
+all_nights
+```
+
+---
+
+## Combining NPCRA and sleep statistics
+
+A common workflow is to combine group-level NPCRA from `study_summary()` with
+mean nightly statistics from `run_pipeline_batch()`:
+
+```r
+# 1. NPCRA summary
+npcra_df <- study_summary(study)
+
+# 2. Mean nightly stats per participant
+sleep_df <- lapply(names(results), function(pid) {
+  nts <- results[[pid]]$nights
+  data.frame(
+    participant_id = pid,
+    mean_tst_min   = mean(nts$tst, na.rm = TRUE) * 60 / 60,  # epochs to min
+    mean_eff       = mean(nts$eff, na.rm = TRUE),
+    mean_waso_min  = mean(nts$waso, na.rm = TRUE),
+    n_nights       = nrow(nts)
+  )
+}) |>
+  bind_rows()
+
+# 3. Join
+full_df <- left_join(npcra_df, sleep_df, by = "participant_id")
+full_df
+```
+
+---
+
+## Tips
+
+**Skipped files:** `read_actigraphy_dir()` and `run_pipeline_batch()` both
+skip files that fail to parse and emit a warning, so a single corrupt file
+will not abort the whole study run.
+
+**Time zones:** Set `tz` to the local recording time zone for correct circadian
+alignment (especially for IS and L5/M10 onset times). Using `"UTC"` when the
+recording was made in another time zone will shift all circadian onset times by
+the UTC offset.
+
+**Epoch duration:** zeitR estimates epoch duration automatically from the
+median inter-epoch interval. If your files have inconsistent epoch lengths,
+pass `epoch_s` explicitly to `study_summary()` and `compute_npcra()`.
+
+---
+
+## Further reading
+
+- `vignette("getting-started")` — single-file pipeline walkthrough
+- `vignette("npcra")` — NPCRA variable definitions and interpretation
+- `?read_actigraphy_dir`, `?study_summary`, `?run_pipeline_batch`
