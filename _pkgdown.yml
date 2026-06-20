@@ -7,7 +7,7 @@ template:
     # midnight #1C1A2E | amber #F0A500 | cream #E8D5B0
     # dusk purple #4A3F6B | burnt sienna #C25E2A
     bg:              "#F7F3ED"          # warm off-white (lightened cream)
-    fg:              "#1C1A2E"          # midnight
+    fg:              "#2D2640"          # deep dusk
     primary:         "#F0A500"          # amber
     secondary:       "#4A3F6B"          # dusk purple
     success:         "#C25E2A"          # burnt sienna
@@ -30,7 +30,7 @@ template:
     card-border-radius: "0.75rem"
 
     # ── Code blocks ───────────────────────────────────────────────────────────
-    pre-bg:          "#1C1A2E"          # midnight
+    pre-bg:          "#2D2640"          # deep dusk
     pre-color:       "#E8D5B0"          # cream
 
   includes:
@@ -39,7 +39,7 @@ template:
       <style>
         /* ── Navbar ── */
         .navbar {
-          background-color: #1C1A2E !important;
+          background-color: #2D2640 !important;
           border-bottom: 2px solid #F0A500;
         }
         .navbar .navbar-brand,
@@ -104,7 +104,7 @@ template:
         a:hover { color: #F0A500; }
 
         /* ── Footer ── */
-        .footer { background: #1C1A2E; color: #E8D5B0; padding: 1.5rem 0; }
+        .footer { background: #2D2640; color: #E8D5B0; padding: 1.5rem 0; }
         .footer a { color: #F0A500; }
 
         /* ── Search ── */
