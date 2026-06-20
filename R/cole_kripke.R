@@ -62,6 +62,7 @@ score_epochs_cole_kripke <- function(
   # Contributions from epochs *before* the current epoch
   for (i in seq_along(weights_before)) {
     offset <- nb - i + 1L
+    if (offset >= n) next
     idx_to   <- seq(offset + 1L, n)
     idx_from <- seq(1L, n - offset)
     scores[idx_to] <- scores[idx_to] + weights_before[i] * zcm[idx_from]
@@ -70,6 +71,7 @@ score_epochs_cole_kripke <- function(
   # Contributions from epochs *after* the current epoch
   for (i in seq_along(weights_after)) {
     offset <- i
+    if (offset >= n) next
     idx_to   <- seq(1L, n - offset)
     idx_from <- seq(offset + 1L, n)
     scores[idx_to] <- scores[idx_to] + weights_after[i] * zcm[idx_from]

@@ -57,7 +57,8 @@ run_pipeline <- function(
   path       <- as.character(path)
   subject_id <- tools::file_path_sans_ext(basename(path))
 
-  zeitr_inform("Reading {.path {basename(path)}} ...")
+  cli::cli_inform(c("i" = "Reading {.path {basename(path)}} ..."),
+                  .envir = environment())
 
   # 1. Read
   rec <- read_acttrust(path, tz = tz)
@@ -65,9 +66,9 @@ run_pipeline <- function(
   # 2. Consistency check
   issues <- check_consistency(rec, gap_s = gap_s)
   if (nrow(issues) > 0L) {
-    zeitr_warn(
-      "[{subject_id}] {nrow(issues)} timestamp issue(s) detected. \\
-       Check {.code result$issues} for details."
+    cli::cli_warn(
+      "[{subject_id}] {nrow(issues)} timestamp issue(s) detected. Check {.code result$issues} for details.",
+      .envir = environment()
     )
   }
 
@@ -86,8 +87,9 @@ run_pipeline <- function(
   # 7. WASO + nightly stats
   waso_result <- compute_waso(prep, wake_thresh = wake_thresh)
 
-  zeitr_inform(
-    "[{subject_id}] Done. {nrow(waso_result$nights)} night(s) detected."
+  cli::cli_inform(
+    c("v" = "[{subject_id}] Done. {nrow(waso_result$nights)} night(s) detected."),
+    .envir = environment()
   )
 
   result <- structure(
@@ -145,7 +147,10 @@ run_pipeline_batch <- function(folder, pattern = "*.txt", ...) {
         results[[subject_id]] <- res
       },
       error = function(e) {
-        zeitr_warn("Failed to process {.path {basename(f)}}: {conditionMessage(e)}")
+        cli::cli_warn(
+          "Failed to process {.path {basename(f)}}: {conditionMessage(e)}",
+          .envir = parent.env(environment())
+        )
       }
     )
   }
