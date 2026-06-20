@@ -153,28 +153,36 @@ detect_naps_crespo <- function(
   activity <- as.double(x$activity)
   epoch_h  <- epoch_h %||% .estimate_epoch_h(x$datetime)
 
-  # Adaptive median filter (same as MSP but no zero mitigation)
+  # Critical: nap detection runs ONLY on currently-awake epochs (state == 0)
+  # matching the Python pipeline's nap_bool mask
+  is_wake <- x$state == 0L
+
+  if (sum(is_wake) == 0L) return(x)
+
+  wake_activity <- activity
+  wake_activity[!is_wake] <- NA_real_
+
+  # Adaptive median filter on wake epochs only
   pad_size         <- as.integer(round(epoch_h * pad_h))
   max_hws          <- as.integer(round(epoch_h * median_filter_h / 2))
-  act_med_filtered <- .adaptive_median_filter(activity, pad_size, max_hws)
+  act_med_filtered <- .adaptive_median_filter(wake_activity, pad_size, max_hws)
 
   # Zero-proportion filter
   zp_filtered <- zero_prop_filter(activity, nap_zero_prop_hws, pad_value = 1)
 
-  # Threshold criteria
+  # Threshold criteria — only within wake epochs
   low_median   <- act_med_filtered < nap_median_thr
   high_zero_p  <- zp_filtered      > nap_zero_prop_thr
 
   if (use_and) {
-    is_nap <- low_median & high_zero_p
+    is_nap <- is_wake & low_median & high_zero_p
   } else {
-    is_nap <- low_median | high_zero_p
+    is_nap <- is_wake & (low_median & high_zero_p)
   }
 
-  # out: 0 = nap, 1 = wake  → state 7 for nap epochs
-  state_nap <- ifelse(is_nap, 7L, x$state)
-  x$state   <- ifelse(x$state == 4L, 4L, state_nap)
-  x$sleep   <- ifelse(x$state == 7L, 1L, x$sleep)
+  # state 7 for nap epochs, preserve existing non-wake states
+  x$state <- ifelse(is_nap, 7L, x$state)
+  x$sleep <- ifelse(x$state == 7L, 1L, x$sleep)
 
   x
 }

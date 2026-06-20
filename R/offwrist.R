@@ -91,10 +91,19 @@ detect_offwrist_bimodal <- function(
     return(x)
   }
 
-  # ── Work on the valid-temperature subset ────────────────────────────────────
-  activity <- as.double(x$activity)
-  int_temp <- as.double(x$int_temp)
-  ext_temp <- as.double(x$ext_temp)
+  # ── Match Python: mark temperature <= 0 as off-wrist immediately ─────────
+  # Python: data = df[df["TEMPERATURE"] > 0]
+  # Epochs with temp <= 0 are automatically off-wrist; algorithm runs on rest
+  x$state[!valid_temp]    <- 4L
+  x$offwrist[!valid_temp] <- 0.25
+
+  # ── Work only on valid-temperature subset (matching Python exactly) ────────
+  n_full   <- nrow(x)
+  idx_valid <- which(valid_temp)
+
+  activity <- as.double(x$activity[valid_temp])
+  int_temp <- as.double(x$int_temp[valid_temp])
+  ext_temp <- as.double(x$ext_temp[valid_temp])
 
   # ── Stage 1: Feature extraction ─────────────────────────────────────────────
   act_median    <- median_filter(activity, hws)
@@ -176,9 +185,11 @@ detect_offwrist_bimodal <- function(
   )
 
   # ── Update state columns ────────────────────────────────────────────────────
-  # Convention: state == 4 -> off-wrist (matches Python pipeline)
-  x$state    <- ifelse(offwrist_refined == 0L, 4, x$state)
-  x$offwrist <- ifelse(offwrist_refined == 0L, 0.25, 0)
+  # Map refined result back to full-length vector
+  # Python: out = np.zeros(len(df)); out[valid_mask] = final_offwrist
+  # state == 4 -> off-wrist (0 in Python convention = off-wrist)
+  x$state[idx_valid]    <- ifelse(offwrist_refined == 0L, 4L, x$state[idx_valid])
+  x$offwrist[idx_valid] <- ifelse(offwrist_refined == 0L, 0.25, 0)
 
   x
 }
