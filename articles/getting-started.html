@@ -108,6 +108,8 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/getting-started.html">Getting started with zeitR</a></li>
+    <li><a class="dropdown-item" href="../articles/npcra.html">Non-parametric circadian rhythm analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/study-analysis.html">Study-level analysis</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -148,25 +150,270 @@
     
     
 <div class="section level2">
-<h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
+<h2 id="what-is-zeitr">What is zeitR?<a class="anchor" aria-label="anchor" href="#what-is-zeitr"></a>
 </h2>
 <p><strong>zeitR</strong> is an R package for importing, parsing, and
-analysing raw actigraphy data. It is designed to complement
-<code>slumbR</code> in the Circadia Lab ecosystem and provides a tidy,
-pipeline-friendly interface for common rest-activity analyses.</p>
+analysing raw actigraphy recordings from wrist-worn devices. It reads
+device output files, runs a full rest-activity pipeline, and returns
+tidy data frames ready for chronobiological analysis.</p>
+<p>zeitR is part of the <a href="https://circadia-lab.uk" class="external-link">Circadia
+Lab</a> R ecosystem:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Package</th>
+<th>Purpose</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>zeitR</strong></td>
+<td>Actigraphy parsing and rest-activity analysis</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/circadia-bio/slumbR" class="external-link">slumbR</a></td>
+<td>Sleep diary and questionnaire scoring</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/circadia-bio/tallieR" class="external-link">tallieR</a></td>
+<td>ScoreMe questionnaire exports</td>
+</tr>
+</tbody>
+</table>
+<hr>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install from GitHub (development version)</span></span>
+<code class="sourceCode R"><span><span class="co"># Install from GitHub</span></span>
 <span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"circadia-bio/zeitR"</span><span class="op">)</span></span></code></pre></div>
+<hr>
 </div>
 <div class="section level2">
-<h2 id="basic-usage">Basic usage<a class="anchor" aria-label="anchor" href="#basic-usage"></a>
+<h2 id="reading-a-single-recording">Reading a single recording<a class="anchor" aria-label="anchor" href="#reading-a-single-recording"></a>
 </h2>
-<p><em>This vignette will be expanded as functions are added.</em></p>
+<p>The main entry point is <code><a href="../reference/read_actigraphy.html">read_actigraphy()</a></code>. It accepts a
+path to a raw device file and returns a <code>zeitr_recording</code>
+object with two slots: <code>$epochs</code> (the epoch-level tibble) and
+<code>$metadata</code> (device and subject information from the file
+header).</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_actigraphy.html">read_actigraphy</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="va">rec</span></span></code></pre></div>
+<pre><code><span><span class="co">## zeitr_recording: P001</span></span>
+<span><span class="co">## * Device:   ActTrust2 (ID 828)</span></span>
+<span><span class="co">## * Firmware: 1.4</span></span>
+<span><span class="co">## * Interval: 60 s</span></span>
+<span><span class="co">## * Epochs:   10080</span></span>
+<span><span class="co">## * From:     2021-05-27 11:10:15</span></span>
+<span><span class="co">## * To:       2021-06-03 11:09:15</span></span></code></pre>
+<div class="section level3">
+<h3 id="the-epochs-tibble">The <code>$epochs</code> tibble<a class="anchor" aria-label="anchor" href="#the-epochs-tibble"></a>
+</h3>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rec</span><span class="op">$</span><span class="va">epochs</span></span></code></pre></div>
+<pre><code><span><span class="co">## # A tibble: 10,080 x 8</span></span>
+<span><span class="co">##    datetime            activity int_temp ext_temp  ZCMn state offwrist sleep</span></span>
+<span><span class="co">##    &lt;dttm&gt;                 &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;</span></span>
+<span><span class="co">##  1 2021-05-27 11:10:15     4856     24.2     23.9  0        0        0     0</span></span>
+<span><span class="co">##  2 2021-05-27 11:11:15     4483     24.4     24.1  1.5      0        0     0</span></span>
+<span><span class="co">##  3 2021-05-27 11:12:15      425     24.4     23.9  0.05     0        0     0</span></span>
+<span><span class="co">## ...</span></span></code></pre>
+<p>Each row is one epoch (60 seconds by default). The key columns
+are:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Column</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>datetime</code></td>
+<td>Epoch timestamp</td>
+</tr>
+<tr class="even">
+<td><code>activity</code></td>
+<td>PIM activity count</td>
+</tr>
+<tr class="odd">
+<td><code>int_temp</code></td>
+<td>Internal (on-body) temperature, °C</td>
+</tr>
+<tr class="even">
+<td><code>ext_temp</code></td>
+<td>External (ambient) temperature, °C</td>
+</tr>
+<tr class="odd">
+<td><code>ZCMn</code></td>
+<td>Normalised zero-crossing mode count</td>
+</tr>
+<tr class="even">
+<td><code>state</code></td>
+<td>Pipeline state (0 = wake, 1 = sleep, 4 = off-wrist, 7 = nap)</td>
+</tr>
+<tr class="odd">
+<td><code>offwrist</code></td>
+<td>Off-wrist indicator (0.25 = off-wrist)</td>
+</tr>
+<tr class="even">
+<td><code>sleep</code></td>
+<td>Binary sleep/wake (1 = sleep)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level3">
+<h3 id="the-metadata-list">The <code>$metadata</code> list<a class="anchor" aria-label="anchor" href="#the-metadata-list"></a>
+</h3>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rec</span><span class="op">$</span><span class="va">metadata</span></span></code></pre></div>
+<pre><code><span><span class="co">## $subject</span></span>
+<span><span class="co">## [1] "Julius"</span></span>
+<span><span class="co">## $device_model</span></span>
+<span><span class="co">## [1] "ActTrust2"</span></span>
+<span><span class="co">## $interval_s</span></span>
+<span><span class="co">## [1] 60</span></span>
+<span><span class="co">## ...</span></span></code></pre>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="running-the-full-pipeline">Running the full pipeline<a class="anchor" aria-label="anchor" href="#running-the-full-pipeline"></a>
+</h2>
+<p><code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> chains all analysis steps in one call:
+timestamp consistency check → prepare → off-wrist detection → sleep
+period detection (Crespo) → nap detection (Crespo) → WASO computation
+(Cole-Kripke).</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_pipeline.html">run_pipeline</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="va">result</span></span></code></pre></div>
+<pre><code><span><span class="co">## zeitr_result: P001</span></span>
+<span><span class="co">## * Source:  .../recordings/P001.txt</span></span>
+<span><span class="co">## * Epochs:  10080</span></span>
+<span><span class="co">## * Nights:  7</span></span>
+<span><span class="co">## * Issues:  0</span></span></code></pre>
+<div class="section level3">
+<h3 id="nightly-sleep-statistics">Nightly sleep statistics<a class="anchor" aria-label="anchor" href="#nightly-sleep-statistics"></a>
+</h3>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">nights</span></span></code></pre></div>
+<pre><code><span><span class="co">## # A tibble: 7 x 11</span></span>
+<span><span class="co">##   night is_nap bed_time            get_up_time          tbt   tst  waso   sol   soi    nw   eff</span></span>
+<span><span class="co">##   &lt;int&gt; &lt;lgl&gt;  &lt;dttm&gt;              &lt;dttm&gt;             &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;dbl&gt;</span></span>
+<span><span class="co">## 1     1 FALSE  2021-05-27 22:04:15 2021-05-28 07:18:15  494   432    48    12     2    18  0.874</span></span>
+<span><span class="co">## ...</span></span></code></pre>
+<p>The metrics are:</p>
+<table class="table">
+<thead><tr class="header">
+<th>Column</th>
+<th>Definition</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>tbt</code></td>
+<td>Total Bed Time (epochs)</td>
+</tr>
+<tr class="even">
+<td><code>tst</code></td>
+<td>Total Sleep Time (epochs)</td>
+</tr>
+<tr class="odd">
+<td><code>waso</code></td>
+<td>Wake After Sleep Onset (epochs)</td>
+</tr>
+<tr class="even">
+<td><code>sol</code></td>
+<td>Sleep Onset Latency (epochs)</td>
+</tr>
+<tr class="odd">
+<td><code>soi</code></td>
+<td>Sleep Offset Inertia (epochs)</td>
+</tr>
+<tr class="even">
+<td><code>nw</code></td>
+<td>Number of awakenings</td>
+</tr>
+<tr class="odd">
+<td><code>eff</code></td>
+<td>Sleep efficiency (TST / TBT)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Tip:</strong> Multiply epoch counts by
+<code>result$data$metadata$interval_s / 60</code> to convert to
+minutes.</p>
+</blockquote>
+</div>
+<div class="section level3">
+<h3 id="timestamp-issues">Timestamp issues<a class="anchor" aria-label="anchor" href="#timestamp-issues"></a>
+</h3>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">issues</span></span></code></pre></div>
+<p>If no issues were found, this is a zero-row tibble. Issues are
+flagged for gaps &gt; 120 s, backward jumps, and year artefacts (1970 or
+2000).</p>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="running-pipeline-steps-individually">Running pipeline steps individually<a class="anchor" aria-label="anchor" href="#running-pipeline-steps-individually"></a>
+</h2>
+<p>For more control, each step can be called separately. This is useful
+when you want to inspect intermediate outputs or customise algorithm
+parameters.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1. Read</span></span>
+<span><span class="va">rec</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_actigraphy.html">read_actigraphy</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Check timestamps</span></span>
+<span><span class="va">issues</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_consistency.html">check_consistency</a></span><span class="op">(</span><span class="va">rec</span><span class="op">$</span><span class="va">epochs</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Prepare (temperature clamping, state columns)</span></span>
+<span><span class="va">prep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_actigraphy.html">prepare_actigraphy</a></span><span class="op">(</span><span class="va">rec</span><span class="op">$</span><span class="va">epochs</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 4. Off-wrist detection (Condor bimodal algorithm)</span></span>
+<span><span class="va">prep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal</a></span><span class="op">(</span><span class="va">prep</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">prep</span><span class="op">$</span><span class="va">state</span> <span class="op">==</span> <span class="fl">4</span><span class="op">)</span>  <span class="co"># off-wrist epochs</span></span>
+<span></span>
+<span><span class="co"># 5. Main sleep periods (Crespo, 2012)</span></span>
+<span><span class="va">prep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detect_sleep_crespo.html">detect_sleep_crespo</a></span><span class="op">(</span><span class="va">prep</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 6. Naps (Crespo, 2012)</span></span>
+<span><span class="va">prep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detect_naps_crespo.html">detect_naps_crespo</a></span><span class="op">(</span><span class="va">prep</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 7. WASO + nightly stats (Cole-Kripke, 1992)</span></span>
+<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compute_waso.html">compute_waso</a></span><span class="op">(</span><span class="va">prep</span><span class="op">)</span></span>
+<span><span class="va">out</span><span class="op">$</span><span class="va">nights</span></span></code></pre></div>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="next-steps">Next steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
+</h2>
+<ul>
+<li>
+<code><a href="../articles/npcra.html">vignette("npcra")</a></code> — computing IS, IV, RA, L5, and M10
+from a recording</li>
+<li>
+<code><a href="../articles/study-analysis.html">vignette("study-analysis")</a></code> — batch reading and
+participant-level summaries</li>
+<li>
+<code><a href="../reference/run_pipeline.html">?run_pipeline</a></code> — full documentation of all pipeline
+parameters</li>
+<li>
+<code><a href="../reference/detect_sleep_crespo.html">?detect_sleep_crespo</a></code> — Crespo algorithm parameters</li>
+<li>
+<code><a href="../reference/score_epochs_cole_kripke.html">?score_epochs_cole_kripke</a></code> — Cole-Kripke scoring
+details</li>
+</ul>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

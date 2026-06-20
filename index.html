@@ -112,6 +112,8 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="articles/getting-started.html">Getting started with zeitR</a></li>
+    <li><a class="dropdown-item" href="articles/npcra.html">Non-parametric circadian rhythm analysis</a></li>
+    <li><a class="dropdown-item" href="articles/study-analysis.html">Study-level analysis</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -157,13 +159,13 @@
 <h2 id="sparkles-features">✨ Features<a class="anchor" aria-label="anchor" href="#sparkles-features"></a>
 </h2>
 <ul>
-<li>📥 <strong><code>read_actigraphy()</code></strong> — parse a single actigraphy file into a structured <code>zeitr_recording</code> object</li>
-<li>📂 <strong><code>read_actigraphy_dir()</code></strong> — batch-read a whole directory of files into a <code>zeitr_study</code>
+<li>📥 <strong><code><a href="reference/read_actigraphy.html">read_actigraphy()</a></code></strong> — parse a single actigraphy file into a structured <code>zeitr_recording</code> object</li>
+<li>📂 <strong><code><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code></strong> — batch-read a whole directory of files into a <code>zeitr_study</code>
 </li>
-<li>📐 <strong><code>compute_npcra()</code></strong> — non-parametric circadian rhythm analysis: IS, IV, RA, L5, M10</li>
+<li>📐 <strong><code><a href="reference/compute_npcra.html">compute_npcra()</a></code></strong> — non-parametric circadian rhythm analysis: IS, IV, RA, L5, M10</li>
 <li>🌅 <strong><code>compute_rest_activity()</code></strong> — derive rest and activity onset/offset, total rest time, and fragmentation indices</li>
 <li>🔀 <strong><code>epoch_resample()</code></strong> — resample recordings to a target epoch length</li>
-<li>📊 <strong><code>study_summary()</code></strong> — participant-level summary of recording quality and key variables</li>
+<li>📊 <strong><code><a href="reference/study_summary.html">study_summary()</a></code></strong> — participant-level summary of recording quality and key variables</li>
 </ul>
 <hr>
 </div>
@@ -220,20 +222,20 @@
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://zeitr.circadia-lab.uk">zeitR</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># ── Single recording ────────────────────────────────────────────────────────</span></span>
-<span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu">read_actigraphy</span><span class="op">(</span><span class="st">"recordings/P001.csv"</span><span class="op">)</span></span>
+<span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_actigraphy.html">read_actigraphy</a></span><span class="op">(</span><span class="st">"recordings/P001.csv"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">rec</span><span class="op">$</span><span class="va">epochs</span>      <span class="co"># tidy epoch-level data frame (timestamp, activity, ...)</span></span>
 <span><span class="va">rec</span><span class="op">$</span><span class="va">metadata</span>    <span class="co"># device info, epoch length, recording window</span></span>
 <span></span>
 <span><span class="co"># ── Non-parametric circadian rhythm analysis ────────────────────────────────</span></span>
-<span><span class="va">npcra</span> <span class="op">&lt;-</span> <span class="fu">compute_npcra</span><span class="op">(</span><span class="va">rec</span><span class="op">)</span></span>
+<span><span class="va">npcra</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_npcra.html">compute_npcra</a></span><span class="op">(</span><span class="va">rec</span><span class="op">)</span></span>
 <span><span class="va">npcra</span></span>
 <span><span class="co">#&gt;   participant_id    IS    IV    RA    L5  M10</span></span>
 <span><span class="co">#&gt;            P001  0.72  0.43  0.89  12.3  84.7</span></span>
 <span></span>
 <span><span class="co"># ── Whole study ─────────────────────────────────────────────────────────────</span></span>
-<span><span class="va">study</span> <span class="op">&lt;-</span> <span class="fu">read_actigraphy_dir</span><span class="op">(</span><span class="st">"recordings/"</span><span class="op">)</span></span>
-<span><span class="fu">study_summary</span><span class="op">(</span><span class="va">study</span><span class="op">)</span></span>
+<span><span class="va">study</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir</a></span><span class="op">(</span><span class="st">"recordings/"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/study_summary.html">study_summary</a></span><span class="op">(</span><span class="va">study</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   participant_id n_days mean_IS mean_IV mean_RA ...</span></span></code></pre></div>
 <hr>
 </div>
@@ -241,7 +243,7 @@
 <div class="section level2">
 <h2 id="triangular_ruler-computed-variables">📐 Computed variables<a class="anchor" aria-label="anchor" href="#triangular_ruler-computed-variables"></a>
 </h2>
-<p><code>compute_npcra()</code> returns the standard non-parametric circadian rhythm analysis variables:</p>
+<p><code><a href="reference/compute_npcra.html">compute_npcra()</a></code> returns the standard non-parametric circadian rhythm analysis variables:</p>
 <table class="table">
 <colgroup>
 <col width="50%">

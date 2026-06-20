@@ -38,18 +38,23 @@ tidy, pipeline-friendly R idioms.
 
 ## ✨ Features
 
-- 📥 **`read_actigraphy()`** — parse a single actigraphy file into a
-  structured `zeitr_recording` object
-- 📂 **`read_actigraphy_dir()`** — batch-read a whole directory of files
-  into a `zeitr_study`
-- 📐 **`compute_npcra()`** — non-parametric circadian rhythm analysis:
-  IS, IV, RA, L5, M10
+- 📥
+  **[`read_actigraphy()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy.md)**
+  — parse a single actigraphy file into a structured `zeitr_recording`
+  object
+- 📂
+  **[`read_actigraphy_dir()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy_dir.md)**
+  — batch-read a whole directory of files into a `zeitr_study`
+- 📐
+  **[`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)**
+  — non-parametric circadian rhythm analysis: IS, IV, RA, L5, M10
 - 🌅 **`compute_rest_activity()`** — derive rest and activity
   onset/offset, total rest time, and fragmentation indices
 - 🔀 **`epoch_resample()`** — resample recordings to a target epoch
   length
-- 📊 **`study_summary()`** — participant-level summary of recording
-  quality and key variables
+- 📊
+  **[`study_summary()`](https://zeitr.circadia-lab.uk/reference/study_summary.md)**
+  — participant-level summary of recording quality and key variables
 
 ------------------------------------------------------------------------
 
@@ -124,8 +129,8 @@ study_summary(study)
 
 ## 📐 Computed variables
 
-`compute_npcra()` returns the standard non-parametric circadian rhythm
-analysis variables:
+[`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
+returns the standard non-parametric circadian rhythm analysis variables:
 
 | Variable | Definition |
 |----|----|

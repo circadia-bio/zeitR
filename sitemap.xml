@@ -4,10 +4,26 @@
 <url><loc>https://zeitr.circadia-lab.uk/LICENSE.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/getting-started.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/index.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/articles/npcra.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/articles/study-analysis.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/authors.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/index.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/news/index.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/check_consistency.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_npcra.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_waso.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/detect_naps_crespo.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/detect_offwrist_bimodal.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/detect_sleep_crespo.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/index.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/prepare_actigraphy.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/read_actigraphy.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/read_actigraphy_dir.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/read_acttrust.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/run_pipeline.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/run_pipeline_batch.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/score_epochs_cole_kripke.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/study_summary.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/zeitR-package.html</loc></url>
 </urlset>
 
