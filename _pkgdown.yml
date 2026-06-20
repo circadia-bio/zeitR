@@ -36,6 +36,9 @@ template:
   includes:
     in_header: |
       <!-- zeitR custom CSS -->
+      <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#F0A500">
+      <meta name="msapplication-TileColor" content="#2D2640">
+      <meta name="theme-color" content="#2D2640">
       <style>
         /* ── Navbar ── */
         .navbar {
@@ -124,6 +127,14 @@ template:
 
 logo: man/figures/logo.svg
 favicon: man/figures/favicon.svg
+
+opengraph:
+  image:
+    src: man/figures/card.png
+    alt: "zeitR — Actigraphy data parsing and analysis for R"
+  twitter:
+    creator: "@circadia_lab"
+    card: summary_large_image
 
 home:
   title: "zeitR — Actigraphy parsing and analysis for R"
