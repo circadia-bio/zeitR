@@ -35,7 +35,13 @@ template:
 
   includes:
     in_header: |
-      <!-- zeitR custom CSS -->
+      <!-- Override pkgdown og:image with raster PNG for social sharing -->
+      <meta property="og:image" content="https://zeitr.circadia-lab.uk/logo.png">
+      <meta property="og:image:width" content="1080">
+      <meta property="og:image:height" content="1080">
+      <meta property="og:image:type" content="image/png">
+      <meta name="twitter:card" content="summary">
+      <meta name="twitter:image" content="https://zeitr.circadia-lab.uk/logo.png">
       <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#F0A500">
       <meta name="msapplication-TileColor" content="#2D2640">
       <meta name="theme-color" content="#2D2640">
@@ -130,11 +136,11 @@ favicon: man/figures/favicon.svg
 
 opengraph:
   image:
-    src: https://zeitr.circadia-lab.uk/card.png
+    src: https://zeitr.circadia-lab.uk/logo.png
     alt: "zeitR - Actigraphy parsing and analysis for R"
   twitter:
     creator: "@circadia_lab"
-    card: summary_large_image
+    card: summary
 
 home:
   title: "zeitR — Actigraphy parsing and analysis for R"
