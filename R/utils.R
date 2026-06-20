@@ -187,3 +187,8 @@ ashman_d <- function(mu1, sigma1, mu2, sigma2) {
   if (denom <= 0) return(0)
   sqrt(2 / denom) * abs(mu1 - mu2)
 }
+
+# ── NULL coalescing operator ───────────────────────────────────────────────────
+
+#' @noRd
+`%||%` <- function(a, b) if (!is.null(a) && !is.na(a) && nchar(a) > 0) a else b

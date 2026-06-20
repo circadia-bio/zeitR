@@ -20,7 +20,7 @@
 #'
 #' @export
 #'
-#' @importFrom dplyr mutate
+#' @importFrom tidyr replace_na
 #'
 #' @examples
 #' \dontrun{
