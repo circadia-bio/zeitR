@@ -31,9 +31,7 @@
 #'
 #' @export
 #'
-#' @importFrom dplyr mutate rename select any_of
 #' @importFrom lubridate parse_date_time
-#' @importFrom rlang abort
 #' @importFrom tibble as_tibble
 #'
 #' @examples
@@ -153,25 +151,3 @@ read_acttrust <- function(path, tz = "UTC", encoding = "latin1") {
   out
 }
 
-# ── S3 print method ──────────────────────────────────────────────────────────
-
-#' @export
-print.zeitr_recording <- function(x, ...) {
-  meta <- attr(x, "metadata")
-  cli::cli_h1("zeitr_recording")
-  cli::cli_bullets(c(
-    "*" = "Subject:  {meta$subject %||% 'unknown'}",
-    "*" = "Device:   {meta$device_model %||% 'unknown'} (ID {meta$device_id %||% '?'})",
-    "*" = "Firmware: {meta$firmware_version %||% 'unknown'}",
-    "*" = "Interval: {meta$interval_s %||% '?'} s",
-    "*" = "Epochs:   {nrow(x)}",
-    "*" = "From:     {format(x$datetime[1])}",
-    "*" = "To:       {format(x$datetime[nrow(x)])}"
-  ))
-  NextMethod()
-  invisible(x)
-}
-
-# ── NULL coalescing operator (internal) ─────────────────────────────────────
-
-`%||%` <- function(a, b) if (!is.null(a) && !is.na(a) && nchar(a) > 0) a else b
