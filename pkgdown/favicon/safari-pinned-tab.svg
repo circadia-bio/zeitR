@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 785">
+  <!-- Safari pinned tab — single colour silhouette of the hex + zR -->
+  <polygon points="340,0 680,196 680,589 340,785 0,589 0,196" fill="#F0A500"/>
+  <text x="340" y="470"
+        text-anchor="middle"
+        font-family="system-ui, sans-serif"
+        font-size="280" font-weight="700"
+        fill="#2D2640" letter-spacing="-8">zR</text>
+</svg>
