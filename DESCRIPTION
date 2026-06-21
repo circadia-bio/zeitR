@@ -32,6 +32,7 @@ Imports:
 Suggests:
     dplyr (>= 1.1.0),
     ggplot2 (>= 3.4.0),
+    mclust,
     rlang (>= 1.1.0),
     knitr,
     pkgdown,
