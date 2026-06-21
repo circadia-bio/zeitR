@@ -197,12 +197,11 @@ detect_offwrist_bimodal <- function(
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 #' Fit a 2-component GMM to normalised temperature and return the threshold
+#'
+#' Matches Python's bimodal_thresh() using GaussianMixture with k-means++
+#' initialisation. Requires the mclust package.
 #' @noRd
 .fit_gmm_threshold <- function(data, nbins = 100L, min_temp_threshold = 0.35) {
-  # We need mclust for GMM — use base stats EM approximation via
-  # a simple k-means initialisation + density intersection approach
-  # to avoid a hard dependency on mclust.
-
   data <- as.double(data)
   data <- data[!is.na(data)]
   n    <- length(data)
@@ -211,7 +210,87 @@ detect_offwrist_bimodal <- function(
     return(list(threshold = min_temp_threshold, ashman_d = 0))
   }
 
-  # Initialise two components via k-means (k=2)
+  # ── Histogram (matching Python: bins=nbins, range=(0,1)) ──────────────────
+  breaks       <- seq(0, 1, length.out = nbins + 1L)
+  bin_mids     <- (breaks[-1] + breaks[-length(breaks)]) / 2
+  counts       <- as.double(graphics::hist(data, breaks = breaks,
+                                           plot = FALSE)$counts)
+  counts_filt  <- mean_filter(counts, 3L)
+
+  # ── GMM via mclust (2 components, matching sklearn GaussianMixture) ───────
+  if (!requireNamespace("mclust", quietly = TRUE)) {
+    zeitr_warn(
+      "{.pkg mclust} is not installed; falling back to k-means GMM approximation.
+       Install it with {.code install.packages('mclust')} for better accuracy."
+    )
+    return(.fit_gmm_threshold_kmeans(data, nbins, min_temp_threshold,
+                                     counts, counts_filt, breaks, bin_mids))
+  }
+
+  gm <- tryCatch(
+    mclust::Mclust(data, G = 2, modelNames = "V", verbose = FALSE),
+    error = function(e) NULL
+  )
+
+  if (is.null(gm)) {
+    return(.fit_gmm_threshold_kmeans(data, nbins, min_temp_threshold,
+                                     counts, counts_filt, breaks, bin_mids))
+  }
+
+  # Order components by mean (component 1 = lower)
+  ord    <- order(gm$parameters$mean)
+  mu     <- gm$parameters$mean[ord]
+  sigma  <- sqrt(gm$parameters$variance$sigmasq[ord])
+  weight <- gm$parameters$pro[ord]
+
+  sigma[is.na(sigma) | sigma == 0] <- .Machine$double.eps
+
+  ash_d <- ashman_d(mu[1], sigma[1], mu[2], sigma[2])
+
+  # ── GMM density curve (matching Python dist_gm) ───────────────────────────
+  x       <- seq(0, 1, length.out = nbins)
+  max_cnt <- max(counts)
+  a1      <- weight[1] * max_cnt
+  a2      <- weight[2] * max_cnt
+
+  gmm_density <- a1 * exp(-(x - mu[1])^2 / (2 * sigma[1]^2)) +
+                 a2 * exp(-(x - mu[2])^2 / (2 * sigma[2]^2))
+
+  # ── Boundary corrections (matching Python) ────────────────────────────────
+  mu1 <- mu[1]; mu2 <- mu[2]
+  if ((mu1 - sigma[1]) < 0.15) mu1 <- 0.15 + sigma[1]
+  if ((mu2 + sigma[2]) > 0.85) mu2 <- 0.85 - sigma[2]
+  if (mu2 <= mu1) mu2 <- mu1 + 2 / nbins
+
+  # ── Search range ──────────────────────────────────────────────────────────
+  loc1 <- which.min(abs(bin_mids - mu1))
+  loc2 <- which.min(abs(bin_mids - mu2))
+  if (loc2 <= loc1) loc2 <- loc1 + 1L
+  loc2 <- min(loc2, length(bin_mids))
+
+  search <- seq(loc1, loc2)
+
+  # ── Two threshold candidates (matching Python thresh_id_0 / thresh_id_1) ──
+  thresh_id_0 <- search[which.min(gmm_density[search])]
+  thresh_id_1 <- search[which.min(counts_filt[search])]
+
+  # Pick the one with lower counts_filt (matching Python logic)
+  if (counts_filt[thresh_id_0] < counts_filt[thresh_id_1]) {
+    thresh_id <- thresh_id_0
+  } else {
+    thresh_id <- thresh_id_1
+  }
+
+  threshold <- bin_mids[thresh_id]
+  threshold <- max(threshold, min_temp_threshold)
+
+  list(threshold = threshold, ashman_d = ash_d)
+}
+
+#' K-means fallback for GMM threshold (used when mclust is unavailable)
+#' @noRd
+.fit_gmm_threshold_kmeans <- function(data, nbins, min_temp_threshold,
+                                       counts, counts_filt, breaks, bin_mids) {
   km <- tryCatch(
     stats::kmeans(data, centers = 2L, nstart = 5L, iter.max = 100L),
     error = function(e) NULL
@@ -221,43 +300,21 @@ detect_offwrist_bimodal <- function(
     return(list(threshold = min_temp_threshold, ashman_d = 0))
   }
 
-  # Order components by mean (component 1 = lower)
-  ord  <- order(km$centers)
-  mu   <- as.double(km$centers[ord])
-  idx  <- km$cluster
-  idx  <- ifelse(idx == ord[1], 1L, 2L)
-
-  sigma <- c(
-    stats::sd(data[idx == 1L]),
-    stats::sd(data[idx == 2L])
-  )
+  ord   <- order(km$centers)
+  mu    <- as.double(km$centers[ord])
+  idx   <- ifelse(km$cluster == ord[1], 1L, 2L)
+  sigma <- c(stats::sd(data[idx == 1L]), stats::sd(data[idx == 2L]))
   sigma[is.na(sigma) | sigma == 0] <- .Machine$double.eps
 
   ash_d <- ashman_d(mu[1], sigma[1], mu[2], sigma[2])
 
-  # Histogram-based minimum between the two means
-  breaks <- seq(0, 1, length.out = nbins + 1L)
-  counts <- graphics::hist(data, breaks = breaks, plot = FALSE)$counts
-  counts_smooth <- mean_filter(as.double(counts), 3L)
-
-  # Locate bin indices closest to mu1 and mu2
-  bin_mids <- (breaks[-1] + breaks[-length(breaks)]) / 2
   loc1 <- which.min(abs(bin_mids - mu[1]))
   loc2 <- which.min(abs(bin_mids - mu[2]))
   if (loc2 <= loc1) loc2 <- loc1 + 1L
-  loc2 <- min(loc2, length(bin_mids))
 
-  # Threshold = bin of minimum density between the two modes
-  search_range <- seq(loc1, loc2)
-  thresh_idx   <- search_range[which.min(counts_smooth[search_range])]
-  threshold    <- bin_mids[thresh_idx]
-
-  # Boundary safety from Python source
-  if ((mu[1] - sigma[1]) < 0.15) mu[1] <- 0.15 + sigma[1]
-  if ((mu[2] + sigma[2]) > 0.85) mu[2] <- 0.85 - sigma[2]
-  if (mu[2] <= mu[1])            mu[2] <- mu[1] + 2 / nbins
-
-  threshold <- max(threshold, min_temp_threshold)
+  search    <- seq(loc1, loc2)
+  thresh_id <- search[which.min(counts_filt[search])]
+  threshold <- max(bin_mids[thresh_id], min_temp_threshold)
 
   list(threshold = threshold, ashman_d = ash_d)
 }
