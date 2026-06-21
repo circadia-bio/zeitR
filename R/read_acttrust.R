@@ -145,7 +145,7 @@ read_acttrust <- function(path, tz = "UTC", encoding = "latin1") {
 
   # ── Return ───────────────────────────────────────────────────────────────────
   out <- tibble::as_tibble(raw)
-  class(out) <- c("zeitr_recording", class(out))
+  class(out) <- c("zeitr_acttrust", class(out))
   attr(out, "metadata") <- metadata
 
   out
