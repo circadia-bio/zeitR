@@ -14,9 +14,9 @@ compute_waso(x, wake_thresh = 60L, search_gap = FALSE)
 \item{wake_thresh}{\code{integer(1)}. Minimum duration in epochs of a wake bout
 required to delimit a new sleep period boundary. Default is \code{60}.}
 
-\item{search_gap}{\code{logical(1)}. If \code{TRUE}, allows a gap search between
-consecutive sleep periods when identifying night boundaries. Default is
-\code{FALSE}.}
+\item{search_gap}{\code{logical(1)}. Reserved for API compatibility with the
+reference pipeline. The reference \code{detect_waso} always builds boundaries
+with \code{search_gap = FALSE}, so this argument currently has no effect.}
 }
 \value{
 A list with two elements:
@@ -30,13 +30,18 @@ with epoch-level Cole-Kripke wake/sleep scores.}
 }
 \description{
 Scores each epoch within detected sleep periods as wake or sleep using
-\code{\link[=score_epochs_cole_kripke]{score_epochs_cole_kripke()}}, then computes per-night statistics.
+\code{\link[=score_epochs_cole_kripke]{score_epochs_cole_kripke()}}, then computes per-night statistics. This is a
+faithful port of the Python \code{condor_pipeline} \code{detect_waso}: night
+boundaries are built by \code{\link[=.nights_df]{.nights_df()}} (the \code{search_gap = FALSE} path of the
+reference \code{nights_df}), each night's ZCM is scored with Cole-Kripke, and the
+epoch-level \code{state} is rebuilt from a zero (wake) base so that within-night
+WASO-wake epochs and all epochs outside detected nights are scored as wake.
 }
 \details{
 The following metrics are computed for each detected night / nap:\tabular{ll}{
    Metric \tab Definition \cr
    \code{tbt} \tab Total Bed Time — epochs from bed time to get-up time \cr
-   \code{tst} \tab Total Sleep Time — \verb{tbt − waso − sol − soi} \cr
+   \code{tst} \tab Total Sleep Time — \code{tbt - waso - sol - soi} \cr
    \code{waso} \tab Wake After Sleep Onset — wake epochs between sleep onset and final wake \cr
    \code{sol} \tab Sleep Onset Latency — epochs from bed time to first sleep epoch \cr
    \code{soi} \tab Sleep Offset Inertia — trailing wake epochs at end of sleep period \cr
