@@ -426,3 +426,42 @@ testthat::test_that(".gt_choose_best_getuptime_candidate returns initial candida
   self$initial_transition_candidate <- 777L
   expect_identical(f(self, integer(0), integer(0)), 777L)
 })
+
+# ── Stage 4: boolean_length_filter + ActTrust params ─────────────────────────
+
+testthat::test_that(".boolean_length_filter removes short valleys and keeps long ones", {
+  blf <- getFromNamespace(".boolean_length_filter", "zeitR")
+
+  # short valley (length 2) between long peaks -> merged away (all wake)
+  sig1 <- c(rep(1, 10), rep(0, 2), rep(1, 10))
+  expect_true(all(blf(5, sig1) == 1))
+
+  # long valley (length 8) -> kept unchanged (also exercises the no-op 2nd pass)
+  sig2 <- c(rep(1, 10), rep(0, 8), rep(1, 10))
+  expect_equal(blf(5, sig2), sig2)
+
+  # single region (all wake) -> returned unchanged
+  sig3 <- rep(1, 15)
+  expect_equal(blf(5, sig3), sig3)
+
+  # class_to_filter = "p": short peak (length 2) merged away (all sleep)
+  sig4 <- c(rep(0, 10), rep(1, 2), rep(0, 10))
+  expect_true(all(blf(5, sig4, class_to_filter = "p") == 0))
+})
+
+testthat::test_that(".cspd_acttrust_params matches the cspd_wrapper param_set", {
+  pf <- getFromNamespace(".cspd_acttrust_params", "zeitR")
+  p  <- pf()
+  expect_equal(p$length_thresholds, c(8, 20, 17, 16))
+  expect_equal(p$candidate_thresholds,
+               c(0.4328571428571429, 0.37244897959183676, 0.5619047619047619))
+  expect_equal(p$peak_valley_minimum_length, 11)
+  expect_equal(p$median_filter_short_window, 41)
+  expect_equal(p$sleep_minimum_length, 120)
+  expect_true(p$bedtime_do_remove_before_long_peak)
+  expect_false(p$bedtime_do_remove_before_tall_peak)
+  expect_true(p$bedtime_consider_second_best_candidate)
+  expect_true(p$getuptime_do_remove_after_long_tall_peak)
+  expect_equal(p$bedtime_high_probability_awake_peak_length, 45)
+  expect_equal(p$getuptime_high_probability_sleep_valley_length, 45)
+})
