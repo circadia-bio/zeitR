@@ -8,6 +8,11 @@
 #   length = end - start
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Internal environment exposing intermediate off-wrist computations for the
+# parity regression tests (tests/testthat/test-offwrist-parity.R). Populated
+# only when getOption("zeitR.debug_offwrist") is TRUE; inert otherwise.
+.zeitr_debug <- new.env(parent = emptyenv())
+
 #' Run the three-stage BimodalOffwristRefiner (ActTrust configuration)
 #' @noRd
 .bimodal_refine_acttrust <- function(
@@ -41,6 +46,7 @@
   report_act_around_min            <- 0.1
   report_low_act_prop_min          <- 0.5
   offwrist_max_temp_dif_med        <- 0.8
+  offwrist_min_temp_dif_med        <- 0.65  # offwrist_minimum_temperature_difference_median (wrapper)
   offwrist_min_low_temp_prop       <- 0.6   # low_temperature_filter threshold
   valley_quantile                  <- 0.99
   peak_quantile                    <- 0.99
@@ -211,18 +217,14 @@
     if (s < e) sleep_filtered_ow[(s + 1L):e] <- 0
   }
 
-  # ── DEBUG HOOK (option-guarded; default off, no effect in normal use) ──
+  # ── Debug hook (option-guarded; inert unless zeitR.debug_offwrist = TRUE) ──
   if (isTRUE(getOption("zeitR.debug_offwrist", FALSE))) {
-    assign(".zeitR_dbg", list(
-      estimated_sleep       = estimated_sleep,
-      forbidden_zone        = forbidden_zone,
-      after_initial_periods = after_initial_periods,
-      sleep_filtered_post   = sleep_filtered,
-      short_only_mask       = short_only_mask,
-      vp_df                 = vp_df,
-      max_offwrist_sleep_prop = max_offwrist_sleep_prop,
-      long_offwrist_length  = long_offwrist_length
-    ), envir = .GlobalEnv)
+    .zeitr_debug$estimated_sleep       <- estimated_sleep
+    .zeitr_debug$forbidden_zone        <- forbidden_zone
+    .zeitr_debug$after_initial_periods <- after_initial_periods
+    .zeitr_debug$sleep_filtered_post   <- sleep_filtered
+    .zeitr_debug$short_only_mask       <- short_only_mask
+    .zeitr_debug$vp_df                 <- vp_df
   }
 
   # ── check_bimodality ──────────────────────────────────────────────────
@@ -315,20 +317,10 @@
 
   # ── description_report_based_filter ──────────────────────────────────
   if (nrow(refined_periods) > 0L && is_bimodal) {
-    # Dynamic temperature_difference_minimum from valid epochs
-    dif_valid <- dif_temp[short_only_mask]
-    temp_dif_min <- as.double(stats::quantile(dif_valid, 0.1, names = FALSE))
-    if (temp_dif_min < 0.2) temp_dif_min <- 0.2
-
-    # Compute sleep_low_activity_threshold for report
-    sleep_act <- activity[estimated_sleep == 0L]
-    if (length(sleep_act) > 0) {
-      sleep_zp  <- zero_prop(sleep_act)
-      slat_q    <- sleep_zp + (1 - sleep_zp) * 0.1
-      sleep_lat <- as.double(stats::quantile(sleep_act, slat_q, names = FALSE))
-    } else {
-      sleep_lat <- activity_thr
-    }
+    # sleep_low_activity_threshold = the exact threshold used during sleep
+    # estimation (Python passes this to the report as refined_low_activity_threshold).
+    sleep_lat <- attr(estimated_sleep, "sleep_thr")
+    if (is.null(sleep_lat) || !is.finite(sleep_lat)) sleep_lat <- activity_thr
 
     report <- .describe_offwrist_periods_v2(
       offwrist_periods = refined_periods,
@@ -340,19 +332,33 @@
       dif_temp = dif_temp, n = n
     )
 
+    if (isTRUE(getOption("zeitR.debug_offwrist", FALSE))) {
+      .zeitr_debug$ashman              <- ashman
+      .zeitr_debug$is_highly_separable <- (ashman > 3)
+      .zeitr_debug$is_bimodal          <- is_bimodal
+      .zeitr_debug$sleep_lat           <- sleep_lat
+      .zeitr_debug$activity_thr        <- activity_thr
+      .zeitr_debug$pre_desc            <- refined_periods
+      .zeitr_debug$report              <- report
+    }
+
     refined_periods <- .description_report_filter_v2(
       periods = refined_periods, report = report,
       report_zero_act_min = report_zero_act_prop_min,
       border_conc_min = border_conc_min,
       act_around_min = report_act_around_min,
       low_act_prop_min = report_low_act_prop_min,
-      temp_dif_min = temp_dif_min,
+      temp_dif_min = offwrist_min_temp_dif_med,
       offwrist_max_temp_dif_med = offwrist_max_temp_dif_med,
       long_offwrist_length = long_offwrist_length,
       short_offwrist_length = short_offwrist_length,
       is_highly_separable = (ashman > 3)
     )
     row.names(refined_periods) <- NULL
+
+    if (isTRUE(getOption("zeitR.debug_offwrist", FALSE))) {
+      .zeitr_debug$post_desc <- refined_periods
+    }
 
     # Rebuild binary vector
     refined_ow <- rep(1, n)
@@ -809,6 +815,9 @@ below_prop <- function(x, thr) {
 
   # sleep_low_temperature_filter is disabled for ActTrust (do_sleep_low_temperature_filter=False)
 
+  # Expose the sleep low-activity threshold so the description report can use the
+  # identical value Python passes as refined_low_activity_threshold.
+  attr(estimated_sleep, "sleep_thr") <- sleep_thr
   estimated_sleep
 }
 
@@ -1219,7 +1228,7 @@ below_prop <- function(x, thr) {
     after_e  <- min(n, re + window)
 
     report$activity_zero_prop[i] <- zero_prop(seg_act)
-    report$low_act_prop[i]       <- below_prop(seg_act, activity_thr)
+    report$low_act_prop[i]       <- below_prop(seg_act, sleep_lat)
     if (rs > 1L) report$high_act_before[i] <- 1 - below_prop(activity[before_s:(rs-1L)], act_thr2)
     if (re < n)  report$high_act_after[i]  <- 1 - below_prop(activity[(re+1L):after_e], act_thr2)
     report$border_act_conc[i]   <- act_segs[1L] + act_segs[segments]
@@ -1236,7 +1245,7 @@ below_prop <- function(x, thr) {
   total <- sum(x, na.rm = TRUE)
   if (total == 0) return(rep(0, n_segs))
   len  <- length(x)
-  bins <- round(seq(0, len, length.out = n_segs + 1L))
+  bins <- as.integer(seq(0, len, length.out = n_segs + 1L))  # np.linspace(dtype=int) truncates
   vapply(seq_len(n_segs), function(i) {
     sum(x[(bins[i] + 1L):bins[i + 1L]], na.rm = TRUE) / total
   }, numeric(1))
