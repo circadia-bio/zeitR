@@ -23,6 +23,10 @@
 #'   [detect_sleep_crespo()]. Default is an empty list.
 #' @param nap_args `list`. Additional arguments passed to
 #'   [detect_naps_crespo()]. Default is an empty list.
+#' @param quiet `logical(1)`. If `TRUE`, suppresses the timestamp-issue
+#'   warning emitted when [check_consistency()] finds problems. Useful in
+#'   batch or testing contexts where the warning is expected. Default is
+#'   `FALSE`.
 #'
 #' @return A `zeitr_result` S3 object — a named list with:
 #'   \describe{
@@ -52,7 +56,8 @@ run_pipeline <- function(
     gap_s          = 120,
     offwrist_args  = list(),
     sleep_args     = list(),
-    nap_args       = list()
+    nap_args       = list(),
+    quiet          = FALSE
 ) {
   path       <- as.character(path)
   subject_id <- tools::file_path_sans_ext(basename(path))
@@ -65,7 +70,7 @@ run_pipeline <- function(
 
   # 2. Consistency check
   issues <- check_consistency(rec, gap_s = gap_s)
-  if (nrow(issues) > 0L) {
+  if (nrow(issues) > 0L && !quiet) {
     cli::cli_warn(
       "[{subject_id}] {nrow(issues)} timestamp issue(s) detected. Check {.code result$issues} for details.",
       .envir = environment()
