@@ -49,15 +49,16 @@ duration    <- as.numeric(names(sort(table(diff(secs)), decreasing = TRUE))[1])
 epoch_h     <- 3600 / duration
 cat(sprintf("duration = %g s   epoch_h = %g\n", duration, epoch_h))
 
-msp <- crespo_msp(
+msp_res <- crespo_msp(
   activity = ow_activity / duration, epoch_h = epoch_h,
   median_filter_h = 8, pad_h = 1, sleep_quantile = 0.365, morph_size = 61L,
   consec_zeros_thr = 15L, awake_zeros_thr = 2L, sleep_zeros_thr = 30L,
   zero_mitigation_q = 0.33, min_short_window_thr = 1.0
 )
+msp       <- msp_res$detection
 stage1_in <- rd1("cspd_stage1_in.csv")
-cat(sprintf("MSP vs cspd_stage1_in mismatches: %d / %d\n",
-            sum(msp != stage1_in), length(stage1_in)))
+cat(sprintf("MSP vs cspd_stage1_in mismatches: %d / %d   (derived condition = %d)\n",
+            sum(msp != stage1_in), length(stage1_in), msp_res$condition))
 
 # ── 2. detect_sleep_crespo(refine = TRUE) vs refined sleep periods ───────────
 out <- detect_sleep_crespo(x, refine = TRUE)
