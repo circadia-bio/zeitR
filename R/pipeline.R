@@ -13,8 +13,6 @@
 #' @param path `character(1)`. Path to the ActTrust `.txt` file.
 #' @param tz `character(1)`. Recording time zone. Passed to [read_acttrust()].
 #'   Default is `"UTC"`.
-#' @param wake_thresh `integer(1)`. Minimum wake-bout length (epochs) used to
-#'   separate sleep periods in [compute_waso()]. Default is `60`.
 #' @param gap_s `numeric(1)`. Gap threshold (seconds) for [check_consistency()].
 #'   Default is `120`.
 #' @param offwrist_args `list`. Additional arguments passed to
@@ -23,6 +21,10 @@
 #'   [detect_sleep_crespo()]. Default is an empty list.
 #' @param nap_args `list`. Additional arguments passed to
 #'   [detect_naps_crespo()]. Default is an empty list.
+#' @param params Device parameter preset, as returned by [acttrust_params()].
+#'   When supplied, values from `params` are used as defaults for each
+#'   detector stage, with any explicit `offwrist_args`, `sleep_args`, or
+#'   `nap_args` taking precedence. Defaults to [acttrust_params()].
 #' @param quiet `logical(1)`. If `TRUE`, suppresses the timestamp-issue
 #'   warning emitted when [check_consistency()] finds problems. Useful in
 #'   batch or testing contexts where the warning is expected. Default is
@@ -52,8 +54,8 @@
 run_pipeline <- function(
     path,
     tz             = "UTC",
-    wake_thresh    = 60L,
     gap_s          = 120,
+    params         = acttrust_params(),
     offwrist_args  = list(),
     sleep_args     = list(),
     nap_args       = list(),
@@ -80,11 +82,17 @@ run_pipeline <- function(
   # 3. Prepare
   prep <- prepare_actigraphy(rec)
 
+  # ── Merge params with explicit overrides (overrides win) ─────────────────
+  ow_args   <- utils::modifyList(params$offwrist, offwrist_args)
+  sl_args   <- utils::modifyList(params$sleep,    sleep_args)
+  nap_args  <- utils::modifyList(list(params = params$nap), nap_args)
+  wake_thresh <- params$waso$wake_thresh
+
   # 4. Off-wrist detection
-  prep <- do.call(detect_offwrist_bimodal, c(list(x = prep), offwrist_args))
+  prep <- do.call(detect_offwrist_bimodal, c(list(x = prep), ow_args))
 
   # 5. Main sleep periods
-  prep <- do.call(detect_sleep_crespo, c(list(x = prep), sleep_args))
+  prep <- do.call(detect_sleep_crespo, c(list(x = prep), sl_args))
 
   # 6. Naps
   prep <- do.call(detect_naps_crespo, c(list(x = prep), nap_args))
