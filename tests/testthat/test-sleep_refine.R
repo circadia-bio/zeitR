@@ -227,3 +227,72 @@ testthat::test_that(".bt_compute_zero_proportion_around_end windows around the e
   # end = 3 (0-indexed): window activity[1:5] (0-indexed) = c(0,5,0,5,0) -> 3/5
   expect_identical(zpa(self, 3L), 0.6)
 })
+
+# ── Stage 3: bed-time refiner — Unit B (filtering + candidates) ────────────────
+
+# helper to build a peaks/valleys data.frame for tests
+.mk_pv <- function(class, start, end, mean = 0, zero_proportion = 0,
+                   above_threshold_proportion = 0) {
+  n <- length(class)
+  data.frame(
+    class = class, start = as.integer(start), end = as.integer(end),
+    length = as.integer(end - start),
+    mean = rep_len(as.numeric(mean), n),
+    median = rep_len(as.numeric(mean), n),
+    zero_proportion = rep_len(as.numeric(zero_proportion), n),
+    above_threshold_proportion = rep_len(as.numeric(above_threshold_proportion), n),
+    stringsAsFactors = FALSE
+  )
+}
+
+testthat::test_that(".bt_remove_after_long_valley keeps up to the first long valley", {
+  f <- getFromNamespace(".bt_remove_after_long_valley", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$do_remove_after_long_valley <- TRUE
+  self$bedtime_high_probability_sleep_valley_length <- 5
+
+  pv <- .mk_pv(c("p", "v", "p", "v", "p"),
+               start = c(0, 3, 5, 8, 18), end = c(3, 5, 8, 18, 21))  # 2nd valley length 10 >= 5
+  out <- f(self, pv)
+  expect_identical(out$class, c("p", "v", "p", "v"))   # keep rows 1..4
+})
+
+testthat::test_that(".bt_remove_before_long_peak keeps from the last long peak", {
+  f <- getFromNamespace(".bt_remove_before_long_peak", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$do_remove_before_long_peak <- TRUE
+  self$bedtime_high_probability_awake_peak_length <- 5
+
+  pv <- .mk_pv(c("p", "v", "p", "v", "p"),
+               start = c(0, 3, 5, 15, 17), end = c(3, 5, 15, 17, 20))  # peak row3 length 10 >= 5
+  out <- f(self, pv)
+  expect_identical(out$class, c("p", "v", "p"))         # keep rows 3..5
+  expect_identical(out$start, c(5L, 15L, 17L))
+})
+
+testthat::test_that(".bt_identify_bedtime_candidates applies the interior-valley depth test", {
+  f <- getFromNamespace(".bt_identify_bedtime_candidates", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$refinement_window_start <- 100L
+  self$refinement_window_levels <- rep(0, 200)
+
+  pv <- .mk_pv(c("p", "v", "p", "v", "p", "v"),
+               start = c(0, 5, 10, 15, 20, 25), end = c(5, 10, 15, 20, 25, 30),
+               mean  = c(50, 2, 40, 1, 45, 0.4))
+  # valley row2 (r0=1, edge) -> start 5; valley row4 (interior) 1 < 0.5*40 -> start 15;
+  # valley row6 (r0=5 == cnt-1, edge) -> start 25
+  expect_identical(f(self, pv), c(5L, 15L, 25L))
+})
+
+testthat::test_that(".bt_bedtime_candidates_crossings_filter trims before last up-crossing", {
+  f <- getFromNamespace(".bt_bedtime_candidates_crossings_filter", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$short_window_activity_median <- c(0, 0, 10, 10, 0, 0, 10, 0, 0, 0)
+  self$refinement_window_start <- 0L
+  self$refinement_window_end   <- 9L
+  self$metric <- 5
+
+  res <- f(self, c(2L, 4L, 8L))   # last up-crossing at position 6 -> keep >= 6
+  expect_identical(res$candidates, 8L)
+  expect_identical(res$down, c(4L, 7L))
+})

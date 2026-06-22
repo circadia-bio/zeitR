@@ -562,3 +562,191 @@
   }
   rws
 }
+
+# ── Stage 3: bed-time refiner — Unit B (peak/valley filtering + candidates) ─────
+# Operate on a peaks_and_valleys data.frame (from .identify_peaks_and_valleys)
+# and refinement state on `self` (metric, refinement_window_start/end,
+# refinement_window_activity, refinement_window_levels). Region indices in the
+# table follow the Python 0-indexed convention.
+
+#' remove_after_long_valley: drop everything after the first "long" valley
+#' (a valley at least bedtime_high_probability_sleep_valley_length long).
+#' @noRd
+.bt_remove_after_long_valley <- function(self, pv) {
+  thr <- self$bedtime_high_probability_sleep_valley_length
+  if (isTRUE(self$do_remove_after_long_valley)) {
+    invalid <- which(pv$class == "v" & !(pv$length < thr))   # 1-indexed rows
+    if (length(invalid) > 0) pv <- pv[seq_len(invalid[1]), , drop = FALSE]
+  }
+  rownames(pv) <- NULL
+  pv
+}
+
+#' remove_before_long_peak: drop everything before the last "long" peak
+#' (a peak at least bedtime_high_probability_awake_peak_length long), unless it
+#' is already the final region.
+#' @noRd
+.bt_remove_before_long_peak <- function(self, pv) {
+  cnt <- nrow(pv)
+  thr <- self$bedtime_high_probability_awake_peak_length
+  if (isTRUE(self$do_remove_before_long_peak)) {
+    invalid <- which(pv$class == "p" & !(pv$length < thr))
+    if (length(invalid) > 0) {
+      last <- invalid[length(invalid)]
+      if (last < cnt) pv <- pv[last:cnt, , drop = FALSE]
+    }
+  }
+  rownames(pv) <- NULL
+  pv
+}
+
+#' remove_before_tall_peak: drop everything before the last "tall" peak
+#' (mean > 10 * metric), only when metric > 5.
+#' @noRd
+.bt_remove_before_tall_peak <- function(self, pv) {
+  cnt <- nrow(pv)
+  metric <- self$metric
+  if (isTRUE(self$do_remove_before_tall_peak)) {
+    invalid <- if (metric > 5) which(pv$class == "p" & !(pv$mean <= 10 * metric)) else integer(0)
+    if (length(invalid) > 0) {
+      last <- invalid[length(invalid)]
+      pv <- pv[last:cnt, , drop = FALSE]
+    }
+  }
+  rownames(pv) <- NULL
+  pv
+}
+
+#' filter_peaks_and_valleys: sequential feature-based merging of short / weak
+#' peaks and valleys (the main bed-time cleaning loop). region_index is
+#' 0-indexed (Python); R rows are region_index + 1.
+#' @noRd
+.bt_filter_peaks_and_valleys <- function(self, pv) {
+  bmvl   <- self$bedtime_minimum_valley_length
+  bmpl   <- self$bedtime_minimum_peak_length
+  cond   <- self$condition
+  rwa    <- self$refinement_window_activity
+  metric <- self$metric
+
+  cnt <- nrow(pv)
+  rownames(pv) <- NULL
+  if (!(cnt > 2 && cnt != 3)) return(pv)
+
+  # First region, if a short valley, merges into its successor.
+  if (pv$class[1] == "v" && pv$length[1] < bmvl) {
+    pv  <- .remove_peak_valley(pv, 0L, rwa, metric)
+    cnt <- nrow(pv)
+  }
+
+  ri <- 1L                                   # 0-indexed region_index
+  while (ri < cnt && (cnt > 2 && cnt != 3)) {
+    remove <- FALSE
+    r <- ri + 1L                             # R row index
+    if (pv$class[r] == "p") {
+      if (ri < cnt - 2L) {
+        if (pv$length[r] < bmpl) {
+          if (pv$length[r + 1L] < bmvl) {
+            # short peak right before a short valley is spared
+          } else {
+            remove <- TRUE
+          }
+        } else {
+          if (pv$mean[r] <= 1.33 * metric) {
+            remove <- TRUE
+          } else if (cond == 2 && ri > 0 && pv$length[r - 1L] >= 15 * pv$length[r]) {
+            remove <- TRUE
+          }
+        }
+      } else {
+        if (pv$length[r - 1L] >= 30 &&
+            (pv$zero_proportion[r - 1L] > 2/3 ||
+             pv$above_threshold_proportion[r - 1L] < 0.1)) {
+          remove <- TRUE
+        }
+      }
+    } else {                                 # valley
+      if (ri < cnt - 1L) {
+        if (pv$length[r] < bmvl) {
+          if (ri > 1L) {
+            remove <- TRUE
+          } else {
+            if (pv$length[r + 1L] > bmpl && pv$zero_proportion[r + 1L] < 1/3) {
+              remove <- TRUE
+            }
+          }
+        } else {
+          remove_points <- 0
+          if (pv$above_threshold_proportion[r] >= 0.33) remove_points <- remove_points + 1
+          if (pv$zero_proportion[r] < 0.45) {
+            if (pv$zero_proportion[r] > 0.1) remove_points <- remove_points + 1
+            else                             remove_points <- remove_points + 1.5
+          }
+          if (pv$mean[r] >= 0.66 * metric) remove_points <- remove_points + 0.5
+          if ((pv$length[r] / length(rwa) >= 0.3) ||
+              (ri > 0 && pv$length[r] >= 1.5 * pv$length[r - 1L])) {
+            remove_points <- remove_points - 1
+          }
+          if (remove_points > 1.5) remove <- TRUE
+        }
+      }
+    }
+
+    if (remove) {
+      pv  <- .remove_peak_valley(pv, ri, rwa, metric)
+      cnt <- nrow(pv)
+    } else {
+      ri <- ri + 1L
+    }
+  }
+  pv
+}
+
+#' identify_bedtime_candidates: valley starts are candidate bed-times, with a
+#' relative-depth test for interior valleys. Mutates self$refinement_window_levels.
+#' Returns an integer vector of window-relative candidate starts.
+#' @noRd
+.bt_identify_bedtime_candidates <- function(self, pv) {
+  cnt <- nrow(pv)
+  rws <- self$refinement_window_start
+  cands <- integer(0)
+  for (ri in seq_len(cnt)) {
+    r0    <- ri - 1L                         # 0-indexed region_index
+    start <- as.integer(rws + pv$start[ri])
+    end   <- as.integer(rws + pv$end[ri])
+    if (end > start) self$refinement_window_levels[(start + 1L):end] <- pv$mean[ri]
+    if (pv$class[ri] == "v") {
+      if (r0 > 1L && r0 < cnt - 1L) {
+        if (pv$mean[ri] < 0.5 * pv$mean[ri - 1L]) cands <- c(cands, as.integer(pv$start[ri]))
+      } else {
+        cands <- c(cands, as.integer(pv$start[ri]))
+      }
+    }
+  }
+  if (length(cands) == 0L) cands <- as.integer(pv$start[pv$class == "v"])
+  cands
+}
+
+#' bedtime_candidates_crossings_filter: drop candidates before the last upward
+#' crossing of the short-window median past the metric. Returns
+#' list(candidates, down) where `down` are the downward-crossing positions
+#' (window-relative, 0-indexed) used later in scoring.
+#' @noRd
+.bt_bedtime_candidates_crossings_filter <- function(self, candidates) {
+  swam   <- self$short_window_activity_median
+  rws    <- self$refinement_window_start
+  rwe    <- self$refinement_window_end
+  metric <- self$metric
+
+  seg     <- swam[(rws + 1L):(rwe + 1L)]                  # swam[rws:rwe+1]
+  cross01 <- as.integer(seg >= metric)
+  d       <- diff(c(0L, cross01))                         # diff(concat([0], cross))
+  up      <- which(d > 0) - 1L                            # 0-indexed positions
+  down    <- which(d < 0) - 1L
+
+  cands <- candidates
+  if (length(up) > 0) {
+    last_up <- up[length(up)]
+    cands   <- cands[cands >= last_up]
+  }
+  list(candidates = cands, down = down)
+}
