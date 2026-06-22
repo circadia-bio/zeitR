@@ -2,62 +2,40 @@
 % Please edit documentation in R/sleep_periods.R
 \name{detect_naps_crespo}
 \alias{detect_naps_crespo}
-\title{Detect secondary sleep periods (naps) using the Crespo algorithm}
+\title{Detect secondary sleep periods (naps) using the Crespo nap algorithm}
 \usage{
-detect_naps_crespo(
-  x,
-  epoch_h = NULL,
-  median_filter_h = 8,
-  pad_h = 1,
-  nap_median_thr = 2,
-  nap_zero_prop_thr = 0.5,
-  nap_zero_prop_hws = 5L,
-  use_and = FALSE
-)
+detect_naps_crespo(x, epoch_h = NULL, params = .cspd_nap_params())
 }
 \arguments{
-\item{x}{A tibble as returned by \code{\link[=detect_offwrist_bimodal]{detect_offwrist_bimodal()}} (or
-\code{\link[=prepare_actigraphy]{prepare_actigraphy()}} if off-wrist detection is skipped), containing
-columns \code{datetime}, \code{activity}, and \code{state}.}
+\item{x}{A tibble as returned by \code{\link[=detect_sleep_crespo]{detect_sleep_crespo()}}, containing columns
+\code{datetime}, \code{activity}, and \code{state}. Nap detection runs on the wake
+(\code{state == 0}) subset only, mirroring the Python \code{nap_bool} mask.}
 
-\item{epoch_h}{\code{numeric(1)}. Number of epochs per hour. If \code{NULL}
-(default), estimated automatically from the median inter-epoch interval
-in \code{datetime}.}
+\item{epoch_h}{\code{numeric(1)}. Number of epochs per hour. If \code{NULL} (default),
+derived from the wake-subsequence epoch duration as \code{3600 / duration}.}
 
-\item{median_filter_h}{\code{numeric(1)}. Length of the preprocessing median
-filter window in hours. Default is \code{8}.}
-
-\item{pad_h}{\code{numeric(1)}. Padding length in hours added before the
-adaptive median filter. Default is \code{1}.}
-
-\item{nap_median_thr}{\code{numeric(1)}. Epochs with a rolling median activity
-below this value may be scored as nap sleep. Default is \code{2.0}.}
-
-\item{nap_zero_prop_thr}{\code{numeric(1)}. Epochs with a rolling zero-activity
-proportion above this threshold may be scored as nap sleep. Default is
-\code{0.5}.}
-
-\item{nap_zero_prop_hws}{\code{integer(1)}. Half-window size (epochs) for the
-rolling zero-proportion filter. Default is \code{5L}.}
-
-\item{use_and}{\code{logical(1)}. If \code{TRUE}, both the median activity AND
-zero-proportion criteria must be met. If \code{FALSE} (default), either
-criterion is sufficient.}
+\item{params}{CSPD nap configuration list (default \code{.cspd_nap_params()}),
+the port of \code{nap_wrapper}'s parameter set.}
 }
 \value{
-The input tibble \code{x} with \code{state} and \code{sleep} columns updated.
-Nap epochs have \code{state == 7} and are merged into \code{sleep} as value \code{1}.
+The input tibble \code{x} with \code{state} and \code{sleep} columns updated. Nap
+epochs become \code{state == 1} and \code{sleep == 1}; off-wrist (\code{state == 4}) and
+existing main-sleep epochs are preserved.
 }
 \description{
-Identifies naps — secondary sleep periods — in an actigraphy recording
-using the nap variant of the Crespo algorithm. This function should be
-run \emph{after} \code{\link[=detect_sleep_crespo]{detect_sleep_crespo()}}.
+Faithful port of the Python \code{nap_wrapper}: runs the full CSPD model in nap
+mode (\code{detect_naps = TRUE}) on the currently-awake epochs (\code{state == 0}) and
+merges the detected naps into the sleep state. Must be run \emph{after}
+\code{\link[=detect_sleep_crespo]{detect_sleep_crespo()}}.
 }
 \details{
-The nap algorithm combines two criteria: a low rolling median activity
-threshold and a high zero-activity proportion around each epoch. Epochs
-satisfying either (or both, if \code{use_and = TRUE}) criteria are scored as nap
-sleep.
+Nap detection uses a nap-mode MSP (a high zero-proportion combined with a
+low adaptive-median activity, \code{\link[=.crespo_nap_msp]{.crespo_nap_msp()}}) followed by the same
+bed-time / get-up-time refiners as the main sleep detection, with the nap
+parameter set (\code{\link[=.cspd_nap_params]{.cspd_nap_params()}}) and nap-specific minimum-length
+post-processing. Detected naps are written as \code{state == 1} (merged into
+"sleep"), matching \code{nap_wrapper}, which assigns
+\code{state[wake] = 1 - refined_output} (i.e. naps are \emph{not} a distinct state).
 }
 \examples{
 \dontrun{

@@ -1591,6 +1591,136 @@
   )
 }
 
+#' Nap-mode CSPD configuration (the nap_wrapper param_set + CSPD defaults).
+#'
+#' Mirrors `nap_wrapper`'s `CSPD(detect_naps=True, ...)` construction. Values
+#' are pre-conversion (minutes->epochs and score unpacking happen inside
+#' `.cspd_refine_periods`). The trailing `nap_*` fields configure the nap-mode
+#' MSP (`.crespo_nap_msp`) rather than the refiner.
+#' @noRd
+.cspd_nap_params <- function() {
+  list(
+    bedtime_scores   = c(0.21052689, 0.84210458, 0.10526395,
+                         0.21052689, 0.21052689, 0.57894721),
+    getuptime_scores = c(0.63157868, 0.63157868, 0.57894721,
+                         0.68421016, 0.89473605, 0.68421016),
+    length_thresholds    = c(12, 16, 7, 12),
+    candidate_thresholds = c(0.67210526, 0.43842105, 0.58421053),
+    short_window_activity_median_threshold_quantile = 0.45,
+
+    peak_valley_minimum_length                       = 4,
+    median_filter_short_window                       = 20,
+    after_candidate_window                           = 15,
+    half_window_around_border                        = 60,   # CSPD default
+    median_filter_half_window_size                   = 4,    # CSPD default
+    short_window_activity_median_minimum_high_epochs = 3,    # CSPD default
+    activity_median_analysis_window                  = 20,
+    minimum_short_window_activity_median_threshold   = 1.0,
+    sleep_minimum_length                             = 120,  # unused (nap path)
+    nap_minimum_length                               = 20,
+    refinement_maximum_allowed_datetime_gap          = 10,
+    sleep_maximum_allowed_datetime_gap               = 60,
+    do_peak_valley_length_filter                     = TRUE,
+    detect_naps                                      = TRUE,
+
+    bedtime_metric_method                            = 1L,
+    bedtime_metric_parameter                         = 0.50263158,
+    bedtime_do_remove_before_long_peak               = TRUE,
+    bedtime_do_remove_before_tall_peak               = TRUE,
+    bedtime_do_remove_after_long_valley              = FALSE,
+    bedtime_update_peaks_and_valleys                 = FALSE,
+    bedtime_do_bedtime_candidates_crossings_filter   = FALSE,
+    bedtime_consider_second_best_candidate           = FALSE,
+    bedtime_score_last_candidate                     = FALSE,
+    bedtime_high_probability_awake_peak_length       = 20,
+    bedtime_high_probability_sleep_valley_length     = 20,
+
+    getuptime_metric_method                          = 1L,
+    getuptime_metric_parameter                       = 0.41578947,
+    getuptime_do_remove_after_long_tall_peak         = TRUE,
+    getuptime_do_remove_before_long_valley           = FALSE,
+    getuptime_update_peaks_and_valleys               = FALSE,
+    getuptime_score_first_candidate                  = TRUE,
+    getuptime_high_probability_awake_peak_length     = 20,
+    getuptime_high_probability_sleep_valley_length   = 20,
+
+    # ── Nap-mode MSP params (consumed by .crespo_nap_msp, not the refiner) ──
+    nap_median_filter_h                    = 0.97894737,
+    nap_pad_h                              = 0.05263247,
+    nap_median_activity_threshold          = 3.15789563,
+    nap_zero_proportion_threshold          = 0.22105263,
+    nap_zero_proportion_filter_window_size = 5L,
+    compute_output_naps_with_logical_and   = TRUE
+  )
+}
+
+#' Peak/valley zero-proportion filter (port of peak_valley_zero_proportion_filter).
+#'
+#' Faithful port of cspd_functions.peak_valley_zero_proportion_filter: removes
+#' regions of `class_to_filter` whose zero-proportion is `<= minimum_zero_
+#' proportion`. As in the reference, features are computed against a zeros
+#' activity array, so every region's zero-proportion is 1.0 and (for the nap
+#' threshold 1/3) nothing is removed — the filter is an identity here, ported
+#' for faithfulness. Unlike `.boolean_length_filter`, the second pass resets
+#' the loop index (the reference does not carry the stale `t`).
+#' @noRd
+.peak_valley_zero_proportion_filter <- function(minimum_zero_proportion, signal,
+                                                class_to_filter = "v") {
+  n    <- length(signal)
+  act0 <- numeric(n)        # zeros (matches reference: activity = np.zeros)
+  thr  <- 0.5
+  filtered_signal <- rep(1, n)
+
+  pv    <- .identify_peaks_and_valleys(signal = signal, activity = act0, threshold = thr)
+  count <- nrow(pv)
+
+  if (count > 1L) {
+    t <- 0L
+    while (t < count) {
+      remove <- (pv$zero_proportion[t + 1L] <= minimum_zero_proportion) &&
+                (pv$class[t + 1L] == class_to_filter)
+      if (remove) {
+        pv <- .remove_peak_valley(pv, t, act0, thr); count <- nrow(pv)
+      } else {
+        t <- t + 1L
+      }
+    }
+
+    count <- nrow(pv); t <- 0L
+    while (t < count) {
+      if (pv$class[t + 1L] == "v")
+        filtered_signal[(pv$start[t + 1L] + 1L):pv$end[t + 1L]] <- 0
+      t <- t + 1L
+    }
+
+    # Second pass — re-identify; the reference resets t = 0 here.
+    pv    <- .identify_peaks_and_valleys(signal = filtered_signal, activity = act0, threshold = thr)
+    count <- nrow(pv)
+    if (count > 1L) {
+      t <- 0L
+      while (t < count) {
+        remove <- (pv$zero_proportion[t + 1L] <= minimum_zero_proportion) &&
+                  (pv$class[t + 1L] == class_to_filter)
+        if (remove) {
+          pv <- .remove_peak_valley(pv, t, act0, thr); count <- nrow(pv)
+        } else {
+          t <- t + 1L
+        }
+      }
+      filtered_signal <- rep(1, n)
+      count <- nrow(pv)
+      for (t in seq_len(count)) {
+        if (pv$class[t] == "v")
+          filtered_signal[(pv$start[t] + 1L):pv$end[t]] <- 0
+      }
+    }
+  } else if (count == 1L) {
+    filtered_signal <- as.numeric(signal)
+  }
+
+  filtered_signal
+}
+
 #' Refine an MSP detection into final sleep periods (port of the CSPD.model tail).
 #'
 #' Given the (on-wrist) activity, timestamps and the MSP sleep detection from
@@ -1796,8 +1926,21 @@
     refined_output <- rep(1, data_length)
   }
 
-  # ── Stage 4: minimum-length filter (non-nap path) ──
-  final_sleep_detection <- .boolean_length_filter(p$sleep_minimum_length, refined_output)
+  # ── Stage 4: minimum-length filter ──
+  # CSPD.model converts nap_minimum_length (minutes) to epochs here, then
+  # branches on detect_naps for the post-processing.
+  nap_minimum_length <- as.integer(round(p$nap_minimum_length * 60 / duration))
+  if (isTRUE(p$detect_naps)) {
+    # Python: boolean_length_filter(nap_min, "v") -> peak_valley_zero_proportion
+    # _filter(1/3) -> boolean_length_filter(0.5*nap_min, "p").
+    fsd <- .boolean_length_filter(nap_minimum_length, refined_output)
+    fsd <- .peak_valley_zero_proportion_filter(1 / 3, fsd)
+    fsd <- .boolean_length_filter(as.integer(0.5 * nap_minimum_length), fsd,
+                                  class_to_filter = "p")
+    final_sleep_detection <- fsd
+  } else {
+    final_sleep_detection <- .boolean_length_filter(p$sleep_minimum_length, refined_output)
+  }
   refined_output <- final_sleep_detection
 
   # ── Per-night transitions (pre-heuristic) -> refined_sleep_df ──

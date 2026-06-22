@@ -148,31 +148,32 @@ detect_sleep_crespo <- function(
   x
 }
 
-#' Detect secondary sleep periods (naps) using the Crespo algorithm
+#' Detect secondary sleep periods (naps) using the Crespo nap algorithm
 #'
-#' Identifies naps — secondary sleep periods — in an actigraphy recording
-#' using the nap variant of the Crespo algorithm. This function should be
-#' run *after* [detect_sleep_crespo()].
+#' Faithful port of the Python `nap_wrapper`: runs the full CSPD model in nap
+#' mode (`detect_naps = TRUE`) on the currently-awake epochs (`state == 0`) and
+#' merges the detected naps into the sleep state. Must be run *after*
+#' [detect_sleep_crespo()].
 #'
-#' The nap algorithm combines two criteria: a low rolling median activity
-#' threshold and a high zero-activity proportion around each epoch. Epochs
-#' satisfying either (or both, if `use_and = TRUE`) criteria are scored as nap
-#' sleep.
+#' Nap detection uses a nap-mode MSP (a high zero-proportion combined with a
+#' low adaptive-median activity, [.crespo_nap_msp()]) followed by the same
+#' bed-time / get-up-time refiners as the main sleep detection, with the nap
+#' parameter set ([.cspd_nap_params()]) and nap-specific minimum-length
+#' post-processing. Detected naps are written as `state == 1` (merged into
+#' "sleep"), matching `nap_wrapper`, which assigns
+#' `state[wake] = 1 - refined_output` (i.e. naps are *not* a distinct state).
 #'
-#' @inheritParams detect_sleep_crespo
-#' @param nap_median_thr `numeric(1)`. Epochs with a rolling median activity
-#'   below this value may be scored as nap sleep. Default is `2.0`.
-#' @param nap_zero_prop_thr `numeric(1)`. Epochs with a rolling zero-activity
-#'   proportion above this threshold may be scored as nap sleep. Default is
-#'   `0.5`.
-#' @param nap_zero_prop_hws `integer(1)`. Half-window size (epochs) for the
-#'   rolling zero-proportion filter. Default is `5L`.
-#' @param use_and `logical(1)`. If `TRUE`, both the median activity AND
-#'   zero-proportion criteria must be met. If `FALSE` (default), either
-#'   criterion is sufficient.
+#' @param x A tibble as returned by [detect_sleep_crespo()], containing columns
+#'   `datetime`, `activity`, and `state`. Nap detection runs on the wake
+#'   (`state == 0`) subset only, mirroring the Python `nap_bool` mask.
+#' @param epoch_h `numeric(1)`. Number of epochs per hour. If `NULL` (default),
+#'   derived from the wake-subsequence epoch duration as `3600 / duration`.
+#' @param params CSPD nap configuration list (default `.cspd_nap_params()`),
+#'   the port of `nap_wrapper`'s parameter set.
 #'
-#' @return The input tibble `x` with `state` and `sleep` columns updated.
-#'   Nap epochs have `state == 7` and are merged into `sleep` as value `1`.
+#' @return The input tibble `x` with `state` and `sleep` columns updated. Nap
+#'   epochs become `state == 1` and `sleep == 1`; off-wrist (`state == 4`) and
+#'   existing main-sleep epochs are preserved.
 #'
 #' @references
 #' Crespo, C., Aboy, M., Fernández, J. R., & Mojón, A. (2012). Automatic
@@ -192,53 +193,107 @@ detect_sleep_crespo <- function(
 #' prep <- detect_sleep_crespo(prep)
 #' prep <- detect_naps_crespo(prep)
 #' }
-detect_naps_crespo <- function(
-    x,
-    epoch_h           = NULL,
-    median_filter_h   = 8,
-    pad_h             = 1,
-    nap_median_thr    = 2.0,
-    nap_zero_prop_thr = 0.5,
-    nap_zero_prop_hws = 5L,
-    use_and           = FALSE
-) {
+detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
   .check_crespo_input(x)
+  p <- params
 
-  activity <- as.double(x$activity)
-  epoch_h  <- epoch_h %||% .estimate_epoch_h(x$datetime)
+  state_in <- as.integer(x$state)
+  is_wake  <- state_in == 0L            # Python nap_bool = (state == 0)
+  if (!any(is_wake)) return(x)
 
-  # Critical: nap detection runs ONLY on currently-awake epochs (state == 0)
-  # matching the Python pipeline's nap_bool mask
-  is_wake <- x$state == 0L
+  wake_activity <- as.double(x$activity[is_wake])
+  wake_datetime <- x$datetime[is_wake]
 
-  if (sum(is_wake) == 0L) return(x)
+  # Epoch duration (mode of the wake-subsequence diffs) -> epoch_h + scaling.
+  # CSPD.model scales activity by 1/duration before detect_msp; the large gaps
+  # at removed sleep periods don't change the mode (still the device epoch).
+  secs     <- as.numeric(as.POSIXct(wake_datetime))
+  dd       <- diff(secs)
+  duration <- if (length(dd) > 0L)
+    as.numeric(names(sort(table(dd), decreasing = TRUE))[1]) else 60
+  epoch_h  <- epoch_h %||% (3600 / duration)
 
-  wake_activity <- activity
-  wake_activity[!is_wake] <- NA_real_
+  scaled_activity <- wake_activity / duration
 
-  # Adaptive median filter on wake epochs only
-  pad_size         <- as.integer(round(epoch_h * pad_h))
-  max_hws          <- as.integer(round(epoch_h * median_filter_h / 2))
-  act_med_filtered <- .adaptive_median_filter(wake_activity, pad_size, max_hws)
+  # Nap-mode MSP (detect_msp else-branch) on the scaled wake activity.
+  nap_msp <- .crespo_nap_msp(
+    activity             = scaled_activity,
+    epoch_h              = epoch_h,
+    median_filter_h      = p$nap_median_filter_h,
+    pad_h                = p$nap_pad_h,
+    nap_median_thr       = p$nap_median_activity_threshold,
+    nap_zero_prop_thr    = p$nap_zero_proportion_threshold,
+    nap_zero_prop_window = p$nap_zero_proportion_filter_window_size,
+    use_and              = p$compute_output_naps_with_logical_and
+  )
 
-  # Zero-proportion filter
-  zp_filtered <- zero_prop_filter(activity, nap_zero_prop_hws, pad_value = 1)
+  # Full CSPD refiner with the nap param set (detect_naps post-processing).
+  refined <- .cspd_refine_periods(
+    activity        = wake_activity,
+    datetime_stamps = wake_datetime,
+    msp_detection   = nap_msp,
+    condition       = 0L,
+    params          = p
+  )$refined_output                      # 1 = wake, 0 = sleep (nap)
 
-  # Threshold criteria — only within wake epochs
-  low_median   <- act_med_filtered < nap_median_thr
-  high_zero_p  <- zp_filtered      > nap_zero_prop_thr
-
-  if (use_and) {
-    is_nap <- is_wake & low_median & high_zero_p
-  } else {
-    is_nap <- is_wake & (low_median & high_zero_p)
-  }
-
-  # state 7 for nap epochs, preserve existing non-wake states
-  x$state <- ifelse(is_nap, 7L, x$state)
-  x$sleep <- ifelse(x$state == 7L, 1L, x$sleep)
+  # nap_wrapper: state[nap_bool] = 1 - refined_output  -> naps become state 1.
+  new_state          <- state_in
+  new_state[is_wake] <- ifelse(refined == 0, 1L, 0L)
+  x$state            <- new_state
+  x$sleep            <- ifelse(new_state == 4L, 0L, as.integer(new_state == 1L))
 
   x
+}
+
+#' Nap-mode MSP — direct translation of detect_msp's `detect_naps = TRUE` branch.
+#'
+#' Computes the adaptive median filter on the (max-padded, un-marked) activity
+#' exactly as the main MSP, then applies the nap thresholds: a high
+#' zero-proportion (`zero_prop_filter`) combined (AND/OR) with a low
+#' adaptive-median activity. Returns the 1 = wake / 0 = sleep nap detection
+#' (Python `improved_sleep_detection`). No zero-mitigation / invalid-zero
+#' marking (main-sleep only) and no last morphological filter (off by default).
+#' @noRd
+.crespo_nap_msp <- function(activity, epoch_h, median_filter_h, pad_h,
+                            nap_median_thr, nap_zero_prop_thr,
+                            nap_zero_prop_window, use_and = TRUE) {
+  data_length      <- length(activity)
+  mf_window_size   <- as.integer(epoch_h * median_filter_h) + 1L
+  mf_hws           <- as.integer((mf_window_size - 1L) / 2L)
+  pad_size         <- as.integer(epoch_h * pad_h)
+  maximum_activity <- max(activity, na.rm = TRUE)
+
+  padded_activity <- c(rep(maximum_activity, pad_size), activity,
+                       rep(maximum_activity, pad_size))
+
+  # Adaptive median filter (variable window), identical to the main MSP path.
+  adaptive_median_filtered_activity <- numeric(data_length)
+  half_window_size <- pad_size
+  for (i in seq_len(data_length)) {
+    i0     <- i - 1L
+    center <- i0 + pad_size
+    lo_r   <- max(1L, center - half_window_size + 1L)
+    hi_r   <- min(length(padded_activity), center + half_window_size + 1L)
+    val    <- stats::median(padded_activity[lo_r:hi_r], na.rm = TRUE)
+    if (is.nan(val) || is.na(val)) {
+      val <- if (i0 > 0L) adaptive_median_filtered_activity[i - 1L] else 0
+    }
+    adaptive_median_filtered_activity[i] <- val
+    if (i0 < (data_length - mf_hws + pad_size - 1L)) {
+      if (half_window_size < mf_hws) half_window_size <- half_window_size + 1L
+    } else {
+      if (half_window_size > pad_size) half_window_size <- half_window_size - 1L
+    }
+  }
+
+  # Nap thresholds (detect_msp else-branch). zero_prop_filter pads with 1s.
+  azp   <- zero_prop_filter(activity, nap_zero_prop_window, pad_value = 1)
+  t_azp <- azp > nap_zero_prop_thr
+  t_ma  <- adaptive_median_filtered_activity < nap_median_thr
+
+  # Python: improved = where(and/or(t_azp, t_ma), 0, 1)  (0 = sleep, 1 = wake)
+  combined <- if (isTRUE(use_and)) (t_azp & t_ma) else (t_azp | t_ma)
+  as.integer(!combined)
 }
 
 # ── Internal Crespo helpers ───────────────────────────────────────────────────

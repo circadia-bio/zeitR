@@ -9,23 +9,26 @@ detect_sleep_crespo(
   epoch_h = NULL,
   median_filter_h = 8,
   pad_h = 1,
-  sleep_quantile = 1/3,
+  sleep_quantile = 0.365,
   morph_size = 61L,
   consec_zeros_thr = 15L,
   awake_zeros_thr = 2L,
   sleep_zeros_thr = 30L,
   zero_mitigation_q = 0.33,
-  min_short_window_thr = 1
+  min_short_window_thr = 1,
+  refine = TRUE,
+  condition = 0L
 )
 }
 \arguments{
 \item{x}{A tibble as returned by \code{\link[=detect_offwrist_bimodal]{detect_offwrist_bimodal()}} (or
 \code{\link[=prepare_actigraphy]{prepare_actigraphy()}} if off-wrist detection is skipped), containing
-columns \code{datetime}, \code{activity}, and \code{state}.}
+columns \code{datetime}, \code{activity}, and \code{state}. The detector runs on the
+on-wrist subset (\code{state != 4}) only, mirroring the Python \code{cspd_wrapper}.}
 
 \item{epoch_h}{\code{numeric(1)}. Number of epochs per hour. If \code{NULL}
-(default), estimated automatically from the median inter-epoch interval
-in \code{datetime}.}
+(default), derived from the epoch duration (the mode of the on-wrist
+inter-epoch interval), as \code{3600 / duration}.}
 
 \item{median_filter_h}{\code{numeric(1)}. Length of the preprocessing median
 filter window in hours. Default is \code{8}.}
@@ -34,7 +37,8 @@ filter window in hours. Default is \code{8}.}
 adaptive median filter. Default is \code{1}.}
 
 \item{sleep_quantile}{\code{numeric(1)}. Quantile of the filtered activity used
-as the sleep/wake threshold. Default is \code{1/3}.}
+as the MSP sleep/wake threshold. Default is \code{0.365} (the ActTrust CSPD
+value used by \code{cspd_wrapper}; the standalone Crespo algorithm uses \code{1/3}).}
 
 \item{morph_size}{\code{integer(1)}. Size of the structuring element used in
 morphological closing/opening. Default is \code{61} epochs.}
@@ -54,11 +58,24 @@ determine the mitigation level for invalid zero runs. Default is \code{0.33}.}
 \item{min_short_window_thr}{\code{numeric(1)}. Minimum value of the adaptive
 median threshold; if the fitted quantile falls below this, the threshold
 is clamped here. Default is \code{1.0}.}
+
+\item{refine}{\code{logical(1)}. If \code{TRUE} (default), the MSP detection is
+refined into final sleep periods by the CSPD bed-time / get-up-time
+refiners (\code{.cspd_refine_periods}), reproducing the Python \code{refined_output}.
+If \code{FALSE}, the raw MSP detection is used directly.}
+
+\item{condition}{\code{integer(1)}. Initial condition flag (default \code{0}). The MSP
+stage bumps it to \code{2} when its activity-median threshold clamps to
+\code{min_short_window_thr}; the refiner uses that effective condition. Affects
+only \code{refine = TRUE}.}
 }
 \value{
 The input tibble \code{x} with \code{state} and \code{sleep} columns updated.
 Sleep epochs have \code{state == 1} and \code{sleep == 1}; off-wrist epochs
-(\code{state == 4}) are preserved and excluded from the sleep column.
+(\code{state == 4}) are preserved and excluded from the sleep column. With
+\code{refine = TRUE} the sleep epochs delimit the refined sleep PERIODS (the
+Python \code{refined_output}); per-epoch wake/sleep within them is scored later
+by \code{\link[=compute_waso]{compute_waso()}}.
 }
 \description{
 Identifies the main sleep period(s) in an actigraphy recording using the
