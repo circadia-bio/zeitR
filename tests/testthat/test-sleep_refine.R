@@ -133,3 +133,56 @@ testthat::test_that(".sleep_gap_separation is a no-op without large gaps", {
   datetime_diff <- rep(60, 5)
   expect_identical(sgs(detection, datetime_diff, 3600), detection)
 })
+
+# ── Stage 3: shared refiner helpers ───────────────────────────────────────────
+
+testthat::test_that(".below_prop computes proportion <= threshold", {
+  bp <- getFromNamespace(".below_prop", "zeitR")
+  expect_identical(bp(c(1, 2, 3, 4, 5), 3), 0.6)
+  expect_identical(bp(numeric(0), 3), 0)
+})
+
+testthat::test_that(".get_peak returns the local extremum value (0-indexed centre)", {
+  gp <- getFromNamespace(".get_peak", "zeitR")
+  sig <- c(5, 1, 9, 2, 7)
+  expect_identical(gp(sig, 2L, FALSE, 1L), 9)   # window c(1, 9, 2) -> max
+  expect_identical(gp(sig, 2L, TRUE,  1L), 1)   # window c(1, 9, 2) -> min
+  expect_identical(gp(sig, 0L, FALSE, 1L), 5)   # clamped window c(5, 1) -> max
+})
+
+testthat::test_that(".cspd_median_filter matches functions.py median_filter", {
+  mf <- getFromNamespace(".cspd_median_filter", "zeitR")
+  # padding = NULL, hws = 1, monotonic signal -> unchanged
+  expect_identical(mf(c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), 1L), as.numeric(1:10))
+  # padding = "padded", hws = 1 -> trims 4*hws, length 6
+  expect_identical(mf(c(0, 0, 1, 2, 3, 4, 5, 6, 0, 0), 1L, padding = "padded"),
+                   c(1, 2, 3, 4, 5, 5))
+})
+
+testthat::test_that(".remove_peak_valley merges first region and recomputes features", {
+  rpv <- getFromNamespace(".remove_peak_valley", "zeitR")
+
+  pv <- data.frame(
+    class                      = c("v", "p", "v", "p"),
+    start                      = c(0L, 2L, 5L, 8L),
+    end                        = c(2L, 5L, 8L, 10L),
+    length                     = c(2L, 3L, 3L, 2L),
+    mean                       = c(0, 9, 0, 9),
+    median                     = c(0, 9, 0, 9),
+    zero_proportion            = c(1, 0, 1, 0),
+    above_threshold_proportion = c(0, 1, 0, 1),
+    stringsAsFactors = FALSE
+  )
+  activity <- c(0, 0, 9, 9, 9, 0, 0, 0, 9, 9)
+
+  out <- rpv(pv, 0L, activity, 3)
+
+  expect_identical(out$class,  c("p", "v", "p"))
+  expect_identical(out$start,  c(0L, 5L, 8L))
+  expect_identical(out$end,    c(5L, 8L, 10L))
+  expect_identical(out$length, c(5L, 3L, 2L))
+  expect_equal(out$mean,                       c(5.4, 0, 9))
+  expect_equal(out$median,                     c(9,   0, 9))
+  expect_equal(out$zero_proportion,            c(0.4, 1, 0))
+  expect_equal(out$above_threshold_proportion, c(0.6, 1, 0))
+})
