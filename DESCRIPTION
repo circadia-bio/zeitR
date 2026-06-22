@@ -34,6 +34,7 @@ Suggests:
     dplyr (>= 1.1.0),
     ggplot2 (>= 3.4.0),
     mclust,
+    RcppRoll,
     rlang (>= 1.1.0),
     knitr,
     pkgdown,

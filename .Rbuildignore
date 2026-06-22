@@ -5,3 +5,6 @@
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^dev$
+^input1\.txt$
+^python_nights\.csv$
