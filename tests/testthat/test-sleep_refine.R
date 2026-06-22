@@ -186,3 +186,44 @@ testthat::test_that(".remove_peak_valley merges first region and recomputes feat
   expect_equal(out$zero_proportion,            c(0.4, 1, 0))
   expect_equal(out$above_threshold_proportion, c(0.6, 1, 0))
 })
+
+# ── Stage 3: bed-time refiner — Unit A (window finding) ────────────────────────
+
+testthat::test_that(".bt_datetime_gap_check validates backward/forward gaps", {
+  gc <- getFromNamespace(".bt_datetime_gap_check", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$secs <- c(0, 60, 120, 4000)      # big jump into the last epoch
+  self$maximum_allowed_gap <- 600
+
+  expect_true(gc(self, 1L))                         # backward: 60s gap, valid
+  expect_false(gc(self, 3L))                        # backward: 3880s gap, invalid
+  expect_true(gc(self, 0L, direction = "forward"))  # forward from epoch 0: 60s
+  expect_false(gc(self, 2L, direction = "forward")) # forward from epoch 2: 3880s
+  expect_identical(gc(self, 3L, return_gap = TRUE), list(valid = FALSE, gap = 3880))
+})
+
+testthat::test_that(".bt_compute_metric handles both metric methods", {
+  cm <- getFromNamespace(".bt_compute_metric", "zeitR")
+
+  s1 <- new.env(parent = emptyenv()); s1$metric_method <- 1; s1$metric_parameter <- 0.5
+  # positive medians c(2,4,6,8) -> mean 5 -> 0.5 * 5 = 2.5 (zeros are ignored)
+  expect_identical(cm(s1, c(0, 2, 4, 0, 6, 8)), 2.5)
+
+  s2 <- new.env(parent = emptyenv()); s2$metric_method <- 2; s2$metric_parameter <- 0.5
+  # median (type-7 quantile @0.5) of positive medians c(2,4,6,8) = 5
+  expect_identical(cm(s2, c(0, 2, 4, 6, 8)), 5)
+
+  s0 <- new.env(parent = emptyenv()); s0$metric_method <- 1; s0$metric_parameter <- 0.5
+  expect_identical(cm(s0, c(0, 0, 0)), 0)   # no positive medians -> 0
+})
+
+testthat::test_that(".bt_compute_zero_proportion_around_end windows around the end", {
+  zpa <- getFromNamespace(".bt_compute_zero_proportion_around_end", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$activity <- c(0, 0, 5, 0, 5, 0, 0, 0)
+  self$half_window_around_border <- 2
+  self$data_length <- 8L
+
+  # end = 3 (0-indexed): window activity[1:5] (0-indexed) = c(0,5,0,5,0) -> 3/5
+  expect_identical(zpa(self, 3L), 0.6)
+})
