@@ -38,8 +38,10 @@
 #'   refined into final sleep periods by the CSPD bed-time / get-up-time
 #'   refiners (`.cspd_refine_periods`), reproducing the Python `refined_output`.
 #'   If `FALSE`, the raw MSP detection is used directly.
-#' @param condition `integer(1)`. Condition flag forwarded to the refiner
-#'   (default `0`). Affects only `refine = TRUE`.
+#' @param condition `integer(1)`. Initial condition flag (default `0`). The MSP
+#'   stage bumps it to `2` when its activity-median threshold clamps to
+#'   `min_short_window_thr`; the refiner uses that effective condition. Affects
+#'   only `refine = TRUE`.
 #'
 #' @return The input tibble `x` with `state` and `sleep` columns updated.
 #'   Sleep epochs have `state == 1` and `sleep == 1`; off-wrist epochs
@@ -106,7 +108,7 @@ detect_sleep_crespo <- function(
   # CSPD-internal MSP that feeds the refiner.
   scaled_activity <- ow_activity / duration
 
-  msp <- .crespo_msp(
+  msp_res <- .crespo_msp(
     activity             = scaled_activity,
     epoch_h              = epoch_h,
     median_filter_h      = median_filter_h,
@@ -117,8 +119,13 @@ detect_sleep_crespo <- function(
     awake_zeros_thr      = awake_zeros_thr,
     sleep_zeros_thr      = sleep_zeros_thr,
     zero_mitigation_q    = zero_mitigation_q,
-    min_short_window_thr = min_short_window_thr
+    min_short_window_thr = min_short_window_thr,
+    condition            = condition
   )
+  msp <- msp_res$detection
+  # detect_msp bumps condition to 2 when its activity-median threshold clamps;
+  # the refiner uses that effective condition, not the initial one.
+  eff_condition <- msp_res$condition
 
   # Refine the MSP into final sleep PERIODS with the CSPD bed/get-up refiners.
   if (isTRUE(refine)) {
@@ -126,7 +133,7 @@ detect_sleep_crespo <- function(
       activity        = ow_activity,
       datetime_stamps = ow_datetime,
       msp_detection   = msp,
-      condition       = condition
+      condition       = eff_condition
     )$refined_output
   } else {
     detection <- msp
@@ -236,7 +243,12 @@ detect_naps_crespo <- function(
 
 # ── Internal Crespo helpers ───────────────────────────────────────────────────
 
-#' Core Crespo MSP algorithm — direct translation of Python's detect_msp
+#' Core Crespo MSP algorithm — direct translation of Python's detect_msp.
+#'
+#' Returns `list(detection, condition)`: `detection` is the 1 = wake / 0 = sleep
+#' MSP vector; `condition` is the (possibly bumped) condition flag. Python's
+#' detect_msp sets `condition = 2` exactly when the final activity-median
+#' threshold clamps to `min_short_window_thr`; the CSPD refiner uses it.
 #' @noRd
 .crespo_msp <- function(
     activity,
@@ -249,7 +261,8 @@ detect_naps_crespo <- function(
     awake_zeros_thr,
     sleep_zeros_thr,
     zero_mitigation_q,
-    min_short_window_thr
+    min_short_window_thr,
+    condition            = 0L
 ) {
   # Python:
   #   median_filter_window_size = int(epoch_hour * median_filter_window_hourly_length) + 1
@@ -413,13 +426,22 @@ detect_naps_crespo <- function(
   }
 
   # ── Final threshold ────────────────────────────────────────────────────────
+  # The clamp (threshold < min_short_window_thr) is exactly where Python's
+  # detect_msp sets self.condition = 2 (used downstream by the CSPD refiner).
   thr1 <- as.double(stats::quantile(adaptive_median_filtered_activity,
                                     sleep_quantile, names = FALSE))
-  if (thr1 < min_short_window_thr) thr1 <- min_short_window_thr
+  condition_out <- condition
+  if (thr1 < min_short_window_thr) {
+    thr1          <- min_short_window_thr
+    condition_out <- 2L
+  }
 
   # Python: improved_sleep_detection = where(filtered > threshold, 1, 0)
   # 1 = wake, 0 = sleep
-  as.integer(adaptive_median_filtered_activity > thr1)
+  list(
+    detection = as.integer(adaptive_median_filtered_activity > thr1),
+    condition = condition_out
+  )
 }
 
 #' Adaptive median filter with variable window size

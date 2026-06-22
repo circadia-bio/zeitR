@@ -39,9 +39,13 @@ test_that(".crespo_msp reproduces the Python detect_msp reference exactly", {
     zero_mitigation_q = 0.33, min_short_window_thr = 1.0
   )
 
-  # .crespo_msp returns 1 = wake, 0 = sleep, matching the reference `final`.
-  expect_identical(out, as.integer(ref$final))
-  expect_equal(sum(out == 0L), 25435L)   # sleep epochs
+  # .crespo_msp returns list(detection, condition); `detection` is 1 = wake,
+  # 0 = sleep, matching the reference `final`. (condition is exercised
+  # separately; on this recording the clamp may fire, so it is not asserted
+  # here — the detection match is unaffected because the clamp is always
+  # applied to the binary threshold.)
+  expect_identical(out$detection, as.integer(ref$final))
+  expect_equal(sum(out$detection == 0L), 25435L)   # sleep epochs
 })
 
 test_that("read_acttrust + prepare feed .crespo_msp the reference activity", {
@@ -98,9 +102,34 @@ test_that(".crespo_msp returns a well-formed binary detection vector", {
     zero_mitigation_q = 0.33, min_short_window_thr = 1.0
   )
 
-  expect_length(out, length(act))
-  expect_true(is.integer(out))
-  expect_true(all(out %in% c(0L, 1L)))
+  expect_length(out$detection, length(act))
+  expect_true(is.integer(out$detection))
+  expect_true(all(out$detection %in% c(0L, 1L)))
+})
+
+test_that(".crespo_msp flags condition = 2 when the MSP threshold clamps", {
+  msp <- getFromNamespace(".crespo_msp", "zeitR")
+
+  # Mostly-zero activity -> the adaptive-median quantile falls below
+  # min_short_window_thr, so the threshold clamps and condition bumps to 2.
+  low <- as.double(rep(c(rep(0, 9), 1), 40))
+  out_low <- msp(
+    activity = low, epoch_h = 2, median_filter_h = 8, pad_h = 1,
+    sleep_quantile = 1 / 3, morph_size = 61L,
+    consec_zeros_thr = 15L, awake_zeros_thr = 2L, sleep_zeros_thr = 30L,
+    zero_mitigation_q = 0.33, min_short_window_thr = 1.0
+  )
+  expect_identical(out_low$condition, 2L)
+
+  # A non-zero initial condition is preserved when the clamp does not fire.
+  hi <- as.double(rep(c(rep(0, 5), rep(500, 5)), 40))
+  out_hi <- msp(
+    activity = hi, epoch_h = 2, median_filter_h = 8, pad_h = 1,
+    sleep_quantile = 1 / 3, morph_size = 61L,
+    consec_zeros_thr = 15L, awake_zeros_thr = 2L, sleep_zeros_thr = 30L,
+    zero_mitigation_q = 0.33, min_short_window_thr = 1.0, condition = 0L
+  )
+  expect_true(out_hi$condition %in% c(0L, 2L))
 })
 
 test_that(".morphological_open_close uses scipy-style (border_value = 0) padding", {
