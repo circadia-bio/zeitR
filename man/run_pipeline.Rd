@@ -7,11 +7,12 @@
 run_pipeline(
   path,
   tz = "UTC",
-  wake_thresh = 60L,
   gap_s = 120,
+  params = acttrust_params(),
   offwrist_args = list(),
   sleep_args = list(),
-  nap_args = list()
+  nap_args = list(),
+  quiet = FALSE
 )
 }
 \arguments{
@@ -20,11 +21,13 @@ run_pipeline(
 \item{tz}{\code{character(1)}. Recording time zone. Passed to \code{\link[=read_acttrust]{read_acttrust()}}.
 Default is \code{"UTC"}.}
 
-\item{wake_thresh}{\code{integer(1)}. Minimum wake-bout length (epochs) used to
-separate sleep periods in \code{\link[=compute_waso]{compute_waso()}}. Default is \code{60}.}
-
 \item{gap_s}{\code{numeric(1)}. Gap threshold (seconds) for \code{\link[=check_consistency]{check_consistency()}}.
 Default is \code{120}.}
+
+\item{params}{Device parameter preset, as returned by \code{\link[=acttrust_params]{acttrust_params()}}.
+When supplied, values from \code{params} are used as defaults for each
+detector stage, with any explicit \code{offwrist_args}, \code{sleep_args}, or
+\code{nap_args} taking precedence. Defaults to \code{\link[=acttrust_params]{acttrust_params()}}.}
 
 \item{offwrist_args}{\code{list}. Additional arguments passed to
 \code{\link[=detect_offwrist_bimodal]{detect_offwrist_bimodal()}}. Default is an empty list.}
@@ -34,6 +37,11 @@ Default is \code{120}.}
 
 \item{nap_args}{\code{list}. Additional arguments passed to
 \code{\link[=detect_naps_crespo]{detect_naps_crespo()}}. Default is an empty list.}
+
+\item{quiet}{\code{logical(1)}. If \code{TRUE}, suppresses the timestamp-issue
+warning emitted when \code{\link[=check_consistency]{check_consistency()}} finds problems. Useful in
+batch or testing contexts where the warning is expected. Default is
+\code{FALSE}.}
 }
 \value{
 A \code{zeitr_result} S3 object — a named list with:

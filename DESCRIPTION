@@ -12,10 +12,14 @@ Authors@R: c(
            comment = c(ORCID = "0000-0002-7248-3529"))
   )
 Description: Provides tools for importing, parsing, and analysing raw actigraphy
-    data. Supports common device file formats, computes standard rest-activity
-    variables (interdaily stability, intradaily variability, relative amplitude,
-    L5, M10), and assembles tidy data frames ready for downstream chronobiological
-    analysis. Designed to complement slumbR in the Circadia Lab ecosystem.
+    data from wrist-worn devices. Implements a full sleep analysis pipeline —
+    off-wrist detection, main sleep period detection, nap detection, and WASO
+    computation — validated epoch-for-epoch against the Condor circadiaBase
+    Python reference pipeline using ActTrust hardware. Also computes standard
+    non-parametric circadian rhythm variables (interdaily stability, intradaily
+    variability, relative amplitude, L5, M10). Device-specific parameter presets
+    can be swapped to adapt the pipeline to other actigraph models. Designed to
+    complement slumbR in the Circadia Lab ecosystem.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
