@@ -206,6 +206,12 @@ reference:
   contents:
   - run_pipeline
   - run_pipeline_batch
+  - acttrust_params
+
+- title: "Utilities"
+  desc: "Helper functions for working with pipeline output."
+  contents:
+  - label_states
 
 - title: "Package"
   desc: "Package-level documentation."
