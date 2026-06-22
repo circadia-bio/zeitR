@@ -350,3 +350,79 @@ testthat::test_that(".bt_choose_best_bedtime_candidate returns initial candidate
   self$initial_transition_candidate <- 4242L
   expect_identical(f(self, integer(0), integer(0)), 4242L)
 })
+
+# ── Stage 3: get-up-time refiner (Unit D) ─────────────────────────────
+
+testthat::test_that(".gt_remove_after_long_tall_peak keeps up to the first long tall peak", {
+  f <- getFromNamespace(".gt_remove_after_long_tall_peak", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$metric <- 10                      # > 5, so tall-peak rule is active
+  self$do_remove_after_long_tall_peak <- TRUE
+  self$getuptime_high_probability_awake_peak_length <- 5
+
+  # peak row3: length 10 (>= 5) and mean 200 (> 10*metric = 100) -> first invalid
+  pv <- .mk_pv(c("p", "v", "p", "v"),
+               start = c(0, 3, 7, 17), end = c(3, 7, 17, 22),
+               mean = c(50, 1, 200, 1))
+  out <- f(self, pv)
+  expect_identical(out$class, c("p", "v", "p"))   # keep rows 1..3
+})
+
+testthat::test_that(".gt_remove_before_long_valley keeps from the last long valley", {
+  f <- getFromNamespace(".gt_remove_before_long_valley", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$do_remove_before_long_valley <- TRUE
+  self$getuptime_high_probability_sleep_valley_length <- 5
+
+  # valley row2 length 10 (>= 5) is the last invalid; (2-1) < (5-2) so it triggers
+  pv <- .mk_pv(c("p", "v", "p", "v", "p"),
+               start = c(0, 3, 13, 16, 18), end = c(3, 13, 16, 18, 21))
+  out <- f(self, pv)
+  expect_identical(out$class, c("v", "p", "v", "p"))   # keep rows 2..5
+})
+
+testthat::test_that(".gt_identify_getuptime_candidates returns peak starts and trailing valley end", {
+  f <- getFromNamespace(".gt_identify_getuptime_candidates", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$refinement_window_start <- 100L
+  self$refinement_window_levels <- rep(0, 200)
+  self$data_length <- 200L
+
+  pv <- .mk_pv(c("v", "p", "v", "p", "v"),
+               start = c(0, 5, 10, 15, 20), end = c(5, 10, 15, 20, 25))
+  # peaks at t0=1 (start 5) and t0=3 (start 15); trailing valley end 25
+  expect_identical(f(self, pv), c(5L, 15L, 25L))
+})
+
+testthat::test_that(".gt_choose_best_getuptime_candidate picks the sharpest-rise candidate", {
+  f <- getFromNamespace(".gt_choose_best_getuptime_candidate", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$refinement_window_start <- 100L
+  smoothed <- rep(0, 60); smoothed[21] <- 5    # rise (peak) at window-pos 20
+  self$refinement_window_activity_median_difference_smoothed <- smoothed
+  self$after_candidate_window <- 5L
+  self$getuptime_score_first_candidate <- FALSE
+  self$getuptime_first_candidate_score <- 0
+  self$getuptime_best_median_difference_candidate_score <- 0.7
+  self$getuptime_best_crossing_distance_candidate_score <- 0
+  self$getuptime_best_epochs_above_metric_after_score <- 0
+  self$getuptime_thresholded_candidate_score_amplitude <- 0.5
+  self$getuptime_thresholded_candidate_score_minimum <- 0.1
+  self$getuptime_maximum_epochs_above_metric_after_candidate <- 2L
+  self$metric <- 1
+  self$activity <- rep(1000, 200)              # all above metric -> 0 epochs below -> thresholded
+  self$data_length <- 200L
+  self$maximum_allowed_gap <- 3600
+  self$secs <- seq(0, by = 60, length.out = 200)
+  self$initial_transition_candidate <- 0L
+
+  # window-pos 20 has the sharpest rise -> median bonus -> wins
+  expect_identical(f(self, c(2L, 20L, 40L), integer(0)), 120L)
+})
+
+testthat::test_that(".gt_choose_best_getuptime_candidate returns initial candidate when empty", {
+  f <- getFromNamespace(".gt_choose_best_getuptime_candidate", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$initial_transition_candidate <- 777L
+  expect_identical(f(self, integer(0), integer(0)), 777L)
+})

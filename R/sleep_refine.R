@@ -37,6 +37,492 @@
   )
 }
 
+# ── Stage 3: get-up-time refiner (port of CSPD_GetUpTime_Refiner) ────────────
+# The get-up refiner mirrors the bed-time one but reversed: it walks the
+# peaks/valleys from the awake-most (last) region inward. It reuses the generic
+# helpers .bt_datetime_gap_check / .bt_compute_refinement_window_median /
+# .bt_compute_metric (the constructor stores metric_method/metric_parameter so
+# those work unchanged) and adds get-up-specific methods. Indices follow the
+# Python convention (0-indexed, exclusive ends).
+
+#' Construct a get-up-time refiner object (mirrors CSPD_GetUpTime_Refiner.__init__).
+#' @noRd
+.cspd_getuptime_refiner <- function(activity,
+                                    datetime_stamps,
+                                    short_window_activity_median,
+                                    minimum_short_window_activity_median_threshold,
+                                    short_window_activity_median_minimum_high_epochs,
+                                    half_window_around_border,
+                                    activity_median_analysis_window,
+                                    maximum_allowed_gap,
+                                    quantile_threshold,
+                                    median_filter_half_window_size,
+                                    getuptime_metric_method,
+                                    getuptime_metric_parameter,
+                                    condition,
+                                    getuptime_first_candidate_score,
+                                    getuptime_best_median_difference_candidate_score,
+                                    getuptime_best_crossing_distance_candidate_score,
+                                    getuptime_best_epochs_above_metric_after_score,
+                                    getuptime_thresholded_candidate_score_amplitude,
+                                    getuptime_thresholded_candidate_score_minimum,
+                                    getuptime_minimum_peak_length,
+                                    getuptime_minimum_valley_length,
+                                    after_candidate_window,
+                                    getuptime_maximum_epochs_above_metric_after_candidate,
+                                    zero_proportion_threshold,
+                                    do_remove_after_long_tall_peak,
+                                    getuptime_high_probability_awake_peak_length,
+                                    getuptime_high_probability_sleep_valley_length,
+                                    do_remove_before_long_valley,
+                                    update_peaks_and_valleys,
+                                    getuptime_score_first_candidate) {
+  self <- new.env(parent = emptyenv())
+  self$activity                       <- as.numeric(activity)
+  self$datetime_stamps                <- datetime_stamps
+  self$secs                           <- as.numeric(datetime_stamps)
+  self$short_window_activity_median   <- as.numeric(short_window_activity_median)
+  self$minimum_short_window_activity_median_threshold <- minimum_short_window_activity_median_threshold
+  self$short_window_activity_median_minimum_high_epochs <- short_window_activity_median_minimum_high_epochs
+  self$half_window_around_border      <- half_window_around_border
+  self$activity_median_analysis_window <- activity_median_analysis_window
+  self$maximum_allowed_gap            <- maximum_allowed_gap
+  self$quantile_threshold             <- quantile_threshold
+  self$median_filter_half_window_size <- median_filter_half_window_size
+  # stored generically so the shared .bt_compute_metric works unchanged
+  self$metric_method                  <- getuptime_metric_method
+  self$metric_parameter               <- getuptime_metric_parameter
+  self$condition                      <- condition
+  self$getuptime_first_candidate_score                <- getuptime_first_candidate_score
+  self$getuptime_best_median_difference_candidate_score <- getuptime_best_median_difference_candidate_score
+  self$getuptime_best_crossing_distance_candidate_score <- getuptime_best_crossing_distance_candidate_score
+  self$getuptime_best_epochs_above_metric_after_score   <- getuptime_best_epochs_above_metric_after_score
+  self$getuptime_thresholded_candidate_score_amplitude  <- getuptime_thresholded_candidate_score_amplitude
+  self$getuptime_thresholded_candidate_score_minimum    <- getuptime_thresholded_candidate_score_minimum
+  self$getuptime_minimum_peak_length   <- getuptime_minimum_peak_length
+  self$getuptime_minimum_valley_length <- getuptime_minimum_valley_length
+  self$after_candidate_window          <- after_candidate_window
+  self$getuptime_maximum_epochs_above_metric_after_candidate <- getuptime_maximum_epochs_above_metric_after_candidate
+  self$zero_proportion_threshold       <- zero_proportion_threshold
+  self$do_remove_after_long_tall_peak  <- do_remove_after_long_tall_peak
+  self$getuptime_high_probability_awake_peak_length    <- getuptime_high_probability_awake_peak_length
+  self$getuptime_high_probability_sleep_valley_length  <- getuptime_high_probability_sleep_valley_length
+  self$do_remove_before_long_valley    <- do_remove_before_long_valley
+  self$update_peaks_and_valleys        <- update_peaks_and_valleys
+  self$getuptime_score_first_candidate <- getuptime_score_first_candidate
+  self$data_length                     <- length(self$activity)
+  self
+}
+
+#' compute_zero_proportion_around_start: zero-proportion in a window centred on
+#' the window start. `start` is 0-indexed.
+#' @noRd
+.gt_compute_zero_proportion_around_start <- function(self, start) {
+  hwab <- self$half_window_around_border
+  N    <- self$data_length
+  wend   <- if ((start + hwab) < N) start + hwab + 1L else N
+  wstart <- if ((start - hwab) > 0L) start - hwab else 0L
+  zero_prop(self$activity[(wstart + 1L):wend])
+}
+
+#' compute_refinement_window_end: stretch the window end forward until a
+#' sustained high level of preceding short-window-median activity is reached
+#' (subject to valid gaps and the next transition). Uses self$next_transition.
+#' @noRd
+.gt_compute_refinement_window_end <- function(self, initial_candidate) {
+  rwe  <- initial_candidate
+  she  <- self$short_window_activity_median_minimum_high_epochs
+  qt   <- self$quantile_threshold
+  swam <- self$short_window_activity_median
+
+  valid_gap <- .bt_datetime_gap_check(self, rwe)
+  before <- .np_slice(swam, rwe - she, rwe)
+  high   <- 1 - .below_prop(before, qt)
+  while ((rwe + 1L < self$data_length) && (rwe + 1L < self$next_transition) && valid_gap && (high < 1)) {
+    rwe <- rwe + 1L
+    valid_gap <- .bt_datetime_gap_check(self, rwe)
+    before <- .np_slice(swam, rwe - she, rwe)
+    high   <- 1 - .below_prop(before, qt)
+  }
+  rwe
+}
+
+#' compute_refinement_window_start: pull the start back while a low-activity /
+#' high-zero-proportion region persists (subject to valid gaps and the previous
+#' transition). Uses self$previous_transition.
+#' @noRd
+.gt_compute_refinement_window_start <- function(self, initial_candidate, refinement_window_end) {
+  rws  <- initial_candidate
+  if (rws < 0L) rws <- 0L
+  amaw <- self$activity_median_analysis_window
+  zpt  <- self$zero_proportion_threshold
+
+  valid_gap <- .bt_datetime_gap_check(self, rws)
+  zp  <- .gt_compute_zero_proportion_around_start(self, rws)
+  med <- .bt_compute_refinement_window_median(self, rws, refinement_window_end)
+  metric <- .bt_compute_metric(self, med)
+  above  <- 1 - .below_prop(.np_slice(med, 0L, amaw), metric)
+
+  while ((rws > 0L) && (rws - 1L > self$previous_transition) && valid_gap &&
+         ((zp < zpt) || (above > 0))) {
+    rws <- rws - 1L
+    if (rws > 0L) valid_gap <- .bt_datetime_gap_check(self, rws)
+    med <- .bt_compute_refinement_window_median(self, rws, refinement_window_end)
+    metric <- .bt_compute_metric(self, med)
+    above  <- 1 - .below_prop(.np_slice(med, 0L, amaw), metric)
+    zp  <- .gt_compute_zero_proportion_around_start(self, rws)
+  }
+  rws
+}
+
+#' bridge_gap_validation: when the start search stops on an invalid gap, jump
+#' before it and search for a fresh window start. Returns list(start, end).
+#' @noRd
+.gt_bridge_gap_validation <- function(self, refinement_window_start) {
+  rwe <- refinement_window_start - 1L
+  ic  <- refinement_window_start - 2L
+  rws <- .gt_compute_refinement_window_start(self, ic, rwe)
+  list(start = rws, end = rwe)
+}
+
+#' remove_after_long_tall_peak: drop everything after the first long AND tall
+#' peak (length >= high-prob awake length and mean > 10 * metric), when metric > 5.
+#' @noRd
+.gt_remove_after_long_tall_peak <- function(self, pv) {
+  metric <- self$metric
+  invalid <- if (metric > 5) {
+    which(pv$class == "p" &
+          pv$length >= self$getuptime_high_probability_awake_peak_length &
+          pv$mean > 10 * metric)
+  } else integer(0)
+  if (isTRUE(self$do_remove_after_long_tall_peak) && length(invalid) > 0) {
+    pv <- pv[seq_len(invalid[1]), , drop = FALSE]    # keep 0..first invalid inclusive
+  }
+  rownames(pv) <- NULL
+  pv
+}
+
+#' remove_before_long_valley: drop everything before the last "long" valley
+#' (length >= high-prob sleep length), provided it is before the penultimate
+#' region (last invalid index < count - 2).
+#' @noRd
+.gt_remove_before_long_valley <- function(self, pv) {
+  cnt <- nrow(pv)
+  thr <- self$getuptime_high_probability_sleep_valley_length
+  invalid <- which(pv$class == "v" & !(pv$length < thr))
+  if (isTRUE(self$do_remove_before_long_valley) && length(invalid) > 0) {
+    last <- invalid[length(invalid)]
+    if ((last - 1L) < cnt - 2L) pv <- pv[last:cnt, , drop = FALSE]   # keep last..end
+  }
+  rownames(pv) <- NULL
+  pv
+}
+
+#' filter_peaks_and_valleys: reversed feature-based merging (mirror of the
+#' bed-time loop, walking inward from the awake-most region). region indices are
+#' 0-indexed via last_index - t; R rows are that + 1. Includes the upstream
+#' "probable error" class-reassignment in the 3-region valley-peak-valley case,
+#' replicated faithfully.
+#' @noRd
+.gt_filter_peaks_and_valleys <- function(self, pv) {
+  gmvl   <- self$getuptime_minimum_valley_length
+  gmpl   <- self$getuptime_minimum_peak_length
+  rwa    <- self$refinement_window_activity
+  metric <- self$metric
+
+  cnt  <- nrow(pv)
+  rownames(pv) <- NULL
+  last <- cnt - 1L                                  # 0-indexed last_index
+
+  if (cnt > 2) {
+    if (pv$class[last + 1L] == "v") {
+      if (pv$length[last + 1L] < gmvl) {
+        pv <- .remove_peak_valley(pv, last, rwa, metric); cnt <- nrow(pv); last <- cnt - 1L
+      } else if (cnt == 3) {
+        if (pv$length[(last - 2L) + 1L] > 60 ||
+            4 * pv$length[(last - 1L) + 1L] < pv$length[(last - 2L) + 1L]) {
+          pv <- .remove_peak_valley(pv, last - 1L, rwa, metric); cnt <- nrow(pv); last <- cnt - 1L
+          pv$class[last + 1L] <- "p"                # upstream "probable error" quirk
+        }
+      } else {
+        if (pv$length[(last - 1L) + 1L] >= 20 &&
+            3 * pv$median[last + 1L] < pv$median[(last - 1L) + 1L]) {
+          pv <- .remove_peak_valley(pv, last, rwa, metric); cnt <- nrow(pv); last <- cnt - 1L
+        }
+      }
+    }
+
+    if (cnt > 3) {
+      t <- 1L
+      while (t < cnt && (cnt > 2 && cnt != 3)) {
+        remove <- FALSE
+        idx <- last - t                            # 0-indexed region
+        ir  <- idx + 1L                            # R row
+        if (pv$class[ir] == "p") {
+          if (pv$length[ir] < gmpl) {
+            if (t > 1L) {
+              if (t < cnt - 2L) {
+                remove <- TRUE
+              } else if (pv$above_threshold_proportion[ir] < 0.8 &&
+                         (pv$length[ir + 1L] >= 70 ||
+                          (pv$length[ir + 1L] > gmvl &&
+                           (pv$zero_proportion[ir + 1L] > 0.6 ||
+                            (pv$above_threshold_proportion[ir + 1L] < 0.25 &&
+                             pv$zero_proportion[ir + 1L] > 0.4))))) {
+                remove <- TRUE
+              }
+            } else {
+              if (pv$length[ir + 1L] >= 30 && pv$zero_proportion[ir + 1L] > 0.6) remove <- TRUE
+            }
+          }
+        } else {                                   # valley
+          if (t < cnt - 1L) {
+            if (pv$length[ir] < gmvl) {
+              if (t > 1L) {
+                remove <- TRUE
+              } else if (pv$above_fixed_threshold_proportion[ir] > 0.1 &&
+                         pv$zero_proportion[ir - 1L] < 0.1) {
+                remove <- TRUE
+              }
+            } else {
+              remove_points <- 0
+              if (pv$above_threshold_proportion[ir] > 0.1) remove_points <- remove_points + 1
+              if (pv$zero_proportion[ir] < 0.25) remove_points <- remove_points + 1
+              if (pv$mean[ir] >= 0.66 * metric) remove_points <- remove_points + 0.5
+              if (pv$length[ir - 1L] > pv$length[ir] && pv$mean[ir - 1L] > 3 * pv$mean[ir]) {
+                remove_points <- remove_points + 1
+              }
+              if (pv$length[ir + 1L] > 2 * pv$length[ir] && pv$mean[ir + 1L] > 3 * pv$mean[ir]) {
+                remove_points <- remove_points + 1
+              }
+              if (pv$length[ir] / length(rwa) >= 0.3) remove_points <- remove_points - 1
+              if (remove_points > 2) remove <- TRUE
+            }
+          }
+        }
+
+        if (remove) {
+          pv <- .remove_peak_valley(pv, last - t, rwa, metric); cnt <- nrow(pv); last <- cnt - 1L
+        } else {
+          t <- t + 1L
+        }
+      }
+    }
+  }
+  rownames(pv) <- NULL
+  pv
+}
+
+#' identify_getuptime_candidates: peak starts (for non-first regions) are
+#' candidate get-up times; if the last region is a valley, its end is also a
+#' candidate. Mutates self$refinement_window_levels. Returns window-relative,
+#' 0-indexed candidate positions.
+#' @noRd
+.gt_identify_getuptime_candidates <- function(self, pv) {
+  cnt <- nrow(pv)
+  rws <- self$refinement_window_start
+  cands <- integer(0)
+  for (t in seq_len(cnt)) {
+    t0    <- t - 1L
+    start <- as.integer(rws + pv$start[t]); end <- as.integer(rws + pv$end[t])
+    if (end > start) self$refinement_window_levels[(start + 1L):end] <- pv$mean[t]
+    if (pv$class[t] == "p" && t0 > 0L) cands <- c(cands, as.integer(pv$start[t]))
+  }
+  if (pv$class[cnt] == "v") {
+    new <- as.integer(pv$end[cnt])
+    if (rws + new == self$data_length) new <- new - 1L
+    cands <- c(cands, new)
+  }
+  cands
+}
+
+#' choose_best_getuptime_candidate: score and pick the refined get-up time
+#' (port of choose_best_getuptime_candidate). Mirrors the bed-time scorer but:
+#' rewards the FIRST candidate, sorts by the activity-median-difference PEAK
+#' (rise) descending, uses the FIRST upward crossing, counts epochs BELOW the
+#' metric, applies bonuses by candidate value, and has no second-best override.
+#' @noRd
+.gt_choose_best_getuptime_candidate <- function(self, candidates, up) {
+  n <- length(candidates)
+  if (n == 0L) return(as.integer(self$initial_transition_candidate))
+
+  rws      <- self$refinement_window_start
+  smoothed <- self$refinement_window_activity_median_difference_smoothed
+
+  amd <- vapply(candidates, function(c0) .get_peak(smoothed, c0, valley = FALSE), numeric(1))
+  sc <- data.frame(
+    candidate   = as.integer(candidates),
+    amd         = as.numeric(amd),
+    epochs      = rep(self$after_candidate_window, n),
+    thresholded = rep(FALSE, n),
+    gap_after   = rep(TRUE, n),
+    score       = rep(0, n),
+    stringsAsFactors = FALSE
+  )
+
+  if (isTRUE(self$getuptime_score_first_candidate)) {
+    sc$score[1] <- sc$score[1] + self$getuptime_first_candidate_score
+  }
+
+  sc <- sc[order(-sc$amd, -sc$candidate), , drop = FALSE]       # amd desc, candidate desc
+  sc$score[1] <- sc$score[1] + self$getuptime_best_median_difference_candidate_score
+
+  if (length(up) > 0) {
+    cu   <- up[1]
+    bcdc <- which.min(abs(as.integer(candidates) - cu))         # nearest the first up-crossing
+    tgt  <- as.integer(candidates[bcdc])
+    sc$score[sc$candidate == tgt] <- sc$score[sc$candidate == tgt] +
+      self$getuptime_best_crossing_distance_candidate_score
+  }
+
+  acw    <- self$after_candidate_window
+  maxep  <- self$getuptime_maximum_epochs_above_metric_after_candidate
+  metric <- self$metric
+  for (ci in seq_len(n)) {
+    cand <- rws + as.integer(candidates[ci])
+    end  <- cand + acw
+    if (end > self$data_length) end <- self$data_length
+    valid <- TRUE
+    g <- cand
+    while (valid && (g + 1L < end)) {
+      valid <- .bt_datetime_gap_check(self, g, direction = "forward")
+      g <- g + 1L
+    }
+    if (valid) {
+      tgt <- as.integer(candidates[ci])
+      ea  <- if (end > cand) sum(self$activity[(cand + 1L):end] <= metric) else 0L
+      sc$gap_after[sc$candidate == tgt] <- FALSE
+      sc$epochs[sc$candidate == tgt] <- ea
+      if (ea <= maxep) sc$thresholded[sc$candidate == tgt] <- TRUE
+    }
+  }
+
+  if (sum(!sc$gap_after) > 0) {
+    if (sum(sc$thresholded) == 0) {
+      sc <- sc[order(sc$gap_after, sc$epochs), , drop = FALSE]
+      sc$score[1] <- sc$score[1] + self$getuptime_best_epochs_above_metric_after_score
+    } else {
+      factor <- if (maxep > 0) {
+        -self$getuptime_thresholded_candidate_score_amplitude / maxep
+      } else {
+        -self$getuptime_thresholded_candidate_score_amplitude / 1e-3
+      }
+      thr <- which(sc$thresholded)
+      sc$score[thr] <- sc$score[thr] +
+        factor * (sc$epochs[thr] - maxep) + self$getuptime_thresholded_candidate_score_minimum
+    }
+  }
+
+  sc <- sc[order(-sc$score, -sc$candidate), , drop = FALSE]
+  as.integer(rws + as.integer(sc$candidate[1]))
+}
+
+#' refine: full get-up-time refinement for one transition (port of
+#' CSPD_GetUpTime_Refiner.refine). Returns a list mirroring the Python tuple:
+#' refined_getuptime, refinement_window_start, refinement_window_end,
+#' refinement_window_activity_median,
+#' refinement_window_activity_median_difference_smoothed,
+#' refinement_window_levels, metric. Validated bit-exact (refined index, window
+#' start, window end) against the real refiner across all 52 transitions.
+#' @noRd
+.gt_refine <- function(self, refinement_window_levels, initial_transition_candidate,
+                       previous_transition, next_transition) {
+  self$refinement_window_levels     <- refinement_window_levels
+  self$initial_transition_candidate <- initial_transition_candidate
+  self$previous_transition          <- previous_transition
+  self$next_transition              <- next_transition
+
+  rwe <- .gt_compute_refinement_window_end(self, initial_transition_candidate + 1L)
+  rws <- .gt_compute_refinement_window_start(self, initial_transition_candidate - 1L, rwe)
+
+  if (!.bt_datetime_gap_check(self, rws)) {
+    br  <- .gt_bridge_gap_validation(self, rws)
+    rws <- br$start; rwe <- br$end
+  }
+
+  rwdd   <- .datetime_diff(self$secs[(rws + 1L):(rwe + 1L)])
+  rwgaps <- as.integer(rwdd >= self$maximum_allowed_gap)
+  if (sum(rwgaps) > 0) {
+    fg <- which(rwgaps == 1L)[1] - 1L
+    if (fg > length(rwdd) - fg) rwe <- rws + fg - 1L else rws <- rws + fg + 1L
+  }
+  if (rws >= rwe) {
+    rwe <- rws + 60L
+    if (rwe >= self$data_length) rwe <- self$data_length - 1L
+  }
+
+  self$refinement_window_start <- rws
+  self$refinement_window_end   <- rwe
+  self$refinement_window_activity_median <- .bt_compute_refinement_window_median(self, rws, rwe)
+  self$metric <- .bt_compute_metric(self, self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference <- diff(self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference_smoothed <-
+    .cspd_median_filter(self$refinement_window_activity_median_difference, self$median_filter_half_window_size)
+  self$refinement_window_activity <- self$activity[(rws + 1L):(rwe + 1L)]
+
+  pv  <- .identify_peaks_and_valleys(signal = self$refinement_window_activity_median,
+                                     activity = self$refinement_window_activity,
+                                     threshold = self$metric)
+  rwa <- self$refinement_window_activity
+  pv$above_fixed_threshold_proportion <- vapply(seq_len(nrow(pv)), function(i) {
+    s <- pv$start[i]; e <- pv$end[i]
+    sum(rwa[(s + 1L):e] > 10) / (e - s)
+  }, numeric(1))
+
+  pv <- .gt_remove_after_long_tall_peak(self, pv)
+  pv <- .gt_remove_before_long_valley(self, pv)
+  self$peaks_and_valleys <- .gt_filter_peaks_and_valleys(self, pv)
+  cnt <- nrow(self$peaks_and_valleys)
+
+  new_rws <- self$refinement_window_start + self$peaks_and_valleys$start[1]
+  self$refinement_window_end <- self$refinement_window_start + self$peaks_and_valleys$end[cnt]
+  if (self$refinement_window_end >= self$data_length) self$refinement_window_end <- self$data_length - 1L
+  self$refinement_window_start <- new_rws
+
+  self$refinement_window_activity_median <-
+    .bt_compute_refinement_window_median(self, self$refinement_window_start, self$refinement_window_end)
+  self$metric <- .bt_compute_metric(self, self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference <- diff(self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference_smoothed <-
+    .cspd_median_filter(self$refinement_window_activity_median_difference, self$median_filter_half_window_size)
+  self$refinement_window_activity <-
+    self$activity[(self$refinement_window_start + 1L):(self$refinement_window_end + 1L)]
+
+  if (isTRUE(self$update_peaks_and_valleys)) {
+    self$peaks_and_valleys <- .identify_peaks_and_valleys(signal = self$refinement_window_activity_median,
+                                                          activity = self$refinement_window_activity,
+                                                          threshold = self$metric)
+  } else {
+    self$peaks_and_valleys$start[1] <- 0L
+    self$peaks_and_valleys$end[1]   <- self$peaks_and_valleys$start[1] + self$peaks_and_valleys$length[1]
+    if (cnt >= 2L) {
+      for (ii in 2:cnt) {
+        self$peaks_and_valleys$start[ii] <- self$peaks_and_valleys$end[ii - 1L]
+        self$peaks_and_valleys$end[ii]   <- self$peaks_and_valleys$start[ii] + self$peaks_and_valleys$length[ii]
+      }
+    }
+  }
+
+  cands <- .gt_identify_getuptime_candidates(self, self$peaks_and_valleys)
+
+  seg <- self$short_window_activity_median[(self$refinement_window_start + 1L):(self$refinement_window_end + 1L)]
+  cr  <- diff(c(0L, as.integer(seg >= self$metric)))
+  up  <- which(cr > 0) - 1L
+
+  refined_getuptime <- .gt_choose_best_getuptime_candidate(self, cands, up)
+
+  list(
+    refined_getuptime                      = refined_getuptime,
+    refinement_window_start                = self$refinement_window_start,
+    refinement_window_end                  = self$refinement_window_end,
+    refinement_window_activity_median      = self$refinement_window_activity_median,
+    refinement_window_activity_median_difference_smoothed =
+      self$refinement_window_activity_median_difference_smoothed,
+    refinement_window_levels               = self$refinement_window_levels,
+    metric                                 = self$metric
+  )
+}
+
 #' Identify contiguous peak ("p") and valley ("v") regions
 #' (port of identify_peaks_and_valleys).
 #'
