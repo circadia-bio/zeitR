@@ -309,3 +309,256 @@
   rownames(pv) <- NULL
   pv
 }
+
+#' numpy-style slice read: x[start:stop] with 0-indexed, exclusive-end
+#' semantics, negative-index wrap and out-of-range clamping. Read counterpart
+#' of `.np_slice_assign`.
+#' @noRd
+.np_slice <- function(x, start, stop) {
+  n <- length(x)
+  if (start < 0L) start <- start + n
+  if (stop  < 0L) stop  <- stop  + n
+  start <- max(0L, min(start, n))
+  stop  <- max(0L, min(stop,  n))
+  if (start < stop) x[(start + 1L):stop] else x[integer(0)]
+}
+
+# ── Stage 3: bed-time refiner ────────────────────────────────────────────────
+# Port of CSPD_BedTime_Refiner (cspd_bt_refine_without_prints.py). The Python
+# class is mirrored by an environment-based object: `.cspd_bedtime_refiner()`
+# builds `self`; methods are `.bt_*(self, ...)` functions that read config and
+# the activity / datetime / short-window-median arrays, and (in later stages)
+# mutate refinement state on `self`. All indices follow the Python convention
+# (0-indexed, exclusive ends); convert at vector access with (i + 1L).
+#
+# Unit A (this section): refinement-window discovery + metric.
+#   datetime_gap_check, compute_refinement_window_median,
+#   compute_zero_proportion_around_end, compute_metric,
+#   compute_initial_refinement_window_start, compute_refinement_window_end,
+#   bridge_gap_validation, compute_improved_refinement_window_start.
+
+#' Construct a bed-time refiner object (mirrors CSPD_BedTime_Refiner.__init__).
+#' @noRd
+.cspd_bedtime_refiner <- function(activity,
+                                  datetime_stamps,
+                                  short_window_activity_median,
+                                  minimum_short_window_activity_median_threshold,
+                                  short_window_activity_median_minimum_high_epochs,
+                                  half_window_around_border,
+                                  activity_median_analysis_window,
+                                  maximum_allowed_gap,
+                                  quantile_threshold,
+                                  median_filter_half_window_size,
+                                  metric_method,
+                                  metric_parameter,
+                                  condition,
+                                  bedtime_score_last_candidate,
+                                  bedtime_last_candidate_score,
+                                  bedtime_best_median_difference_candidate_score,
+                                  bedtime_best_crossing_distance_candidate_score,
+                                  bedtime_best_epochs_above_metric_after_score,
+                                  bedtime_thresholded_candidate_score_amplitude,
+                                  bedtime_thresholded_candidate_score_minimum,
+                                  bedtime_minimum_peak_length,
+                                  bedtime_minimum_valley_length,
+                                  after_candidate_window,
+                                  bedtime_maximum_epochs_above_metric_after_candidate,
+                                  zero_proportion_threshold,
+                                  do_remove_after_long_valley,
+                                  do_remove_before_long_peak,
+                                  do_remove_before_tall_peak,
+                                  update_peaks_and_valleys,
+                                  do_bedtime_candidates_crossings_filter,
+                                  consider_second_best_candidate,
+                                  bedtime_high_probability_awake_peak_length,
+                                  bedtime_high_probability_sleep_valley_length) {
+  self <- new.env(parent = emptyenv())
+  self$activity                       <- as.numeric(activity)
+  self$datetime_stamps                <- datetime_stamps
+  self$secs                           <- as.numeric(datetime_stamps)   # seconds for gap arithmetic
+  self$short_window_activity_median   <- as.numeric(short_window_activity_median)
+  self$minimum_short_window_activity_median_threshold <- minimum_short_window_activity_median_threshold
+  self$short_window_activity_median_minimum_high_epochs <- short_window_activity_median_minimum_high_epochs
+  self$half_window_around_border      <- half_window_around_border
+  self$activity_median_analysis_window <- activity_median_analysis_window
+  self$maximum_allowed_gap            <- maximum_allowed_gap
+  self$quantile_threshold             <- quantile_threshold
+  self$median_filter_half_window_size <- median_filter_half_window_size
+  self$metric_method                  <- metric_method
+  self$metric_parameter               <- metric_parameter
+  self$condition                      <- condition
+  self$bedtime_score_last_candidate   <- bedtime_score_last_candidate
+  self$bedtime_last_candidate_score   <- bedtime_last_candidate_score
+  self$bedtime_best_median_difference_candidate_score  <- bedtime_best_median_difference_candidate_score
+  self$bedtime_best_crossing_distance_candidate_score  <- bedtime_best_crossing_distance_candidate_score
+  self$bedtime_best_epochs_above_metric_after_score    <- bedtime_best_epochs_above_metric_after_score
+  self$bedtime_thresholded_candidate_score_amplitude   <- bedtime_thresholded_candidate_score_amplitude
+  self$bedtime_thresholded_candidate_score_minimum     <- bedtime_thresholded_candidate_score_minimum
+  self$bedtime_minimum_peak_length    <- bedtime_minimum_peak_length
+  self$bedtime_minimum_valley_length  <- bedtime_minimum_valley_length
+  self$after_candidate_window         <- after_candidate_window
+  self$bedtime_maximum_epochs_above_metric_after_candidate <- bedtime_maximum_epochs_above_metric_after_candidate
+  self$zero_proportion_threshold      <- zero_proportion_threshold
+  self$do_remove_after_long_valley    <- do_remove_after_long_valley
+  self$do_remove_before_long_peak     <- do_remove_before_long_peak
+  self$do_remove_before_tall_peak     <- do_remove_before_tall_peak
+  self$update_peaks_and_valleys       <- update_peaks_and_valleys
+  self$do_bedtime_candidates_crossings_filter <- do_bedtime_candidates_crossings_filter
+  self$consider_second_best_candidate <- consider_second_best_candidate
+  self$bedtime_high_probability_awake_peak_length      <- bedtime_high_probability_awake_peak_length
+  self$bedtime_high_probability_sleep_valley_length    <- bedtime_high_probability_sleep_valley_length
+  self$data_length                    <- length(self$activity)
+  self
+}
+
+#' datetime_gap_check: is the gap to the previous/next epoch valid?
+#' `location` is 0-indexed. Returns logical, or list(valid, gap) if return_gap.
+#' @noRd
+.bt_datetime_gap_check <- function(self, location, direction = "backward", return_gap = FALSE) {
+  if (direction == "backward") {
+    gap <- self$secs[location + 1L] - self$secs[location]          # secs[loc] - secs[loc-1] (0-indexed)
+  } else {
+    gap <- self$secs[location + 2L] - self$secs[location + 1L]     # secs[loc+1] - secs[loc]
+  }
+  valid <- !(gap > self$maximum_allowed_gap)
+  if (return_gap) list(valid = valid, gap = gap) else valid
+}
+
+#' compute_refinement_window_median: median-filtered activity in a window,
+#' pre-padding the raw activity then using the "padded" median filter.
+#' @noRd
+.bt_compute_refinement_window_median <- function(self, start, end) {
+  hws <- self$median_filter_half_window_size
+  N   <- self$data_length
+  act <- self$activity
+  if (start - 2L * hws >= 0L) {
+    if (end + 2L * hws + 1L <= N) {
+      rwa <- act[(start - 2L * hws + 1L):(end + 2L * hws + 1L)]
+    } else {
+      rwa <- act[(start - hws + 1L):N]
+      mx  <- max(act[(start + 1L):(end + 1L)])
+      need <- end + 1L + 4L * hws - start
+      if (length(rwa) < need) rwa <- c(rwa, rep(mx, need - length(rwa)))
+    }
+  } else {
+    rwa <- act[1L:(end + 2L * hws + 1L)]
+    mx  <- max(act[(start + 1L):(end + 1L)])
+    need <- end + 1L + 4L * hws - start
+    if (length(rwa) < need) rwa <- c(rep(mx, need - length(rwa)), rwa)
+  }
+  .cspd_median_filter(rwa, hws, padding = "padded")
+}
+
+#' compute_zero_proportion_around_end: zero-proportion in a window centred on
+#' the window end. `end` is 0-indexed.
+#' @noRd
+.bt_compute_zero_proportion_around_end <- function(self, end) {
+  hwab <- self$half_window_around_border
+  N    <- self$data_length
+  wend   <- if ((end + hwab) < N) end + hwab + 1L else N
+  wstart <- if ((end - hwab) > 0L) end - hwab else 0L
+  zero_prop(self$activity[(wstart + 1L):wend])
+}
+
+#' compute_metric: high/low activity separation threshold within a window.
+#' @noRd
+.bt_compute_metric <- function(self, refinement_window_activity_median) {
+  m   <- refinement_window_activity_median
+  pos <- m[m > 0]
+  if (length(pos) == 0L) return(0)
+  if (self$metric_method == 1) {
+    self$metric_parameter * mean(pos)
+  } else if (self$metric_method == 2) {
+    stats::quantile(pos, self$metric_parameter, names = FALSE, type = 7)
+  } else {
+    0
+  }
+}
+
+#' compute_initial_refinement_window_start: stretch the window start back to
+#' the first epoch with a high level of preceding short-window-median activity
+#' (subject to valid gaps and the previous transition). Uses self$previous_transition.
+#' @noRd
+.bt_compute_initial_refinement_window_start <- function(self, initial_candidate) {
+  rws <- initial_candidate
+  if (rws < 0L) rws <- 0L
+  swam <- self$short_window_activity_median
+  she  <- self$short_window_activity_median_minimum_high_epochs
+  qt   <- self$quantile_threshold
+
+  valid_gap <- .bt_datetime_gap_check(self, rws)
+  before <- if (rws >= she) swam[(rws - she + 1L):rws] else swam[seq_len(rws)]
+  high_prop <- 1 - .below_prop(before, qt)
+
+  while ((rws > 0L) && (rws - 1L > self$previous_transition) && valid_gap && (high_prop < 1)) {
+    rws <- rws - 1L
+    if (rws > 0L) valid_gap <- .bt_datetime_gap_check(self, rws)
+    before <- if (rws >= she) swam[(rws - she + 1L):rws] else swam[seq_len(rws)]
+    high_prop <- 1 - .below_prop(before, qt)
+  }
+  rws
+}
+
+#' compute_refinement_window_end: stretch the window end forward until a
+#' sustained low-activity / high-zero-proportion region is reached (subject to
+#' valid gaps and the next transition). Uses self$next_transition.
+#' @noRd
+.bt_compute_refinement_window_end <- function(self, initial_candidate, refinement_window_start) {
+  rwe  <- initial_candidate
+  amaw <- self$activity_median_analysis_window
+  zpt  <- self$zero_proportion_threshold
+
+  valid_gap <- .bt_datetime_gap_check(self, rwe)
+  zp  <- .bt_compute_zero_proportion_around_end(self, rwe)
+  med <- .bt_compute_refinement_window_median(self, refinement_window_start, rwe)
+  metric <- .bt_compute_metric(self, med)
+  ending <- .np_slice(med, length(med) - amaw, length(med))
+  above  <- 1 - .below_prop(ending, metric)
+
+  while ((rwe + 1L < self$data_length) && (rwe + 1L < self$next_transition) && valid_gap &&
+         ((zp < zpt) || (above > 0))) {
+    rwe <- rwe + 1L
+    zp  <- .bt_compute_zero_proportion_around_end(self, rwe)
+    valid_gap <- .bt_datetime_gap_check(self, rwe)
+    med <- .bt_compute_refinement_window_median(self, refinement_window_start, rwe)
+    metric <- .bt_compute_metric(self, med)
+    ending <- .np_slice(med, length(med) - amaw, length(med))
+    above  <- 1 - .below_prop(ending, metric)
+  }
+  rwe
+}
+
+#' bridge_gap_validation: when the end search stops on an invalid gap, jump past
+#' it and search for a fresh window end. Returns list(start, end).
+#' @noRd
+.bt_bridge_gap_validation <- function(self, refinement_window_end) {
+  rws <- refinement_window_end + 1L
+  ic  <- rws + 1L
+  rwe <- .bt_compute_refinement_window_end(self, ic, rws)
+  list(start = rws, end = rwe)
+}
+
+#' compute_improved_refinement_window_start: with a full window known, pull the
+#' start back while the leading median stays below the metric. Uses
+#' self$previous_transition.
+#' @noRd
+.bt_compute_improved_refinement_window_start <- function(self, refinement_window_start, refinement_window_end) {
+  rws  <- refinement_window_start
+  amaw <- self$activity_median_analysis_window
+
+  valid_gap <- .bt_datetime_gap_check(self, rws)
+  med <- .bt_compute_refinement_window_median(self, rws, refinement_window_end)
+  metric <- .bt_compute_metric(self, med)
+  ending <- .np_slice(med, 0L, amaw)
+  below  <- .below_prop(ending, metric)
+
+  while ((rws > 0L) && (rws - 1L > self$previous_transition) && valid_gap && (below > 0)) {
+    rws <- rws - 1L
+    if (rws > 0L) valid_gap <- .bt_datetime_gap_check(self, rws)
+    med <- .bt_compute_refinement_window_median(self, rws, refinement_window_end)
+    metric <- .bt_compute_metric(self, med)
+    ending <- .np_slice(med, 0L, amaw)
+    below  <- .below_prop(ending, metric)
+  }
+  rws
+}
