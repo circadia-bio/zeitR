@@ -14,9 +14,10 @@
 #
 # Stages (in CSPD.model order):
 #   1. peak-valley length filter        -> .peak_valley_length_filter()   [DONE]
-#   2. sleep-gap separation             -> (pending)
-#   3. bed-time / get-up-time refiners  -> (pending)
-#   4. minimum-length filter            -> (pending; boolean_length_filter)
+#   2. sleep-gap separation             -> .sleep_gap_separation()        [DONE]
+#   3. bed-time / get-up-time refiners  -> .bt_refine() / .gt_refine()    [DONE]
+#   4. minimum-length filter + wiring   -> .boolean_length_filter() and
+#                                          .cspd_refine_periods()         [DONE]
 
 # ── Peak/valley region helpers (port of cspd_functions_without_prints.py) ─────
 
@@ -1452,5 +1453,385 @@
       self$refinement_window_activity_median_difference_smoothed,
     refinement_window_levels               = self$refinement_window_levels,
     metric                                 = self$metric
+  )
+}
+
+# ── Stage 4: minimum-length filter + CSPD.model wiring ───────────────────────
+# Ports the tail of CSPD.model: the boolean length filter (with its faithful
+# second-pass quirk) and the transition-refinement driver that threads the
+# bed-time / get-up-time refiners over every MSP transition to build the final
+# `refined_output` (1 = wake, 0 = sleep PERIOD). Indices follow the Python
+# convention (0-indexed, exclusive ends); convert at vector access.
+
+#' boolean_length_filter (port of cspd_functions_without_prints.boolean_length_filter).
+#'
+#' Removes runs of `class_to_filter` ("v" = sleep, "p" = wake) shorter than
+#' `minimum_length` by merging them into their neighbours, then rebuilds the
+#' 0/1 signal. The activity basis is all-zeros (as in Python: a boolean signal
+#' carries no activity features), so only `length`/`class` drive the merges.
+#'
+#' NOTE: the upstream second filtering pass contains a bug — an `it = 0` that is
+#' never used, and a `while (t < count)` that reuses the *stale* `t` left over
+#' from the signal-rebuild loop instead of resetting it to 0. In almost all
+#' cases that stale `t` is already >= the new region count, so the second pass
+#' is a no-op. This is replicated faithfully (the rebuild that follows it is a
+#' fresh `for` loop, so it always runs).
+#' @noRd
+.boolean_length_filter <- function(minimum_length, signal, class_to_filter = "v") {
+  n     <- length(signal)
+  act0  <- numeric(n)                # zero activity: only length/class are used
+  thr   <- 0.5
+  pv    <- .identify_peaks_and_valleys(signal = signal, activity = act0, threshold = thr)
+  count <- nrow(pv)
+  filtered_signal <- rep(1, n)
+
+  if (count > 1L) {
+    # First pass: merge short class_to_filter regions into their neighbours.
+    t <- 0L
+    while (t < count) {
+      remove <- (pv$length[t + 1L] <= minimum_length) &&
+                (pv$class[t + 1L] == class_to_filter)
+      if (remove) {
+        pv <- .remove_peak_valley(pv, t, act0, thr); count <- nrow(pv)
+      } else {
+        t <- t + 1L
+      }
+    }
+
+    # Rebuild the signal from the surviving valleys (t ends == count).
+    count <- nrow(pv)
+    t <- 0L
+    while (t < count) {
+      if (pv$class[t + 1L] == "v")
+        filtered_signal[(pv$start[t + 1L] + 1L):pv$end[t + 1L]] <- 0
+      t <- t + 1L
+    }
+
+    # Second pass — re-identify and (faithfully) reuse the stale `t`.
+    pv    <- .identify_peaks_and_valleys(signal = filtered_signal, activity = act0, threshold = thr)
+    count <- nrow(pv)
+    if (count > 1L) {
+      # `it <- 0L` in the source is intentionally unused; `t` is NOT reset here.
+      while (t < count) {
+        remove <- (pv$length[t + 1L] <= minimum_length) &&
+                  (pv$class[t + 1L] == class_to_filter)
+        if (remove) {
+          pv <- .remove_peak_valley(pv, t, act0, thr); count <- nrow(pv)
+        } else {
+          t <- t + 1L
+        }
+      }
+      filtered_signal <- rep(1, n)
+      count <- nrow(pv)
+      for (t in seq_len(count)) {
+        if (pv$class[t] == "v")
+          filtered_signal[(pv$start[t] + 1L):pv$end[t]] <- 0
+      }
+    }
+  } else if (count == 1L) {
+    filtered_signal <- as.numeric(signal)
+  }
+
+  filtered_signal
+}
+
+#' ActTrust CSPD configuration (the cspd_wrapper param_set + CSPD defaults).
+#'
+#' This is the production parameter set `cspd_wrapper` uses to generate the
+#' validation fixtures. Values are pre-conversion; the minutes->epochs and score
+#' unpacking happen inside `.cspd_refine_periods`, mirroring CSPD.model.
+#' @noRd
+.cspd_acttrust_params <- function() {
+  list(
+    # bedtime scores  = [last, best_median, best_crossing, best_epochs, thr_amp, thr_min]
+    bedtime_scores   = c(0.4081634489795918, 0.551020306122449, 0.7142852857142857,
+                         0.6122446734693877, 0.48979593877551014, 0.44897969387755093),
+    # getuptime scores = [first, best_median, best_crossing, best_epochs, thr_amp, thr_min]
+    getuptime_scores = c(0.26530659183673466, 0.48979593877551014, 0.795917775510204,
+                         0.24489846938775509, 0.999999, 0.24489846938775509),
+    length_thresholds    = c(8, 20, 17, 16),   # bt peak, bt valley, gt peak, gt valley
+    candidate_thresholds = c(0.4328571428571429, 0.37244897959183676, 0.5619047619047619),
+    short_window_activity_median_threshold_quantile = 0.43163269387755104,
+
+    peak_valley_minimum_length                       = 11,
+    median_filter_short_window                       = 41,
+    after_candidate_window                           = 47,
+    half_window_around_border                        = 28,
+    median_filter_half_window_size                   = 7,
+    short_window_activity_median_minimum_high_epochs = 9,
+    activity_median_analysis_window                  = 9,
+    minimum_short_window_activity_median_threshold   = 1.0,
+    sleep_minimum_length                             = 120,
+    nap_minimum_length                               = 20,
+    refinement_maximum_allowed_datetime_gap          = 10,   # minutes; *60 -> seconds
+    sleep_maximum_allowed_datetime_gap               = 60,   # minutes; *60 -> seconds
+    do_peak_valley_length_filter                     = TRUE,
+    detect_naps                                      = FALSE,
+
+    bedtime_metric_method                            = 1L,
+    bedtime_metric_parameter                         = 0.42755102040816323,
+    bedtime_do_remove_before_long_peak               = TRUE,
+    bedtime_do_remove_before_tall_peak               = FALSE,
+    bedtime_do_remove_after_long_valley              = FALSE,
+    bedtime_update_peaks_and_valleys                 = FALSE,
+    bedtime_do_bedtime_candidates_crossings_filter   = FALSE,
+    bedtime_consider_second_best_candidate           = TRUE,
+    bedtime_score_last_candidate                     = TRUE,
+    bedtime_high_probability_awake_peak_length       = 45,
+    bedtime_high_probability_sleep_valley_length     = 45,
+
+    getuptime_metric_method                          = 1L,
+    getuptime_metric_parameter                       = 0.4071428571428571,
+    getuptime_do_remove_after_long_tall_peak         = TRUE,
+    getuptime_do_remove_before_long_valley           = FALSE,
+    getuptime_update_peaks_and_valleys               = FALSE,
+    getuptime_score_first_candidate                  = TRUE,
+    getuptime_high_probability_awake_peak_length     = 45,
+    getuptime_high_probability_sleep_valley_length   = 45
+  )
+}
+
+#' Refine an MSP detection into final sleep periods (port of the CSPD.model tail).
+#'
+#' Given the (on-wrist) activity, timestamps and the MSP sleep detection from
+#' `detect_sleep_crespo`, this reproduces CSPD.model from the parameter
+#' derivation onward: scale activity, derive the epoch-converted parameters,
+#' apply the stage-1 peak-valley length filter and stage-2 sleep-gap
+#' separation, build the transition list, refine every transition with the
+#' bed-time / get-up-time refiners (threading the shared
+#' `refinement_window_levels`), apply the stage-4 minimum-length filter, and
+#' snap the recording borders with the Crespo heuristic.
+#'
+#' @param activity numeric raw activity (PIM), on-wrist subset.
+#' @param datetime_stamps POSIXct timestamps, same length as `activity`.
+#' @param msp_detection integer 0/1 vector (1 = wake, 0 = sleep) — the MSP
+#'   detection entering the refiner (Python `final_sleep_detection`).
+#' @param condition integer condition flag from MSP (default 0).
+#' @param params CSPD configuration list (default `.cspd_acttrust_params()`).
+#' @return list(refined_output, refined_sleep_df, refined_bedtimes,
+#'   refined_getuptimes, transitions). `refined_output` is 1 = wake, 0 = sleep
+#'   PERIOD (post boolean-length-filter and post border heuristic).
+#' @noRd
+.cspd_refine_periods <- function(activity, datetime_stamps, msp_detection,
+                                 condition = 0L, params = .cspd_acttrust_params()) {
+  p           <- params
+  data_length <- length(activity)
+  activity    <- as.numeric(activity)
+
+  # ── Epoch duration (mode of the datetime differences) + scaled activity ──
+  dd_all   <- .datetime_diff(datetime_stamps)
+  tb       <- sort(table(dd_all), decreasing = TRUE)
+  duration <- as.numeric(names(tb)[1])
+  scaled_activity <- (1 / duration) * activity
+
+  # ── Score / length / candidate unpacking ──
+  b  <- p$bedtime_scores
+  g  <- p$getuptime_scores
+  l  <- as.integer(round(p$length_thresholds))
+  cc <- p$candidate_thresholds
+
+  bedtime_minimum_peak_length     <- l[1]
+  bedtime_minimum_valley_length   <- l[2]
+  getuptime_minimum_peak_length   <- l[3]
+  getuptime_minimum_valley_length <- l[4]
+
+  bedtime_max_epochs        <- cc[1]
+  getuptime_max_epochs      <- cc[2]
+  zero_proportion_threshold <- cc[3]
+
+  swam_quantile <- p$short_window_activity_median_threshold_quantile
+  if (condition == 2L) {
+    zero_proportion_threshold <- zero_proportion_threshold * 0.666
+    swam_quantile             <- 1.333 * swam_quantile
+  }
+
+  refinement_gap <- p$refinement_maximum_allowed_datetime_gap * 60
+  sleep_gap      <- p$sleep_maximum_allowed_datetime_gap * 60
+
+  # ── Minutes -> epochs (round) and truncating int() conversions ──
+  conv_round <- function(x) as.integer(round(x * 60 / duration))
+  conv_int   <- function(x) as.integer(x * 60 / duration)
+
+  bedtime_minimum_peak_length     <- conv_round(bedtime_minimum_peak_length)
+  bedtime_minimum_valley_length   <- conv_round(bedtime_minimum_valley_length)
+  getuptime_minimum_peak_length   <- conv_round(getuptime_minimum_peak_length)
+  getuptime_minimum_valley_length <- conv_round(getuptime_minimum_valley_length)
+  after_candidate_window          <- conv_round(p$after_candidate_window)
+  # NB: the *original* after_candidate_window (minutes) scales the max-epochs
+  bedtime_max_epochs   <- as.integer(round(p$after_candidate_window * bedtime_max_epochs))
+  getuptime_max_epochs <- as.integer(round(p$after_candidate_window * getuptime_max_epochs))
+  half_window_around_border       <- conv_round(p$half_window_around_border)
+  activity_median_analysis_window <- conv_round(p$activity_median_analysis_window)
+  median_filter_half_window_size  <- conv_round(p$median_filter_half_window_size)
+  peak_valley_minimum_length      <- conv_round(p$peak_valley_minimum_length)
+  median_filter_short_window      <- conv_int(p$median_filter_short_window)
+  swamm_high_epochs               <- conv_int(p$short_window_activity_median_minimum_high_epochs)
+
+  # ── Auxiliary short-window activity median + threshold (functions.py median_filter) ──
+  swam <- .cspd_median_filter(scaled_activity, median_filter_short_window)   # padding = NULL
+  swam_threshold <- as.numeric(stats::quantile(swam, swam_quantile, names = FALSE, type = 7))
+
+  # ── Stage 1: peak-valley length filter ──
+  detection <- as.numeric(msp_detection)
+  if (isTRUE(p$do_peak_valley_length_filter)) {
+    detection <- .peak_valley_length_filter(detection, peak_valley_minimum_length)
+  }
+
+  # ── Stage 2: sleep-gap separation ──
+  detection <- .sleep_gap_separation(detection, .datetime_diff(datetime_stamps), sleep_gap)
+
+  # ── Build transitions: diff -> nonzero, prepend a synthetic bedtime if the
+  #    recording starts asleep. Reproduces the source faithfully, including a
+  #    possible duplicate index-0 entry. ──
+  borders <- diff(detection)
+  idx0    <- which(borders != 0) - 1L                 # 0-indexed positions in the diff
+  if (detection[1] == 0) {
+    borders[1] <- -1
+    idx0       <- c(0L, idx0)
+  }
+  trans_i   <- idx0
+  trans_dir <- borders[idx0 + 1L]
+  num       <- length(trans_i)
+  refined_i <- trans_i                                # refined_transitions[*][0], mutable
+
+  refinement_window_levels <- numeric(data_length)
+  refined_bedtimes   <- integer(0)
+  refined_getuptimes <- integer(0)
+  refined_output     <- numeric(data_length)          # zeros (= all sleep)
+
+  if (num > 0L) {
+    bt <- .cspd_bedtime_refiner(
+      activity = scaled_activity, datetime_stamps = datetime_stamps,
+      short_window_activity_median = swam,
+      minimum_short_window_activity_median_threshold = p$minimum_short_window_activity_median_threshold,
+      short_window_activity_median_minimum_high_epochs = swamm_high_epochs,
+      half_window_around_border = half_window_around_border,
+      activity_median_analysis_window = activity_median_analysis_window,
+      maximum_allowed_gap = refinement_gap,
+      quantile_threshold = swam_threshold,
+      median_filter_half_window_size = median_filter_half_window_size,
+      metric_method = p$bedtime_metric_method,
+      metric_parameter = p$bedtime_metric_parameter,
+      condition = condition,
+      bedtime_score_last_candidate = p$bedtime_score_last_candidate,
+      bedtime_last_candidate_score = b[1],
+      bedtime_best_median_difference_candidate_score = b[2],
+      bedtime_best_crossing_distance_candidate_score = b[3],
+      bedtime_best_epochs_above_metric_after_score = b[4],
+      bedtime_thresholded_candidate_score_amplitude = b[5],
+      bedtime_thresholded_candidate_score_minimum = b[6],
+      bedtime_minimum_peak_length = bedtime_minimum_peak_length,
+      bedtime_minimum_valley_length = bedtime_minimum_valley_length,
+      after_candidate_window = after_candidate_window,
+      bedtime_maximum_epochs_above_metric_after_candidate = bedtime_max_epochs,
+      zero_proportion_threshold = zero_proportion_threshold,
+      do_remove_after_long_valley = p$bedtime_do_remove_after_long_valley,
+      do_remove_before_long_peak = p$bedtime_do_remove_before_long_peak,
+      do_remove_before_tall_peak = p$bedtime_do_remove_before_tall_peak,
+      update_peaks_and_valleys = p$bedtime_update_peaks_and_valleys,
+      do_bedtime_candidates_crossings_filter = p$bedtime_do_bedtime_candidates_crossings_filter,
+      consider_second_best_candidate = p$bedtime_consider_second_best_candidate,
+      bedtime_high_probability_awake_peak_length = p$bedtime_high_probability_awake_peak_length,
+      bedtime_high_probability_sleep_valley_length = p$bedtime_high_probability_sleep_valley_length
+    )
+
+    gt <- .cspd_getuptime_refiner(
+      activity = scaled_activity, datetime_stamps = datetime_stamps,
+      short_window_activity_median = swam,
+      minimum_short_window_activity_median_threshold = p$minimum_short_window_activity_median_threshold,
+      short_window_activity_median_minimum_high_epochs = swamm_high_epochs,
+      half_window_around_border = half_window_around_border,
+      activity_median_analysis_window = activity_median_analysis_window,
+      maximum_allowed_gap = refinement_gap,
+      quantile_threshold = swam_threshold,
+      median_filter_half_window_size = median_filter_half_window_size,
+      getuptime_metric_method = p$getuptime_metric_method,
+      getuptime_metric_parameter = p$getuptime_metric_parameter,
+      condition = condition,
+      getuptime_first_candidate_score = g[1],
+      getuptime_best_median_difference_candidate_score = g[2],
+      getuptime_best_crossing_distance_candidate_score = g[3],
+      getuptime_best_epochs_above_metric_after_score = g[4],
+      getuptime_thresholded_candidate_score_amplitude = g[5],
+      getuptime_thresholded_candidate_score_minimum = g[6],
+      getuptime_minimum_peak_length = getuptime_minimum_peak_length,
+      getuptime_minimum_valley_length = getuptime_minimum_valley_length,
+      after_candidate_window = after_candidate_window,
+      getuptime_maximum_epochs_above_metric_after_candidate = getuptime_max_epochs,
+      zero_proportion_threshold = zero_proportion_threshold,
+      do_remove_after_long_tall_peak = p$getuptime_do_remove_after_long_tall_peak,
+      getuptime_high_probability_awake_peak_length = p$getuptime_high_probability_awake_peak_length,
+      getuptime_high_probability_sleep_valley_length = p$getuptime_high_probability_sleep_valley_length,
+      do_remove_before_long_valley = p$getuptime_do_remove_before_long_valley,
+      update_peaks_and_valleys = p$getuptime_update_peaks_and_valleys,
+      getuptime_score_first_candidate = p$getuptime_score_first_candidate
+    )
+
+    for (k in seq_len(num)) {
+      itc    <- trans_i[k]
+      prev_t <- if (k >= 2L) refined_i[k - 1L] else 0L
+      next_t <- if (k < num) refined_i[k + 1L] else (data_length + 1L)
+
+      if (trans_dir[k] < 0) {                         # bed-time refinement
+        res <- .bt_refine(bt, refinement_window_levels, itc, prev_t, next_t)
+        refinement_window_levels <- res$refinement_window_levels
+        rbt <- res$refined_bedtime
+        refined_bedtimes <- c(refined_bedtimes, rbt)
+        refined_i[k] <- rbt
+        if (prev_t < rbt) refined_output[(prev_t + 1L):rbt] <- 1
+      } else {                                        # get-up-time refinement
+        res <- .gt_refine(gt, refinement_window_levels, itc, prev_t, next_t)
+        refinement_window_levels <- res$refinement_window_levels
+        rgt <- res$refined_getuptime
+        refined_getuptimes <- c(refined_getuptimes, rgt)
+        refined_i[k] <- rgt
+      }
+    }
+
+    if (trans_dir[num] > 0) {
+      last <- refined_i[num]
+      if (last < data_length) refined_output[(last + 1L):data_length] <- 1
+    }
+  } else {
+    refined_output <- rep(1, data_length)
+  }
+
+  # ── Stage 4: minimum-length filter (non-nap path) ──
+  final_sleep_detection <- .boolean_length_filter(p$sleep_minimum_length, refined_output)
+  refined_output <- final_sleep_detection
+
+  # ── Per-night transitions (pre-heuristic) -> refined_sleep_df ──
+  rb_borders <- diff(refined_output)
+  ridx0      <- which(rb_borders != 0) - 1L
+  npairs     <- length(ridx0) %/% 2L
+  if (npairs > 0L) {
+    dts <- as.POSIXct(datetime_stamps)
+    bi  <- ridx0[seq(1L, by = 2L, length.out = npairs)]   # even (0-indexed) -> bedtime
+    gi  <- ridx0[seq(2L, by = 2L, length.out = npairs)]   # odd  -> getuptime
+    refined_sleep_df <- data.frame(
+      bedtime         = dts[bi + 1L],
+      getuptime       = dts[gi + 1L],
+      bedtime_index   = as.integer(bi),
+      getuptime_index = as.integer(gi)
+    )
+    refined_sleep_df$hour_length <-
+      as.numeric(difftime(refined_sleep_df$getuptime, refined_sleep_df$bedtime, units = "hours"))
+  } else {
+    refined_sleep_df <- data.frame()
+  }
+
+  # ── Crespo heuristic: force the recording borders awake ──
+  final_sleep_detection[1] <- 1
+  final_sleep_detection[data_length] <- 1
+  refined_output[1] <- 1
+  refined_output[data_length] <- 1
+
+  list(
+    refined_output     = refined_output,
+    refined_sleep_df   = refined_sleep_df,
+    refined_bedtimes   = refined_bedtimes,
+    refined_getuptimes = refined_getuptimes,
+    transitions        = data.frame(index = as.integer(trans_i),
+                                    direction = as.numeric(trans_dir))
   )
 }
