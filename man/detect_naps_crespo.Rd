@@ -30,9 +30,9 @@ merges the detected naps into the sleep state. Must be run \emph{after}
 }
 \details{
 Nap detection uses a nap-mode MSP (a high zero-proportion combined with a
-low adaptive-median activity, \code{\link[=.crespo_nap_msp]{.crespo_nap_msp()}}) followed by the same
+low adaptive-median activity, \code{.crespo_nap_msp()}) followed by the same
 bed-time / get-up-time refiners as the main sleep detection, with the nap
-parameter set (\code{\link[=.cspd_nap_params]{.cspd_nap_params()}}) and nap-specific minimum-length
+parameter set (\code{.cspd_nap_params()}) and nap-specific minimum-length
 post-processing. Detected naps are written as \code{state == 1} (merged into
 "sleep"), matching \code{nap_wrapper}, which assigns
 \code{state[wake] = 1 - refined_output} (i.e. naps are \emph{not} a distinct state).

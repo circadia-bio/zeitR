@@ -156,9 +156,9 @@ detect_sleep_crespo <- function(
 #' [detect_sleep_crespo()].
 #'
 #' Nap detection uses a nap-mode MSP (a high zero-proportion combined with a
-#' low adaptive-median activity, [.crespo_nap_msp()]) followed by the same
+#' low adaptive-median activity, `.crespo_nap_msp()`) followed by the same
 #' bed-time / get-up-time refiners as the main sleep detection, with the nap
-#' parameter set ([.cspd_nap_params()]) and nap-specific minimum-length
+#' parameter set (`.cspd_nap_params()`) and nap-specific minimum-length
 #' post-processing. Detected naps are written as `state == 1` (merged into
 #' "sleep"), matching `nap_wrapper`, which assigns
 #' `state[wake] = 1 - refined_output` (i.e. naps are *not* a distinct state).
