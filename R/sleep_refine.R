@@ -199,3 +199,113 @@
   }
   out
 }
+
+# ── Stage 3: shared refiner helpers ───────────────────────────────────────────
+# Deterministic building blocks the bed-time / get-up-time refiners depend on.
+# Ported from functions.py and cspd_functions_without_prints.py. Indices follow
+# the Python convention (0-indexed, exclusive ends); convert at access.
+
+#' Proportion of elements <= threshold (port of below_prop).
+#' @noRd
+.below_prop <- function(a, thresh) {
+  if (length(a) == 0L) return(0)
+  sum(a <= thresh) / length(a)
+}
+
+#' Local extremum value in a +/- peak_hws window around `center` (port of
+#' get_peak). `center` is 0-indexed. Returns the max (or min, if `valley`)
+#' value of the clamped window; argmax/argmin take the first index, matching
+#' NumPy and R's which.max/which.min.
+#' @noRd
+.get_peak <- function(signal, center, valley = FALSE, peak_hws = 10L) {
+  n  <- length(signal)
+  lo <- center - peak_hws            # 0-indexed inclusive start
+  hi <- center + peak_hws + 1L       # 0-indexed exclusive end
+  if (lo >= 0L) {
+    if (hi <= n) {
+      ps <- signal[(lo + 1L):hi]
+    } else {
+      ps <- signal[(lo + 1L):n]
+    }
+  } else {
+    ps <- signal[1L:hi]              # signal[0:center+hws+1]
+  }
+  if (valley) ps[which.min(ps)] else ps[which.max(ps)]
+}
+
+#' Median filter matching functions.py median_filter (center = TRUE).
+#'
+#' Distinct from utils.R's `median_filter`: this is the CSPD-refiner variant
+#' with selectable padding. `padding = NULL` replicates the first/last value
+#' for 2*hws on each side; `padding = "padded"` assumes the signal is already
+#' padded and trims 4*hws from the output length; a length-2 numeric vector
+#' pads with constant front/back values.
+#' @noRd
+.cspd_median_filter <- function(signal, hws, padding = NULL) {
+  s <- as.numeric(signal)
+  n <- length(s)
+  if (n <= hws) return(s)
+
+  med_win <- function(v, count) {
+    vapply(seq_len(count), function(i) {
+      stats::median(v[(hws + i):(hws + i + 2L * hws)])
+    }, numeric(1))
+  }
+
+  if (is.null(padding)) {
+    filt <- c(rep(s[1], 2L * hws), s, rep(s[n], 2L * hws))
+    med_win(filt, n)
+  } else if (is.character(padding) && padding == "padded") {
+    med_win(s, n - 4L * hws)
+  } else {
+    filt <- c(rep(padding[1], 2L * hws), s, rep(padding[2], 2L * hws))
+    med_win(filt, n)
+  }
+}
+
+#' Merge a peak/valley into its neighbours, recomputing features
+#' (port of remove_peak_valley). `index_to_remove` is 0-indexed.
+#'
+#' First region merges forward into the second; the last merges back into the
+#' penultimate; an interior region merges its two neighbours around it into one
+#' (keeping the preceding region's class). Unlike the inline stage-1 filter,
+#' this recomputes mean/median/zero_proportion/above_threshold_proportion via
+#' `.compute_features`.
+#' @noRd
+.remove_peak_valley <- function(peaks_and_valleys, index_to_remove, activity, threshold) {
+  pv  <- peaks_and_valleys
+  cnt <- nrow(pv)
+  i0  <- index_to_remove             # 0-indexed
+
+  set_features <- function(row, start, end) {
+    f <- .compute_features(activity, threshold, start, end)
+    pv$length[row]                     <<- as.integer(f$length)
+    pv$mean[row]                       <<- f$mean
+    pv$median[row]                     <<- f$median
+    pv$zero_proportion[row]            <<- f$zero_proportion
+    pv$above_threshold_proportion[row] <<- f$above_threshold_proportion
+  }
+
+  if (i0 == 0L) {
+    start <- as.integer(pv$start[1]); end <- as.integer(pv$end[2])
+    pv$start[2] <- start
+    set_features(2L, start, end)
+    pv <- pv[-1L, , drop = FALSE]
+  } else {
+    r <- i0 + 1L                       # R row of index_to_remove
+    start <- as.integer(pv$start[r - 1L])
+    if (i0 < cnt - 1L) {
+      end  <- as.integer(pv$end[r + 1L])
+      drop <- c(r, r + 1L)
+    } else {
+      end  <- as.integer(pv$end[r])
+      drop <- r
+    }
+    pv$end[r - 1L] <- end
+    set_features(r - 1L, start, end)
+    pv <- pv[-drop, , drop = FALSE]
+  }
+
+  rownames(pv) <- NULL
+  pv
+}
