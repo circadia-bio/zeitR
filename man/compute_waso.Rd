@@ -32,7 +32,7 @@ with epoch-level Cole-Kripke wake/sleep scores.}
 Scores each epoch within detected sleep periods as wake or sleep using
 \code{\link[=score_epochs_cole_kripke]{score_epochs_cole_kripke()}}, then computes per-night statistics. This is a
 faithful port of the Python \code{condor_pipeline} \code{detect_waso}: night
-boundaries are built by \code{\link[=.nights_df]{.nights_df()}} (the \code{search_gap = FALSE} path of the
+boundaries are built by \code{.nights_df()} (the \code{search_gap = FALSE} path of the
 reference \code{nights_df}), each night's ZCM is scored with Cole-Kripke, and the
 epoch-level \code{state} is rebuilt from a zero (wake) base so that within-night
 WASO-wake epochs and all epochs outside detected nights are scored as wake.
