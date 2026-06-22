@@ -55,26 +55,48 @@ x <- tibble::tibble(
   state    = out_pre
 )
 
-# ── 1. .nights_df boundaries vs python_nights ────────────────────────────────
+# ── nights_df + compute_waso, then a MATCHED-night comparison ────────────────
+# NOTE: this reconstruction has no naps (detect_naps not run), so R will be
+# missing every nap-detected night that the Python pipeline adds as state 1.
+# The matched nights isolate the WASO / Cole-Kripke / boundary layer.
 ndf <- get(".nights_df", asNamespace("zeitR"))
 nd  <- ndf(out_pre[onwrist], wake_thresh = 60L)
 pn  <- read.csv(file.path(ext, "python_nights.csv"), stringsAsFactors = FALSE)
-pn_nap <- tolower(as.character(pn$nap)) == "true"
 
-cat(sprintf("\nnights: R = %d   Python = %d\n", nrow(nd), nrow(pn)))
-if (nrow(nd) == nrow(pn)) {
-  cat(sprintf("  bt  match: %s\n", all(nd$bt  == pn$bt)))
-  cat(sprintf("  gt  match: %s\n", all(nd$gt  == pn$gt)))
-  cat(sprintf("  nap match: %s\n", all(nd$nap == pn_nap)))
-} else {
-  cat("  (night count differs - inspect nd vs pn)\n")
-  print(utils::head(nd)); print(utils::head(pn[, c("bt", "gt", "nap")]))
-}
-
-# ── 2. compute_waso state vs python_output$state ─────────────────────────────
 res     <- compute_waso(x, wake_thresh = 60L)
 state_r <- as.integer(res$data$state)
 
+cat(sprintf("\nnights: R = %d   Python = %d\n", nrow(nd), nrow(pn)))
+
+# res$nights rows correspond 1:1 (same order) with nd rows.
+rstats <- data.frame(
+  bt  = nd$bt,           gt  = nd$gt,
+  tbt = res$nights$tbt,  waso = res$nights$waso, sol = res$nights$sol,
+  soi = res$nights$soi,  tst  = res$nights$tst,  nw  = res$nights$nw,
+  eff = res$nights$eff
+)
+m <- merge(rstats, pn, by = "bt", suffixes = c("_r", "_py"))
+cat(sprintf("matched nights (by bt): %d  (R-only %d, Python-only %d)\n",
+            nrow(m), sum(!(rstats$bt %in% pn$bt)), sum(!(pn$bt %in% rstats$bt))))
+if (nrow(m) > 0L) {
+  cat(sprintf("  matched-night agreement -> gt:%s tbt:%s waso:%s sol:%s soi:%s tst:%s nw:%s  eff_maxdiff:%.2e\n",
+              all(m$gt_r == m$gt_py), all(m$tbt_r == m$tbt_py),
+              all(m$waso_r == m$waso_py), all(m$sol_r == m$sol_py),
+              all(m$soi_r == m$soi_py), all(m$tst_r == m$tst_py),
+              all(m$nw_r == m$nw_py), max(abs(m$eff_r - m$eff_py))))
+}
+
+py_only <- pn[!(pn$bt %in% rstats$bt), c("bt", "gt", "tbt", "nap")]
+if (nrow(py_only) > 0L) {
+  cat("Python-only nights (missing from R = nap-detected periods):\n")
+  print(py_only)
+}
+r_only <- rstats[!(rstats$bt %in% pn$bt), c("bt", "gt", "tbt")]
+if (nrow(r_only) > 0L) {
+  cat("R-only nights:\n"); print(r_only)
+}
+
+# ── full epoch-level state vs python_output$state ────────────────────────────
 mism <- sum(state_r != state_final)
 cat(sprintf("\ncompute_waso state vs python_output$state: %d / %d mismatches  (agreement %.5f)\n",
             mism, n, mean(state_r == state_final)))
@@ -84,17 +106,6 @@ if (mism > 0L) {
               R      = state_r[state_r != state_final]))
 }
 
-# ── 3. per-night stats vs python_nights ──────────────────────────────────────
-ns <- res$nights
-if (nrow(ns) == nrow(pn)) {
-  cat(sprintf("\nper-night stat agreement (n = %d):\n", nrow(ns)))
-  cat(sprintf("  tbt:  %s\n", all(ns$tbt  == pn$tbt)))
-  cat(sprintf("  waso: %s\n", all(ns$waso == pn$waso)))
-  cat(sprintf("  sol:  %s\n", all(ns$sol  == pn$sol)))
-  cat(sprintf("  soi:  %s\n", all(ns$soi  == pn$soi)))
-  cat(sprintf("  tst:  %s\n", all(ns$tst  == pn$tst)))
-  cat(sprintf("  nw:   %s\n", all(ns$nw   == pn$nw)))
-  cat(sprintf("  eff:  max abs diff = %.3e\n", max(abs(ns$eff - pn$eff))))
-}
-
+cat("\nNote: residual is expected until detect_naps_crespo faithfully ports\n")
+cat("nap_wrapper (full CSPD nap-mode, naps encoded as state 1).\n")
 cat("\ndone.\n")
