@@ -188,6 +188,49 @@ ashman_d <- function(mu1, sigma1, mu2, sigma2) {
   sqrt(2 / denom) * abs(mu1 - mu2)
 }
 
+# ── State labels ─────────────────────────────────────────────────────────────
+
+#' Convert integer epoch states to a labelled factor
+#'
+#' Converts the integer `state` column produced by the zeitR pipeline into a
+#' human-readable factor. Useful for display, plotting, and export — the
+#' internal `state` column always stays integer to preserve Python reference
+#' parity.
+#'
+#' | Integer | Label       |
+#' |---------|-------------|
+#' | `0`     | `"wake"`     |
+#' | `1`     | `"sleep"`    |
+#' | `4`     | `"off-wrist"`|
+#' | `7`     | `"nap"`      |
+#'
+#' Any value not in the table above is silently converted to `NA`.
+#'
+#' @param x integer (or numeric) vector of epoch states, as found in
+#'   `result$data$state`.
+#'
+#' @return An ordered factor with levels
+#'   `c("wake", "sleep", "nap", "off-wrist")`, the same length as `x`.
+#'
+#' @export
+#'
+#' @examples
+#' label_states(c(0L, 1L, 0L, 4L, 1L, 7L))
+#' # [1] wake  sleep wake  off-wrist sleep nap
+#' # Levels: wake < sleep < nap < off-wrist
+#'
+#' \dontrun{
+#' result <- run_pipeline("recordings/P001.txt")
+#' result$data$state_label <- label_states(result$data$state)
+#' }
+label_states <- function(x) {
+  factor(
+    c("0" = "wake", "1" = "sleep", "4" = "off-wrist", "7" = "nap")[as.character(as.integer(x))],
+    levels  = c("wake", "sleep", "nap", "off-wrist"),
+    ordered = TRUE
+  )
+}
+
 # ── NULL coalescing operator ───────────────────────────────────────────────────
 
 #' @noRd
