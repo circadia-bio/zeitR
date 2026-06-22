@@ -189,7 +189,7 @@ detect_naps_crespo <- function(
 
 # ── Internal Crespo helpers ───────────────────────────────────────────────────
 
-#' Core Crespo MSP algorithm
+#' Core Crespo MSP algorithm — direct translation of Python's detect_msp
 #' @noRd
 .crespo_msp <- function(
     activity,
@@ -204,97 +204,175 @@ detect_naps_crespo <- function(
     zero_mitigation_q,
     min_short_window_thr
 ) {
-  n            <- length(activity)
-  pad_size     <- as.integer(round(epoch_h * pad_h))
-  max_hws      <- as.integer(round(epoch_h * median_filter_h / 2))
-  max_activity <- max(activity, na.rm = TRUE)
+  # Python:
+  #   median_filter_window_size = int(epoch_hour * median_filter_window_hourly_length) + 1
+  #   median_filter_half_window_size = int((median_filter_window_size - 1) / 2)
+  #   pad_size = int(epoch_hour * adaptive_median_filter_padding_hourly_length)
+  data_length     <- length(activity)
+  mf_window_size  <- as.integer(epoch_h * median_filter_h) + 1L
+  mf_hws          <- as.integer((mf_window_size - 1L) / 2L)
+  pad_size        <- as.integer(epoch_h * pad_h)
+  maximum_activity <- max(activity, na.rm = TRUE)
 
-  # ── Zero mitigation ────────────────────────────────────────────────────────
-  mitigated    <- activity
-  zmit_level   <- as.double(stats::quantile(activity, zero_mitigation_q,
-                                            names = FALSE))
+  # ── padded_activity (for adaptive filter) ─────────────────────────────────
+  # Python: padded_activity = insert(activity, 0, pad) + append(pad)
+  # 0-indexed array of length data_length + 2*pad_size
+  padded_activity <- c(rep(maximum_activity, pad_size), activity,
+                       rep(maximum_activity, pad_size))
 
-  run_len <- 0L
-  for (i in seq_len(n)) {
+  # ── Zero mitigation (pass 1) ───────────────────────────────────────────────
+  # Python loops i in range(data_length), 0-indexed
+  mitigated_zeros_activity <- activity
+  zero_mitigation_activity_level <- as.double(
+    stats::quantile(activity, zero_mitigation_q, names = FALSE))
+
+  zero_sequence_length <- 0L
+  for (i in seq_len(data_length)) {           # i is 1-indexed in R
+    i0 <- i - 1L                               # 0-indexed equivalent
     if (activity[i] == 0) {
-      run_len <- run_len + 1L
+      zero_sequence_length <- zero_sequence_length + 1L
     } else {
-      if (run_len > consec_zeros_thr) {
-        mitigated[(i - run_len):(i - 1L)] <-
-          mitigated[(i - run_len):(i - 1L)] + zmit_level
+      if (zero_sequence_length > consec_zeros_thr) {
+        # Python: mitigated[i-run:i] += level   (0-indexed, exclusive end)
+        # R equivalent: [(i-run) : (i-1)] (1-indexed)
+        start_r <- i - zero_sequence_length
+        end_r   <- i - 1L
+        mitigated_zeros_activity[start_r:end_r] <-
+          mitigated_zeros_activity[start_r:end_r] + zero_mitigation_activity_level
       }
-      run_len <- 0L
+      zero_sequence_length <- 0L
     }
   }
 
-  # ── Pad mitigated signal for initial coarse median filter ─────────────────
-  pad_mf  <- as.integer(round(epoch_h * median_filter_h))
-  padded_mit <- c(rep(max_activity, pad_mf), mitigated, rep(max_activity, pad_mf))
-  coarse_med <- median_filter(padded_mit, as.integer(pad_mf / 2))
-  coarse_med <- coarse_med[(pad_mf + 1L):(pad_mf + n)]
+  # ── Coarse median filter ───────────────────────────────────────────────────
+  # Python: median_filter(padded_mit, mf_hws, padding='padded', center=True)
+  # padding='padded' means input is already padded; no additional padding added.
+  # rolling_window(padded_mit, 2*mf_hws+1) produces (len-2*mf_hws) windows
+  # filt = median(rolled)[mf_hws : data_length+mf_hws]  (0-indexed)
+  # = R 1-indexed: [mf_hws+1 : data_length+mf_hws]
+  coarse_pad <- as.integer(epoch_h * median_filter_h)
+  padded_mit <- c(rep(maximum_activity, coarse_pad),
+                  mitigated_zeros_activity,
+                  rep(maximum_activity, coarse_pad))
+  # Direct sliding window median — matches Python rolling_window exactly
+  padded_mitigated_zeros_activity <- vapply(seq_len(data_length), function(i) {
+    # Python median_filter(..., padding='padded') returns, for output position
+    # k (0-indexed), the CENTRED median over original position k. With
+    # coarse_pad = 2*mf_hws padding on each side, the centred window for R
+    # position i (1-indexed) is padded_mit[(i + mf_hws):(i + 3*mf_hws)] —
+    # exactly 2*mf_hws + 1 elements. The previous (i+1):(i+2*mf_hws+1) window
+    # was shifted left by mf_hws - 1 (~4 h), corrupting morph_det and hence
+    # which zeros were marked invalid.
+    stats::median(padded_mit[(i + mf_hws):(i + 3L * mf_hws)])
+  }, numeric(1))
 
-  # Initial threshold + morphological filter for invalid zero identification
-  thr0          <- as.double(stats::quantile(coarse_med, sleep_quantile,
-                                             names = FALSE))
-  initial_det   <- as.integer(coarse_med > thr0)
-  morph_det     <- .morphological_open_close(initial_det, morph_size)
+  # ── Coarse threshold + morphological filter ────────────────────────────────
+  sleep_median_activity_threshold <- as.double(
+    stats::quantile(padded_mitigated_zeros_activity, sleep_quantile, names = FALSE))
+  initial_sleep_detection <- as.integer(
+    padded_mitigated_zeros_activity > sleep_median_activity_threshold)
+  structuring_element <- rep(1L, morph_size)
+  morphological_filtered_initial_detection <-
+    .morphological_open_close(initial_sleep_detection, morph_size)
 
-  # Mark invalid zeros based on morphological result
-  padded_act <- c(rep(max_activity, pad_size), activity, rep(max_activity, pad_size))
+  # ── Mark invalid zeros (pass 2) ───────────────────────────────────────────
+  # Python loops i in range(data_length), 0-indexed
+  # invalid_zero_indexes are 0-indexed signal positions
+  # then shifted by +pad_size to match padded_activity (also 0-indexed)
+  # padded_activity[invalid_zero_indexes] = NaN
+  invalid_zero_indexes <- integer(0)
+  awake_zero_sequence_length <- 0L
+  sleep_zero_sequence_length <- 0L
 
-  run_len     <- 0L
-  awake_run   <- 0L
-  sleep_run   <- 0L
-  invalid_idx <- integer(0)
-
-  for (i in seq_len(n)) {
-    in_sleep <- morph_det[i] == 0L
-
-    if (!in_sleep) {  # wake region
-      if (sleep_run > sleep_zeros_thr) {
-        invalid_idx <- c(invalid_idx, (i - sleep_run):(i - 1L) + pad_size)
+  for (i in seq_len(data_length)) {
+    i0 <- i - 1L  # 0-indexed
+    if (morphological_filtered_initial_detection[i] == 1L) {  # awake
+      if (sleep_zero_sequence_length > sleep_zeros_thr) {
+        # Python: range(i-run, i) 0-indexed
+        run_start_0 <- i0 - sleep_zero_sequence_length
+        run_end_0   <- i0 - 1L
+        invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
       }
-      sleep_run <- 0L
+      sleep_zero_sequence_length <- 0L
       if (activity[i] == 0) {
-        awake_run <- awake_run + 1L
+        awake_zero_sequence_length <- awake_zero_sequence_length + 1L
       } else {
-        if (awake_run > awake_zeros_thr) {
-          invalid_idx <- c(invalid_idx, (i - awake_run):(i - 1L) + pad_size)
+        if (awake_zero_sequence_length > awake_zeros_thr) {
+          run_start_0 <- i0 - awake_zero_sequence_length
+          run_end_0   <- i0 - 1L
+          invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
         }
-        awake_run <- 0L
+        awake_zero_sequence_length <- 0L
       }
-    } else {  # sleep region
-      if (awake_run > awake_zeros_thr) {
-        invalid_idx <- c(invalid_idx, (i - awake_run):(i - 1L) + pad_size)
+    } else {  # sleep
+      if (awake_zero_sequence_length > awake_zeros_thr) {
+        run_start_0 <- i0 - awake_zero_sequence_length
+        run_end_0   <- i0 - 1L
+        invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
       }
-      awake_run <- 0L
+      awake_zero_sequence_length <- 0L
       if (activity[i] == 0) {
-        sleep_run <- sleep_run + 1L
+        sleep_zero_sequence_length <- sleep_zero_sequence_length + 1L
       } else {
-        if (sleep_run > sleep_zeros_thr) {
-          invalid_idx <- c(invalid_idx, (i - sleep_run):(i - 1L) + pad_size)
+        if (sleep_zero_sequence_length > sleep_zeros_thr) {
+          run_start_0 <- i0 - sleep_zero_sequence_length
+          run_end_0   <- i0 - 1L
+          invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
         }
-        sleep_run <- 0L
+        sleep_zero_sequence_length <- 0L
       }
     }
   }
 
-  if (length(invalid_idx) > 0L) {
-    padded_act[unique(invalid_idx)] <- NA_real_
+  # Python: invalid_zero_indexes += pad_size  (still 0-indexed padded positions)
+  # Python: padded_activity[invalid_zero_indexes] = NaN
+  # R: convert 0-indexed to 1-indexed by adding 1
+  if (length(invalid_zero_indexes) > 0L) {
+    padded_idx_r <- unique(invalid_zero_indexes) + pad_size + 1L
+    padded_activity[padded_idx_r] <- NA_real_
   }
 
   # ── Adaptive median filter ─────────────────────────────────────────────────
-  act_med_filtered <- .adaptive_median_filter(padded_act, pad_size, max_hws,
-                                              padded = TRUE, n_orig = n)
+  # Python: loops i in range(data_length)
+  #   center = i + pad_size  (0-indexed padded position)
+  #   window = padded_activity[center-hws : center+hws+1]  (exclusive end)
+  #   hws starts at minimum (pad_size), grows to maximum (mf_hws), then shrinks
+  #   condition to grow: i < data_length - mf_hws + pad_size - 1
+  adaptive_median_filtered_activity <- numeric(data_length)
+  half_window_size <- pad_size  # starts at minimum
+
+  for (i in seq_len(data_length)) {
+    i0     <- i - 1L                    # 0-indexed
+    center <- i0 + pad_size             # 0-indexed center in padded_activity
+    # Python slice [center-hws : center+hws+1] is 0-indexed exclusive end
+    # R equivalent: [(center-hws)+1 : center+hws] = [center-hws+1 : center+hws]
+    lo_r <- center - half_window_size + 1L   # 1-indexed
+    hi_r <- center + half_window_size + 1L   # 1-indexed (exclusive end +1, then +1 for R)
+    lo_r <- max(1L, lo_r)
+    hi_r <- min(length(padded_activity), hi_r)
+    val  <- stats::median(padded_activity[lo_r:hi_r], na.rm = TRUE)
+
+    if (is.nan(val) || is.na(val)) {
+      val <- if (i0 > 0L) adaptive_median_filtered_activity[i - 1L] else 0
+    }
+    adaptive_median_filtered_activity[i] <- val
+
+    # Python: if i < data_length - mf_hws + pad_size - 1: grow
+    if (i0 < (data_length - mf_hws + pad_size - 1L)) {
+      if (half_window_size < mf_hws) half_window_size <- half_window_size + 1L
+    } else {
+      if (half_window_size > pad_size) half_window_size <- half_window_size - 1L
+    }
+  }
 
   # ── Final threshold ────────────────────────────────────────────────────────
-  thr1 <- as.double(stats::quantile(act_med_filtered, sleep_quantile,
-                                    names = FALSE))
+  thr1 <- as.double(stats::quantile(adaptive_median_filtered_activity,
+                                    sleep_quantile, names = FALSE))
   if (thr1 < min_short_window_thr) thr1 <- min_short_window_thr
 
-  final_det <- as.integer(act_med_filtered > thr1)  # 1 = wake, 0 = sleep
-
-  final_det
+  # Python: improved_sleep_detection = where(filtered > threshold, 1, 0)
+  # 1 = wake, 0 = sleep
+  as.integer(adaptive_median_filtered_activity > thr1)
 }
 
 #' Adaptive median filter with variable window size
@@ -351,10 +429,10 @@ detect_naps_crespo <- function(
 
   # Dilation then erosion (closing)
   dilated <- rolling_apply(x, hws, max, pad_value = 0L)
-  closed  <- rolling_apply(dilated, hws, min, pad_value = 1L)
+  closed  <- rolling_apply(dilated, hws, min, pad_value = 0L)
 
   # Erosion then dilation (opening)
-  eroded  <- rolling_apply(closed, hws, min, pad_value = 1L)
+  eroded  <- rolling_apply(closed, hws, min, pad_value = 0L)
   opened  <- rolling_apply(eroded, hws, max, pad_value = 0L)
 
   as.integer(round(opened))
