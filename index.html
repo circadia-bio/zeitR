@@ -176,7 +176,7 @@
 <p><a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a> <a href="https://www.r-project.org/" class="external-link"><img src="https://img.shields.io/badge/R-%3E%3D4.1-276DC3" alt="R"></a> <a href="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R CMD CHECK"></a> <a href="https://github.com/circadia-bio/zeitR" class="external-link"><img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status"></a> <a href="https://zeitr.circadia-lab.uk"><img src="https://img.shields.io/badge/docs-zeitr.circadia--lab.uk-F0A500" alt="pkgdown"></a></p>
 <hr>
 <blockquote>
-<p>[!WARNING] <strong>zeitR is in early development and has not been formally tested.</strong> The API may change without notice, computed variables have not yet been validated against reference implementations, and the package has not undergone peer review. Use with caution and verify outputs independently before using in any research context.</p>
+<p>[!WARNING] <strong>zeitR is in early development and has not been formally validated.</strong> The pipeline has been validated epoch-for-epoch against the Condor circadiaBase Python reference on an ActTrust recording, but the package has not undergone formal peer review. Verify outputs independently before using in any research context.</p>
 </blockquote>
 <hr>
 <div class="section level2">
@@ -204,6 +204,8 @@
 <li>🗂️ <strong><code><a href="reference/study_summary.html">study_summary()</a></code></strong> — participant-level NPCRA summary across a whole study</li>
 <li>🚀 <strong><code><a href="reference/run_pipeline.html">run_pipeline()</a></code></strong> — run the complete pipeline on a single file in one call</li>
 <li>🗃️ <strong><code><a href="reference/run_pipeline_batch.html">run_pipeline_batch()</a></code></strong> — run the complete pipeline across a directory of files</li>
+<li>🏷️ <strong><code><a href="reference/label_states.html">label_states()</a></code></strong> — convert integer epoch states to a human-readable factor (<code>"wake"</code>, <code>"sleep"</code>, <code>"nap"</code>, <code>"off-wrist"</code>)</li>
+<li>⚙️ <strong><code><a href="reference/acttrust_params.html">acttrust_params()</a></code></strong> — device parameter preset; copy and modify to adapt the pipeline to other devices</li>
 </ul>
 <hr>
 </div>
@@ -239,9 +241,31 @@
 <span><span class="va">result</span><span class="op">$</span><span class="va">issues</span>  <span class="co"># timestamp consistency issues (0 rows if none)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="non-parametric-circadian-rhythm-analysis">Non-parametric circadian rhythm analysis<a class="anchor" aria-label="anchor" href="#non-parametric-circadian-rhythm-analysis"></a>
+<h3 id="state-labels">State labels<a class="anchor" aria-label="anchor" href="#state-labels"></a>
 </h3>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Convert integer states to readable labels for display or plotting</span></span>
+<span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state_label</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/label_states.html">label_states</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state_label</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      wake     sleep       nap off-wrist</span></span>
+<span><span class="co">#&gt;     48231     24603       892      2470</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
+</h3>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># The pipeline ships with ActTrust-validated defaults via acttrust_params().</span></span>
+<span><span class="co"># To adapt for a different device, copy and modify:</span></span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/acttrust_params.html">acttrust_params</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">p</span><span class="op">$</span><span class="va">sleep</span><span class="op">$</span><span class="va">sleep_quantile</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="fl">3</span>   <span class="co"># original Crespo (2012) threshold</span></span>
+<span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline.html">run_pipeline</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, params <span class="op">=</span> <span class="va">p</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="non-parametric-circadian-rhythm-analysis">Non-parametric circadian rhythm analysis<a class="anchor" aria-label="anchor" href="#non-parametric-circadian-rhythm-analysis"></a>
+</h3>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">npcra</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_npcra.html">compute_npcra</a></span><span class="op">(</span><span class="va">rec</span><span class="op">)</span></span>
 <span><span class="va">npcra</span></span>
 <span><span class="co">#&gt;   participant_id    IS    IV    RA    L5 L5_onset   M10 M10_onset n_days n_epochs</span></span>
@@ -250,7 +274,7 @@
 <div class="section level3">
 <h3 id="whole-study">Whole study<a class="anchor" aria-label="anchor" href="#whole-study"></a>
 </h3>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">study</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir</a></span><span class="op">(</span><span class="st">"recordings/"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/study_summary.html">study_summary</a></span><span class="op">(</span><span class="va">study</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   participant_id n_epochs n_days    IS    IV    RA    L5 L5_onset   M10 M10_onset</span></span>
@@ -349,38 +373,45 @@
 </h2>
 <table class="table">
 <colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
 </colgroup>
 <thead><tr>
 <th>Step</th>
 <th>Algorithm</th>
 <th>Reference</th>
+<th>Validated</th>
 </tr></thead>
 <tbody>
 <tr>
 <td>Off-wrist detection</td>
 <td>Condor bimodal activity/temperature model</td>
 <td>Condor Instruments</td>
+<td>ActTrust ✓</td>
 </tr>
 <tr>
 <td>Sleep period detection</td>
 <td>Crespo adaptive median filter</td>
 <td>Crespo et al. (2012)</td>
+<td>ActTrust ✓</td>
 </tr>
 <tr>
 <td>Nap detection</td>
 <td>Crespo zero-proportion filter</td>
 <td>Crespo et al. (2012)</td>
+<td>ActTrust ✓</td>
 </tr>
 <tr>
 <td>Epoch scoring</td>
 <td>Cole-Kripke weighted ZCM sum</td>
 <td>Cole &amp; Kripke (1992)</td>
+<td>ActTrust ✓</td>
 </tr>
 </tbody>
 </table>
+<p>All four stages have been validated epoch-for-epoch (<code>0 / 76196</code> mismatches) against the Condor circadiaBase Python reference pipeline on an ActTrust recording. Default parameters in <code><a href="reference/acttrust_params.html">acttrust_params()</a></code> reproduce this reference exactly.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -400,8 +431,9 @@
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
 │   ├── study_summary.R       # study_summary()
+│   ├── params.R              # acttrust_params() device preset
 │   ├── pipeline.R            # run_pipeline(), run_pipeline_batch()
-│   └── utils.R               # internal helpers
+│   └── utils.R               # label_states() + internal helpers
 ├── man/figures/
 │   ├── logo.svg              # hex sticker
 │   └── favicon.svg           # favicon

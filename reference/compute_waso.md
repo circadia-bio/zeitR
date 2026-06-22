@@ -2,7 +2,13 @@
 
 Scores each epoch within detected sleep periods as wake or sleep using
 [`score_epochs_cole_kripke()`](https://zeitr.circadia-lab.uk/reference/score_epochs_cole_kripke.md),
-then computes per-night statistics.
+then computes per-night statistics. This is a faithful port of the
+Python `condor_pipeline` `detect_waso`: night boundaries are built by
+`.nights_df()` (the `search_gap = FALSE` path of the reference
+`nights_df`), each night's ZCM is scored with Cole-Kripke, and the
+epoch-level `state` is rebuilt from a zero (wake) base so that
+within-night WASO-wake epochs and all epochs outside detected nights are
+scored as wake.
 
 ## Usage
 
@@ -28,8 +34,9 @@ compute_waso(x, wake_thresh = 60L, search_gap = FALSE)
 
 - search_gap:
 
-  `logical(1)`. If `TRUE`, allows a gap search between consecutive sleep
-  periods when identifying night boundaries. Default is `FALSE`.
+  `logical(1)`. Reserved for API compatibility with the reference
+  pipeline. The reference `detect_waso` always builds boundaries with
+  `search_gap = FALSE`, so this argument currently has no effect.
 
 ## Value
 
@@ -54,7 +61,7 @@ The following metrics are computed for each detected night / nap:
 |----|----|
 | Metric | Definition |
 | `tbt` | Total Bed Time — epochs from bed time to get-up time |
-| `tst` | Total Sleep Time — `tbt − waso − sol − soi` |
+| `tst` | Total Sleep Time — `tbt - waso - sol - soi` |
 | `waso` | Wake After Sleep Onset — wake epochs between sleep onset and final wake |
 | `sol` | Sleep Onset Latency — epochs from bed time to first sleep epoch |
 | `soi` | Sleep Offset Inertia — trailing wake epochs at end of sleep period |

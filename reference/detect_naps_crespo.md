@@ -1,23 +1,15 @@
-# Detect secondary sleep periods (naps) using the Crespo algorithm
+# Detect secondary sleep periods (naps) using the Crespo nap algorithm
 
-Identifies naps — secondary sleep periods — in an actigraphy recording
-using the nap variant of the Crespo algorithm. This function should be
-run *after*
+Faithful port of the Python `nap_wrapper`: runs the full CSPD model in
+nap mode (`detect_naps = TRUE`) on the currently-awake epochs
+(`state == 0`) and merges the detected naps into the sleep state. Must
+be run *after*
 [`detect_sleep_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_sleep_crespo.md).
 
 ## Usage
 
 ``` r
-detect_naps_crespo(
-  x,
-  epoch_h = NULL,
-  median_filter_h = 8,
-  pad_h = 1,
-  nap_median_thr = 2,
-  nap_zero_prop_thr = 0.5,
-  nap_zero_prop_hws = 5L,
-  use_and = FALSE
-)
+detect_naps_crespo(x, epoch_h = NULL, params = .cspd_nap_params())
 ```
 
 ## Arguments
@@ -25,60 +17,37 @@ detect_naps_crespo(
 - x:
 
   A tibble as returned by
-  [`detect_offwrist_bimodal()`](https://zeitr.circadia-lab.uk/reference/detect_offwrist_bimodal.md)
-  (or
-  [`prepare_actigraphy()`](https://zeitr.circadia-lab.uk/reference/prepare_actigraphy.md)
-  if off-wrist detection is skipped), containing columns `datetime`,
-  `activity`, and `state`.
+  [`detect_sleep_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_sleep_crespo.md),
+  containing columns `datetime`, `activity`, and `state`. Nap detection
+  runs on the wake (`state == 0`) subset only, mirroring the Python
+  `nap_bool` mask.
 
 - epoch_h:
 
-  `numeric(1)`. Number of epochs per hour. If `NULL` (default),
-  estimated automatically from the median inter-epoch interval in
-  `datetime`.
+  `numeric(1)`. Number of epochs per hour. If `NULL` (default), derived
+  from the wake-subsequence epoch duration as `3600 / duration`.
 
-- median_filter_h:
+- params:
 
-  `numeric(1)`. Length of the preprocessing median filter window in
-  hours. Default is `8`.
-
-- pad_h:
-
-  `numeric(1)`. Padding length in hours added before the adaptive median
-  filter. Default is `1`.
-
-- nap_median_thr:
-
-  `numeric(1)`. Epochs with a rolling median activity below this value
-  may be scored as nap sleep. Default is `2.0`.
-
-- nap_zero_prop_thr:
-
-  `numeric(1)`. Epochs with a rolling zero-activity proportion above
-  this threshold may be scored as nap sleep. Default is `0.5`.
-
-- nap_zero_prop_hws:
-
-  `integer(1)`. Half-window size (epochs) for the rolling
-  zero-proportion filter. Default is `5L`.
-
-- use_and:
-
-  `logical(1)`. If `TRUE`, both the median activity AND zero-proportion
-  criteria must be met. If `FALSE` (default), either criterion is
-  sufficient.
+  CSPD nap configuration list (default `.cspd_nap_params()`), the port
+  of `nap_wrapper`'s parameter set.
 
 ## Value
 
 The input tibble `x` with `state` and `sleep` columns updated. Nap
-epochs have `state == 7` and are merged into `sleep` as value `1`.
+epochs become `state == 1` and `sleep == 1`; off-wrist (`state == 4`)
+and existing main-sleep epochs are preserved.
 
 ## Details
 
-The nap algorithm combines two criteria: a low rolling median activity
-threshold and a high zero-activity proportion around each epoch. Epochs
-satisfying either (or both, if `use_and = TRUE`) criteria are scored as
-nap sleep.
+Nap detection uses a nap-mode MSP (a high zero-proportion combined with
+a low adaptive-median activity, `.crespo_nap_msp()`) followed by the
+same bed-time / get-up-time refiners as the main sleep detection, with
+the nap parameter set (`.cspd_nap_params()`) and nap-specific
+minimum-length post-processing. Detected naps are written as
+`state == 1` (merged into "sleep"), matching `nap_wrapper`, which
+assigns `state[wake] = 1 - refined_output` (i.e. naps are *not* a
+distinct state).
 
 ## References
 

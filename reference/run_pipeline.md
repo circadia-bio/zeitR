@@ -8,11 +8,12 @@ Orchestrates the complete pipeline for a single ActTrust recording:
 run_pipeline(
   path,
   tz = "UTC",
-  wake_thresh = 60L,
   gap_s = 120,
+  params = acttrust_params(),
   offwrist_args = list(),
   sleep_args = list(),
-  nap_args = list()
+  nap_args = list(),
+  quiet = FALSE
 )
 ```
 
@@ -28,18 +29,20 @@ run_pipeline(
   [`read_acttrust()`](https://zeitr.circadia-lab.uk/reference/read_acttrust.md).
   Default is `"UTC"`.
 
-- wake_thresh:
-
-  `integer(1)`. Minimum wake-bout length (epochs) used to separate sleep
-  periods in
-  [`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md).
-  Default is `60`.
-
 - gap_s:
 
   `numeric(1)`. Gap threshold (seconds) for
   [`check_consistency()`](https://zeitr.circadia-lab.uk/reference/check_consistency.md).
   Default is `120`.
+
+- params:
+
+  Device parameter preset, as returned by
+  [`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md).
+  When supplied, values from `params` are used as defaults for each
+  detector stage, with any explicit `offwrist_args`, `sleep_args`, or
+  `nap_args` taking precedence. Defaults to
+  [`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md).
 
 - offwrist_args:
 
@@ -58,6 +61,14 @@ run_pipeline(
   `list`. Additional arguments passed to
   [`detect_naps_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_naps_crespo.md).
   Default is an empty list.
+
+- quiet:
+
+  `logical(1)`. If `TRUE`, suppresses the timestamp-issue warning
+  emitted when
+  [`check_consistency()`](https://zeitr.circadia-lab.uk/reference/check_consistency.md)
+  finds problems. Useful in batch or testing contexts where the warning
+  is expected. Default is `FALSE`.
 
 ## Value
 

@@ -130,11 +130,37 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="zeitr-010-2026-06">zeitR 0.1.0 (2026-06)<a class="anchor" aria-label="anchor" href="#zeitr-010-2026-06"></a></h2>
-<ul><li>Full package scaffold with complete actigraphy pipeline: <code><a href="../reference/read_acttrust.html">read_acttrust()</a></code>, <code><a href="../reference/read_actigraphy.html">read_actigraphy()</a></code>, <code><a href="../reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code>, <code><a href="../reference/prepare_actigraphy.html">prepare_actigraphy()</a></code>, <code><a href="../reference/check_consistency.html">check_consistency()</a></code>, <code><a href="../reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code> (full Condor three-stage refiner), <code><a href="../reference/detect_sleep_crespo.html">detect_sleep_crespo()</a></code>, <code><a href="../reference/detect_naps_crespo.html">detect_naps_crespo()</a></code>, <code><a href="../reference/score_epochs_cole_kripke.html">score_epochs_cole_kripke()</a></code>, <code><a href="../reference/compute_waso.html">compute_waso()</a></code>, <code><a href="../reference/compute_npcra.html">compute_npcra()</a></code>, <code><a href="../reference/study_summary.html">study_summary()</a></code>, <code><a href="../reference/run_pipeline.html">run_pipeline()</a></code>, <code><a href="../reference/run_pipeline_batch.html">run_pipeline_batch()</a></code>.</li>
+<div class="section level3">
+<h3 id="pipeline-0-1-0">Pipeline<a class="anchor" aria-label="anchor" href="#pipeline-0-1-0"></a></h3>
+<ul><li>Full actigraphy pipeline validated epoch-for-epoch (<code>0 / 76,196</code> mismatches) against the Condor circadiaBase Python reference on an ActTrust recording: <code><a href="../reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code>, <code><a href="../reference/detect_sleep_crespo.html">detect_sleep_crespo()</a></code>, <code><a href="../reference/detect_naps_crespo.html">detect_naps_crespo()</a></code> (faithful <code>nap_wrapper</code> port), <code><a href="../reference/compute_waso.html">compute_waso()</a></code>.</li>
+<li>
+<code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> gains a <code>params</code> argument (default <code><a href="../reference/acttrust_params.html">acttrust_params()</a></code>); device-specific defaults are now consolidated in one place and can be overridden without touching individual detector calls. <code>wake_thresh</code> is removed from the <code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> signature — it now lives in <code>params$waso$wake_thresh</code>.</li>
+<li>
+<code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> gains a <code>quiet</code> argument to suppress the timestamp-issue warning (useful in batch and testing contexts).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="new-functions-0-1-0">New functions<a class="anchor" aria-label="anchor" href="#new-functions-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/acttrust_params.html">acttrust_params()</a></code> — exported device parameter preset consolidating all ActTrust-specific defaults across off-wrist, sleep, nap, and WASO stages. Copy and modify to adapt the pipeline to other devices.</li>
+<li>
+<code><a href="../reference/label_states.html">label_states()</a></code> — converts the integer <code>state</code> column to a human-readable ordered factor (<code>"wake"</code>, <code>"sleep"</code>, <code>"nap"</code>, <code>"off-wrist"</code>).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="tests-0-1-0">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-0"></a></h3>
+<ul><li>End-to-end pipeline parity regression test (<code>test-pipeline-parity.R</code>): epoch-level state, per-layer counts, and nightly statistics locked against <code>python_output.csv</code> and <code>python_nights.csv</code>.</li>
+<li>CSPD refiner parity tests (<code>test-cspd-refiner-parity.R</code>): stage-1 peak-valley length filter, stage-2 sleep-gap separation, full <code>.cspd_refine_periods</code> output, and bedtime/getuptime indices against Python intermediates.</li>
+<li>Sleep Crespo wiring test (<code>test-sleep-crespo-wiring.R</code>): isolates <code>detect_sleep_crespo(refine = TRUE)</code> against <code>cspd_refined_output.csv</code>.</li>
+<li>WASO parity tests (<code>test-waso-parity.R</code>): <code>.nights_df</code> boundaries, per-night statistics, and within-night epoch agreement on boundary-matched nights.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="initial-release-0-1-0">Initial release<a class="anchor" aria-label="anchor" href="#initial-release-0-1-0"></a></h3>
+<ul><li>Full package scaffold: <code><a href="../reference/read_acttrust.html">read_acttrust()</a></code>, <code><a href="../reference/read_actigraphy.html">read_actigraphy()</a></code>, <code><a href="../reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code>, <code><a href="../reference/prepare_actigraphy.html">prepare_actigraphy()</a></code>, <code><a href="../reference/check_consistency.html">check_consistency()</a></code>, <code><a href="../reference/score_epochs_cole_kripke.html">score_epochs_cole_kripke()</a></code>, <code><a href="../reference/compute_npcra.html">compute_npcra()</a></code>, <code><a href="../reference/study_summary.html">study_summary()</a></code>, <code><a href="../reference/run_pipeline_batch.html">run_pipeline_batch()</a></code>.</li>
 <li>Three vignettes: getting started, NPCRA, study-level analysis.</li>
 <li>pkgdown site with Bootstrap 5 and Circadia Lab branding.</li>
 </ul></div>
-  </main></div>
+</div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

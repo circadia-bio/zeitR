@@ -13,10 +13,10 @@ CHECK](https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/
 ------------------------------------------------------------------------
 
 > \[!WARNING\] **zeitR is in early development and has not been formally
-> tested.** The API may change without notice, computed variables have
-> not yet been validated against reference implementations, and the
-> package has not undergone peer review. Use with caution and verify
-> outputs independently before using in any research context.
+> validated.** The pipeline has been validated epoch-for-epoch against
+> the Condor circadiaBase Python reference on an ActTrust recording, but
+> the package has not undergone formal peer review. Verify outputs
+> independently before using in any research context.
 
 ------------------------------------------------------------------------
 
@@ -78,6 +78,14 @@ pipeline-friendly R idioms.
 - 🗃️
   **[`run_pipeline_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_batch.md)**
   — run the complete pipeline across a directory of files
+- 🏷️
+  **[`label_states()`](https://zeitr.circadia-lab.uk/reference/label_states.md)**
+  — convert integer epoch states to a human-readable factor (`"wake"`,
+  `"sleep"`, `"nap"`, `"off-wrist"`)
+- ⚙️
+  **[`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md)**
+  — device parameter preset; copy and modify to adapt the pipeline to
+  other devices
 
 ------------------------------------------------------------------------
 
@@ -112,6 +120,30 @@ result <- run_pipeline("recordings/P001.txt", tz = "America/Sao_Paulo")
 result$nights  # nightly sleep statistics
 result$data    # epoch-level tibble with state, sleep, offwrist columns
 result$issues  # timestamp consistency issues (0 rows if none)
+```
+
+### State labels
+
+``` r
+
+# Convert integer states to readable labels for display or plotting
+result$data$state_label <- label_states(result$data$state)
+
+table(result$data$state_label)
+#>      wake     sleep       nap off-wrist
+#>     48231     24603       892      2470
+```
+
+### Device configuration
+
+``` r
+
+# The pipeline ships with ActTrust-validated defaults via acttrust_params().
+# To adapt for a different device, copy and modify:
+p <- acttrust_params()
+p$sleep$sleep_quantile <- 1/3   # original Crespo (2012) threshold
+
+result <- run_pipeline("recordings/P001.txt", params = p)
 ```
 
 ### Non-parametric circadian rhythm analysis
@@ -165,12 +197,18 @@ study_summary(study)
 
 ## 🔬 Algorithms
 
-| Step | Algorithm | Reference |
-|----|----|----|
-| Off-wrist detection | Condor bimodal activity/temperature model | Condor Instruments |
-| Sleep period detection | Crespo adaptive median filter | Crespo et al. (2012) |
-| Nap detection | Crespo zero-proportion filter | Crespo et al. (2012) |
-| Epoch scoring | Cole-Kripke weighted ZCM sum | Cole & Kripke (1992) |
+| Step | Algorithm | Reference | Validated |
+|----|----|----|----|
+| Off-wrist detection | Condor bimodal activity/temperature model | Condor Instruments | ActTrust ✓ |
+| Sleep period detection | Crespo adaptive median filter | Crespo et al. (2012) | ActTrust ✓ |
+| Nap detection | Crespo zero-proportion filter | Crespo et al. (2012) | ActTrust ✓ |
+| Epoch scoring | Cole-Kripke weighted ZCM sum | Cole & Kripke (1992) | ActTrust ✓ |
+
+All four stages have been validated epoch-for-epoch (`0 / 76196`
+mismatches) against the Condor circadiaBase Python reference pipeline on
+an ActTrust recording. Default parameters in
+[`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md)
+reproduce this reference exactly.
 
 ------------------------------------------------------------------------
 
@@ -190,8 +228,9 @@ study_summary(study)
     │   ├── waso.R                # compute_waso()
     │   ├── npcra.R               # compute_npcra()
     │   ├── study_summary.R       # study_summary()
+    │   ├── params.R              # acttrust_params() device preset
     │   ├── pipeline.R            # run_pipeline(), run_pipeline_batch()
-    │   └── utils.R               # internal helpers
+    │   └── utils.R               # label_states() + internal helpers
     ├── man/figures/
     │   ├── logo.svg              # hex sticker
     │   └── favicon.svg           # favicon

@@ -15,13 +15,15 @@ detect_sleep_crespo(
   epoch_h = NULL,
   median_filter_h = 8,
   pad_h = 1,
-  sleep_quantile = 1/3,
+  sleep_quantile = 0.365,
   morph_size = 61L,
   consec_zeros_thr = 15L,
   awake_zeros_thr = 2L,
   sleep_zeros_thr = 30L,
   zero_mitigation_q = 0.33,
-  min_short_window_thr = 1
+  min_short_window_thr = 1,
+  refine = TRUE,
+  condition = 0L
 )
 ```
 
@@ -34,13 +36,14 @@ detect_sleep_crespo(
   (or
   [`prepare_actigraphy()`](https://zeitr.circadia-lab.uk/reference/prepare_actigraphy.md)
   if off-wrist detection is skipped), containing columns `datetime`,
-  `activity`, and `state`.
+  `activity`, and `state`. The detector runs on the on-wrist subset
+  (`state != 4`) only, mirroring the Python `cspd_wrapper`.
 
 - epoch_h:
 
-  `numeric(1)`. Number of epochs per hour. If `NULL` (default),
-  estimated automatically from the median inter-epoch interval in
-  `datetime`.
+  `numeric(1)`. Number of epochs per hour. If `NULL` (default), derived
+  from the epoch duration (the mode of the on-wrist inter-epoch
+  interval), as `3600 / duration`.
 
 - median_filter_h:
 
@@ -54,8 +57,9 @@ detect_sleep_crespo(
 
 - sleep_quantile:
 
-  `numeric(1)`. Quantile of the filtered activity used as the sleep/wake
-  threshold. Default is `1/3`.
+  `numeric(1)`. Quantile of the filtered activity used as the MSP
+  sleep/wake threshold. Default is `0.365` (the ActTrust CSPD value used
+  by `cspd_wrapper`; the standalone Crespo algorithm uses `1/3`).
 
 - morph_size:
 
@@ -88,11 +92,29 @@ detect_sleep_crespo(
   fitted quantile falls below this, the threshold is clamped here.
   Default is `1.0`.
 
+- refine:
+
+  `logical(1)`. If `TRUE` (default), the MSP detection is refined into
+  final sleep periods by the CSPD bed-time / get-up-time refiners
+  (`.cspd_refine_periods`), reproducing the Python `refined_output`. If
+  `FALSE`, the raw MSP detection is used directly.
+
+- condition:
+
+  `integer(1)`. Initial condition flag (default `0`). The MSP stage
+  bumps it to `2` when its activity-median threshold clamps to
+  `min_short_window_thr`; the refiner uses that effective condition.
+  Affects only `refine = TRUE`.
+
 ## Value
 
 The input tibble `x` with `state` and `sleep` columns updated. Sleep
 epochs have `state == 1` and `sleep == 1`; off-wrist epochs
-(`state == 4`) are preserved and excluded from the sleep column.
+(`state == 4`) are preserved and excluded from the sleep column. With
+`refine = TRUE` the sleep epochs delimit the refined sleep PERIODS (the
+Python `refined_output`); per-epoch wake/sleep within them is scored
+later by
+[`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md).
 
 ## References
 

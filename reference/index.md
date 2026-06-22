@@ -30,7 +30,7 @@ Off-wrist, sleep period, and epoch-level scoring algorithms.
 - [`detect_sleep_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_sleep_crespo.md)
   : Detect main sleep periods using the Crespo algorithm
 - [`detect_naps_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_naps_crespo.md)
-  : Detect secondary sleep periods (naps) using the Crespo algorithm
+  : Detect secondary sleep periods (naps) using the Crespo nap algorithm
 - [`score_epochs_cole_kripke()`](https://zeitr.circadia-lab.uk/reference/score_epochs_cole_kripke.md)
   : Score actigraphy epochs as wake or sleep using the Cole-Kripke
   algorithm
@@ -61,6 +61,15 @@ Run the full analysis pipeline on one file or a directory.
   : Run the full actigraphy sleep analysis pipeline
 - [`run_pipeline_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_batch.md)
   : Run the pipeline on all files in a directory
+- [`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md)
+  : ActTrust device parameter preset
+
+## Utilities
+
+Helper functions for working with pipeline output.
+
+- [`label_states()`](https://zeitr.circadia-lab.uk/reference/label_states.md)
+  : Convert integer epoch states to a labelled factor
 
 ## Package
 

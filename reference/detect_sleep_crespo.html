@@ -155,13 +155,15 @@ sleep/wake estimate.</p>
 <span>  epoch_h <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  median_filter_h <span class="op">=</span> <span class="fl">8</span>,</span>
 <span>  pad_h <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  sleep_quantile <span class="op">=</span> <span class="fl">1</span><span class="op">/</span><span class="fl">3</span>,</span>
+<span>  sleep_quantile <span class="op">=</span> <span class="fl">0.365</span>,</span>
 <span>  morph_size <span class="op">=</span> <span class="fl">61L</span>,</span>
 <span>  consec_zeros_thr <span class="op">=</span> <span class="fl">15L</span>,</span>
 <span>  awake_zeros_thr <span class="op">=</span> <span class="fl">2L</span>,</span>
 <span>  sleep_zeros_thr <span class="op">=</span> <span class="fl">30L</span>,</span>
 <span>  zero_mitigation_q <span class="op">=</span> <span class="fl">0.33</span>,</span>
-<span>  min_short_window_thr <span class="op">=</span> <span class="fl">1</span></span>
+<span>  min_short_window_thr <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  condition <span class="op">=</span> <span class="fl">0L</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -172,13 +174,14 @@ sleep/wake estimate.</p>
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>A tibble as returned by <code><a href="detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code> (or
 <code><a href="prepare_actigraphy.html">prepare_actigraphy()</a></code> if off-wrist detection is skipped), containing
-columns <code>datetime</code>, <code>activity</code>, and <code>state</code>.</p></dd>
+columns <code>datetime</code>, <code>activity</code>, and <code>state</code>. The detector runs on the
+on-wrist subset (<code>state != 4</code>) only, mirroring the Python <code>cspd_wrapper</code>.</p></dd>
 
 
 <dt id="arg-epoch-h">epoch_h<a class="anchor" aria-label="anchor" href="#arg-epoch-h"></a></dt>
 <dd><p><code>numeric(1)</code>. Number of epochs per hour. If <code>NULL</code>
-(default), estimated automatically from the median inter-epoch interval
-in <code>datetime</code>.</p></dd>
+(default), derived from the epoch duration (the mode of the on-wrist
+inter-epoch interval), as <code>3600 / duration</code>.</p></dd>
 
 
 <dt id="arg-median-filter-h">median_filter_h<a class="anchor" aria-label="anchor" href="#arg-median-filter-h"></a></dt>
@@ -193,7 +196,8 @@ adaptive median filter. Default is <code>1</code>.</p></dd>
 
 <dt id="arg-sleep-quantile">sleep_quantile<a class="anchor" aria-label="anchor" href="#arg-sleep-quantile"></a></dt>
 <dd><p><code>numeric(1)</code>. Quantile of the filtered activity used
-as the sleep/wake threshold. Default is <code>1/3</code>.</p></dd>
+as the MSP sleep/wake threshold. Default is <code>0.365</code> (the ActTrust CSPD
+value used by <code>cspd_wrapper</code>; the standalone Crespo algorithm uses <code>1/3</code>).</p></dd>
 
 
 <dt id="arg-morph-size">morph_size<a class="anchor" aria-label="anchor" href="#arg-morph-size"></a></dt>
@@ -226,12 +230,29 @@ determine the mitigation level for invalid zero runs. Default is <code>0.33</cod
 median threshold; if the fitted quantile falls below this, the threshold
 is clamped here. Default is <code>1.0</code>.</p></dd>
 
+
+<dt id="arg-refine">refine<a class="anchor" aria-label="anchor" href="#arg-refine"></a></dt>
+<dd><p><code>logical(1)</code>. If <code>TRUE</code> (default), the MSP detection is
+refined into final sleep periods by the CSPD bed-time / get-up-time
+refiners (<code>.cspd_refine_periods</code>), reproducing the Python <code>refined_output</code>.
+If <code>FALSE</code>, the raw MSP detection is used directly.</p></dd>
+
+
+<dt id="arg-condition">condition<a class="anchor" aria-label="anchor" href="#arg-condition"></a></dt>
+<dd><p><code>integer(1)</code>. Initial condition flag (default <code>0</code>). The MSP
+stage bumps it to <code>2</code> when its activity-median threshold clamps to
+<code>min_short_window_thr</code>; the refiner uses that effective condition. Affects
+only <code>refine = TRUE</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input tibble <code>x</code> with <code>state</code> and <code>sleep</code> columns updated.
 Sleep epochs have <code>state == 1</code> and <code>sleep == 1</code>; off-wrist epochs
-(<code>state == 4</code>) are preserved and excluded from the sleep column.</p>
+(<code>state == 4</code>) are preserved and excluded from the sleep column. With
+<code>refine = TRUE</code> the sleep epochs delimit the refined sleep PERIODS (the
+Python <code>refined_output</code>); per-epoch wake/sleep within them is scored later
+by <code><a href="compute_waso.html">compute_waso()</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
