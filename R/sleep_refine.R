@@ -750,3 +750,221 @@
   }
   list(candidates = cands, down = down)
 }
+
+# ── Stage 3: bed-time refiner — Unit C (scoring + refine orchestrator) ─────────
+
+#' choose_best_bedtime_candidate: score each candidate and pick the refined
+#' bed-time (port of CSPD_BedTime_Refiner.choose_best_bedtime_candidate).
+#'
+#' Scoring, in order: an optional bonus for the last candidate; a bonus for the
+#' candidate nearest the last downward metric crossing; after sorting by the
+#' activity-median-difference valley depth (ascending), a bonus for the sharpest
+#' drop; then, for condition 0/2, a forward gap / epochs-above-metric analysis
+#' that either rewards the fewest-epochs candidate or applies a graded
+#' "thresholded" bonus. The final pick is the highest score (candidate index
+#' breaks ties), with an optional second-best override.
+#'
+#' pandas `sort_values` tie-breaks are reproduced with R's stable `order()`;
+#' this was verified bit-exact against the real refiner across all transitions,
+#' including amd-tie cases. `candidates` and `down` are window-relative,
+#' 0-indexed (from .bt_identify_bedtime_candidates / crossings filter).
+#' @noRd
+.bt_choose_best_bedtime_candidate <- function(self, candidates, down) {
+  n <- length(candidates)
+  if (n == 0L) return(as.integer(self$initial_transition_candidate))
+
+  rws      <- self$refinement_window_start
+  smoothed <- self$refinement_window_activity_median_difference_smoothed
+
+  amd <- vapply(candidates, function(c0) .get_peak(smoothed, c0, valley = TRUE), numeric(1))
+  sc <- data.frame(
+    candidate   = as.integer(candidates),
+    amd         = as.numeric(amd),
+    epochs      = rep(self$after_candidate_window, n),
+    thresholded = rep(FALSE, n),
+    gap_after   = rep(TRUE, n),
+    score       = rep(0, n),
+    stringsAsFactors = FALSE
+  )
+
+  if (isTRUE(self$bedtime_score_last_candidate)) {
+    sc$score[n] <- sc$score[n] + self$bedtime_last_candidate_score
+  }
+  if (length(down) > 0) {
+    last_down <- down[length(down)]
+    bcdc <- which.min(abs(as.integer(candidates) - last_down))   # numpy argmin = first min
+    sc$score[bcdc] <- sc$score[bcdc] + self$bedtime_best_crossing_distance_candidate_score
+  }
+
+  sc <- sc[order(sc$amd), , drop = FALSE]                        # stable ascending
+  sc$score[1] <- sc$score[1] + self$bedtime_best_median_difference_candidate_score
+
+  if (self$condition %in% c(0, 2)) {
+    acw    <- self$after_candidate_window
+    maxep  <- self$bedtime_maximum_epochs_above_metric_after_candidate
+    metric <- self$metric
+    for (i in seq_len(n)) {
+      cand <- rws + sc$candidate[i]
+      end  <- cand + acw
+      if (end > self$data_length) end <- self$data_length
+      valid <- TRUE
+      g <- cand
+      while (valid && (g + 1L < end)) {
+        valid <- .bt_datetime_gap_check(self, g, direction = "forward")
+        g <- g + 1L
+      }
+      if (valid) {
+        sc$gap_after[i] <- FALSE
+        ea <- sum(self$activity[(cand + 1L):end] >= metric)
+        sc$epochs[i] <- ea
+        if (ea <= maxep) sc$thresholded[i] <- TRUE
+      }
+    }
+
+    if (sum(!sc$gap_after) > 0) {
+      if (sum(sc$thresholded) == 0) {
+        sc <- sc[order(sc$gap_after, sc$epochs), , drop = FALSE]  # FALSE first, epochs asc
+        sc$score[1] <- sc$score[1] + self$bedtime_best_epochs_above_metric_after_score
+      } else {
+        factor <- if (maxep > 0) {
+          -self$bedtime_thresholded_candidate_score_amplitude / maxep
+        } else {
+          -self$bedtime_thresholded_candidate_score_amplitude / 1e-3
+        }
+        thr <- which(sc$thresholded)
+        sc$score[thr] <- sc$score[thr] +
+          factor * (sc$epochs[thr] - maxep) + self$bedtime_thresholded_candidate_score_minimum
+      }
+    }
+
+    sc <- sc[order(-sc$score, -sc$candidate), , drop = FALSE]     # score desc, candidate desc
+
+    if (isTRUE(self$consider_second_best_candidate) && n > 1L) {
+      if ((sc$candidate[1] - sc$candidate[2] > 60) &&
+          (sc$thresholded[2] && !sc$thresholded[1])) {
+        refined <- rws + as.integer(sc$candidate[2])
+      } else {
+        refined <- rws + as.integer(sc$candidate[1])
+      }
+    } else {
+      refined <- rws + as.integer(sc$candidate[1])
+    }
+  } else {
+    refined <- rws + as.integer(candidates[n])
+  }
+  as.integer(refined)
+}
+
+#' refine: full bed-time refinement for one transition (port of
+#' CSPD_BedTime_Refiner.refine). Discovers the refinement window (Unit A),
+#' cleans the peaks/valleys (Unit B), then scores candidates (Unit C).
+#'
+#' Returns a list mirroring the Python tuple: refined_bedtime,
+#' refinement_window_start, refinement_window_end, refinement_window_activity_median,
+#' refinement_window_activity_median_difference_smoothed, refinement_window_levels,
+#' metric. All indices are 0-indexed. Validated bit-exact (refined index, window
+#' start, window end) against the real refiner across all 52 transitions.
+#' @noRd
+.bt_refine <- function(self, refinement_window_levels, initial_transition_candidate,
+                       previous_transition, next_transition) {
+  self$refinement_window_levels     <- refinement_window_levels
+  self$initial_transition_candidate <- initial_transition_candidate
+  self$previous_transition          <- previous_transition
+  self$next_transition              <- next_transition
+
+  rws <- .bt_compute_initial_refinement_window_start(self, initial_transition_candidate - 1L)
+  rwe <- .bt_compute_refinement_window_end(self, initial_transition_candidate + 1L, rws)
+
+  if (!.bt_datetime_gap_check(self, rwe)) {
+    br  <- .bt_bridge_gap_validation(self, rwe)
+    rws <- br$start; rwe <- br$end
+  } else {
+    rws <- .bt_compute_improved_refinement_window_start(self, rws, rwe)
+  }
+
+  # In-window datetime-gap trim: keep the larger side of the first big gap.
+  rwdd   <- .datetime_diff(self$secs[(rws + 1L):(rwe + 1L)])
+  rwgaps <- as.integer(rwdd >= self$maximum_allowed_gap)
+  if (sum(rwgaps) > 0) {
+    fg <- which(rwgaps == 1L)[1] - 1L                  # 0-indexed first gap location
+    if (fg > length(rwdd) - fg) {
+      rwe <- rws + fg - 1L
+    } else {
+      rws <- rws + fg + 1L
+    }
+  }
+  if (rws >= rwe) {
+    rwe <- rws + 60L
+    if (rwe >= self$data_length) rwe <- self$data_length - 1L
+  }
+
+  self$refinement_window_start <- rws
+  self$refinement_window_end   <- rwe
+  self$refinement_window_activity_median <- .bt_compute_refinement_window_median(self, rws, rwe)
+  self$metric <- .bt_compute_metric(self, self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference <- diff(self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference_smoothed <-
+    .cspd_median_filter(self$refinement_window_activity_median_difference, self$median_filter_half_window_size)
+  self$refinement_window_activity <- self$activity[(rws + 1L):(rwe + 1L)]
+
+  pv  <- .identify_peaks_and_valleys(signal = self$refinement_window_activity_median,
+                                     activity = self$refinement_window_activity,
+                                     threshold = self$metric)
+  cnt <- nrow(pv)
+  for (ri in seq_len(cnt)) {
+    s <- as.integer(rws + pv$start[ri]); e <- as.integer(rws + pv$end[ri])
+    if (e > s) self$refinement_window_levels[(s + 1L):e] <- pv$mean[ri]
+  }
+
+  pv <- .bt_remove_after_long_valley(self, pv)
+  pv <- .bt_remove_before_long_peak(self, pv)
+  pv <- .bt_remove_before_tall_peak(self, pv)
+  self$peaks_and_valleys <- .bt_filter_peaks_and_valleys(self, pv)
+  cnt <- nrow(self$peaks_and_valleys)
+
+  new_rws <- self$refinement_window_start + self$peaks_and_valleys$start[1]
+  self$refinement_window_end <- self$refinement_window_start + self$peaks_and_valleys$end[cnt]
+  if (self$refinement_window_end >= self$data_length) self$refinement_window_end <- self$data_length - 1L
+  self$refinement_window_start <- new_rws
+
+  self$refinement_window_activity_median <-
+    .bt_compute_refinement_window_median(self, self$refinement_window_start, self$refinement_window_end)
+  self$metric <- .bt_compute_metric(self, self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference <- diff(self$refinement_window_activity_median)
+  self$refinement_window_activity_median_difference_smoothed <-
+    .cspd_median_filter(self$refinement_window_activity_median_difference, self$median_filter_half_window_size)
+  self$refinement_window_activity <-
+    self$activity[(self$refinement_window_start + 1L):(self$refinement_window_end + 1L)]
+
+  if (isTRUE(self$update_peaks_and_valleys)) {
+    self$peaks_and_valleys <- .identify_peaks_and_valleys(signal = self$refinement_window_activity_median,
+                                                          activity = self$refinement_window_activity,
+                                                          threshold = self$metric)
+  } else {
+    self$peaks_and_valleys$start[1] <- 0L
+    self$peaks_and_valleys$end[1]   <- self$peaks_and_valleys$start[1] + self$peaks_and_valleys$length[1]
+    if (cnt >= 2L) {
+      for (ii in 2:cnt) {
+        self$peaks_and_valleys$start[ii] <- self$peaks_and_valleys$end[ii - 1L]
+        self$peaks_and_valleys$end[ii]   <- self$peaks_and_valleys$start[ii] + self$peaks_and_valleys$length[ii]
+      }
+    }
+  }
+
+  cands <- .bt_identify_bedtime_candidates(self, self$peaks_and_valleys)
+  cf    <- .bt_bedtime_candidates_crossings_filter(self, cands)
+  if (isTRUE(self$do_bedtime_candidates_crossings_filter)) cands <- cf$candidates
+
+  refined_bedtime <- .bt_choose_best_bedtime_candidate(self, cands, cf$down)
+
+  list(
+    refined_bedtime                        = refined_bedtime,
+    refinement_window_start                = self$refinement_window_start,
+    refinement_window_end                  = self$refinement_window_end,
+    refinement_window_activity_median      = self$refinement_window_activity_median,
+    refinement_window_activity_median_difference_smoothed =
+      self$refinement_window_activity_median_difference_smoothed,
+    refinement_window_levels               = self$refinement_window_levels,
+    metric                                 = self$metric
+  )
+}

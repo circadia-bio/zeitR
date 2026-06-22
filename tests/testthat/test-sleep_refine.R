@@ -296,3 +296,57 @@ testthat::test_that(".bt_bedtime_candidates_crossings_filter trims before last u
   expect_identical(res$candidates, 8L)
   expect_identical(res$down, c(4L, 7L))
 })
+
+# ── Stage 3: bed-time refiner — Unit C (scoring) ──────────────────────────
+
+testthat::test_that(".bt_choose_best_bedtime_candidate picks the sharpest-drop candidate", {
+  f <- getFromNamespace(".bt_choose_best_bedtime_candidate", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$refinement_window_start <- 100L
+  # deep valley in the smoothed median-difference only around window-pos 20
+  smoothed <- rep(0, 60); smoothed[21] <- -5   # R idx 21 == 0-indexed 20
+  self$refinement_window_activity_median_difference_smoothed <- smoothed
+  self$after_candidate_window <- 5L
+  self$bedtime_score_last_candidate <- FALSE
+  self$bedtime_last_candidate_score <- 0
+  self$bedtime_best_crossing_distance_candidate_score <- 0
+  self$bedtime_best_median_difference_candidate_score <- 0.7
+  self$bedtime_best_epochs_above_metric_after_score <- 0
+  self$bedtime_thresholded_candidate_score_amplitude <- 0.5
+  self$bedtime_thresholded_candidate_score_minimum <- 0.1
+  self$condition <- 0L
+  self$bedtime_maximum_epochs_above_metric_after_candidate <- 2L
+  self$consider_second_best_candidate <- FALSE
+  self$initial_transition_candidate <- 0L
+  self$metric <- 1000          # activity always below -> 0 epochs above, all thresholded
+  self$maximum_allowed_gap <- 3600
+  self$activity <- rep(0, 200)
+  self$data_length <- 200L
+  self$secs <- seq(0, by = 60, length.out = 200)   # regular spacing, no invalid gaps
+
+  # candidate at window-pos 20 has the deepest amd valley -> gets median bonus -> wins
+  expect_identical(f(self, c(2L, 20L, 40L), integer(0)), 120L)
+})
+
+testthat::test_that(".bt_choose_best_bedtime_candidate returns last candidate when condition not 0/2", {
+  f <- getFromNamespace(".bt_choose_best_bedtime_candidate", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$refinement_window_start <- 100L
+  self$refinement_window_activity_median_difference_smoothed <- rep(0, 60)
+  self$after_candidate_window <- 5L
+  self$bedtime_score_last_candidate <- FALSE
+  self$bedtime_last_candidate_score <- 0
+  self$bedtime_best_crossing_distance_candidate_score <- 0
+  self$bedtime_best_median_difference_candidate_score <- 0.7
+  self$condition <- 1L          # not in {0, 2} -> refined = rws + last original candidate
+  self$initial_transition_candidate <- 0L
+
+  expect_identical(f(self, c(5L, 15L, 25L), integer(0)), 125L)
+})
+
+testthat::test_that(".bt_choose_best_bedtime_candidate returns initial candidate when empty", {
+  f <- getFromNamespace(".bt_choose_best_bedtime_candidate", "zeitR")
+  self <- new.env(parent = emptyenv())
+  self$initial_transition_candidate <- 4242L
+  expect_identical(f(self, integer(0), integer(0)), 4242L)
+})
