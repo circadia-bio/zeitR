@@ -132,7 +132,16 @@ detect_offwrist_bimodal <- function(
       min_temp_threshold = min_temp_threshold
     )
     temp_threshold <- gmm_result$threshold
-    ashman         <- gmm_result$ashman_d
+    # Ashman's D drives is_highly_separable (D > 3 disables the description
+    # report filter). Python fits the GMM with sklearn GaussianMixture(tol=1e-2);
+    # that loose tolerance stops EM early, leaving wider component variances and
+    # D just under 3. mclust converges fully, over-separates the components, and
+    # inflates D past 3. Recompute D with a faithful sklearn-style EM so
+    # is_highly_separable matches Python. The threshold is kept from the
+    # (verified) mclust fit.
+    em <- .gmm_em_sklearn_1d(low_act_temps)
+    ashman <- if (!is.null(em)) ashman_d(em$mu1, em$sigma1, em$mu2, em$sigma2)
+              else gmm_result$ashman_d
   }
 
   # Rescale threshold back to original temperature scale
@@ -318,6 +327,75 @@ detect_offwrist_bimodal <- function(
   threshold <- max(bin_mids[thresh_id], min_temp_threshold)
 
   list(threshold = threshold, ashman_d = ash_d)
+}
+
+#' Faithful 1-D two-component Gaussian-mixture EM, matching sklearn
+#' GaussianMixture(n_components = 2, covariance_type = "full",
+#' reg_covar = 1e-6, tol = 1e-2, max_iter = 100, n_init = 5).
+#'
+#' Returns components ordered by mean: list(mu1, sigma1, mu2, sigma2, w1, w2),
+#' or NULL if the fit is not possible. Used only for Ashman's D; the loose
+#' tol = 1e-2 (matching Python) means EM stops early with wider variances.
+#' @noRd
+.gmm_em_sklearn_1d <- function(x, n_init = 5L, max_iter = 100L,
+                               tol = 1e-2, reg_covar = 1e-6) {
+  x <- as.double(x[!is.na(x)])
+  n <- length(x)
+  if (n < 4L) return(NULL)
+  LOG2PI <- log(2 * pi)
+  eps10  <- 10 * .Machine$double.eps
+
+  estep <- function(mu, v, w) {
+    lp1 <- log(w[1]) - 0.5 * (LOG2PI + log(v[1]) + (x - mu[1])^2 / v[1])
+    lp2 <- log(w[2]) - 0.5 * (LOG2PI + log(v[2]) + (x - mu[2])^2 / v[2])
+    m   <- pmax(lp1, lp2)
+    lse <- m + log(exp(lp1 - m) + exp(lp2 - m))
+    list(r1 = exp(lp1 - lse), r2 = exp(lp2 - lse), lb = mean(lse))
+  }
+  mstep <- function(r1, r2) {
+    nk <- c(sum(r1), sum(r2)) + eps10
+    mu <- c(sum(r1 * x), sum(r2 * x)) / nk
+    v  <- c(sum(r1 * (x - mu[1])^2), sum(r2 * (x - mu[2])^2)) / nk + reg_covar
+    list(mu = mu, v = v, w = nk / n)
+  }
+
+  # Deterministic seeds approximating k-means++ initial means; the kmeans
+  # restarts add spread, and best-lower-bound selection (below) mirrors n_init.
+  seeds <- list(
+    as.double(stats::quantile(x, c(0.25, 0.75))),
+    as.double(stats::quantile(x, c(0.10, 0.90))),
+    as.double(stats::quantile(x, c(0.40, 0.60)))
+  )
+  for (j in seq_len(max(0L, n_init - length(seeds)))) {
+    km <- tryCatch(stats::kmeans(x, centers = 2L, nstart = 1L, iter.max = 50L),
+                   error = function(e) NULL)
+    seeds[[length(seeds) + 1L]] <-
+      if (!is.null(km)) as.double(sort(km$centers))
+      else as.double(stats::quantile(x, c(0.30, 0.70)))
+  }
+
+  best <- NULL; best_lb <- -Inf
+  for (s in seeds) {
+    mu0 <- sort(s)
+    if (!all(is.finite(mu0)) || mu0[1] == mu0[2]) next
+    cl  <- ifelse(abs(x - mu0[1]) <= abs(x - mu0[2]), 1L, 2L)
+    par <- mstep(as.double(cl == 1L), as.double(cl == 2L))
+    prev <- -Inf
+    for (it in seq_len(max_iter)) {
+      es  <- estep(par$mu, par$v, par$w)        # lower bound at current params
+      par <- mstep(es$r1, es$r2)                # sklearn updates every iter
+      if (is.finite(es$lb) && abs(es$lb - prev) < tol) break
+      prev <- es$lb
+    }
+    lb <- estep(par$mu, par$v, par$w)$lb
+    if (is.finite(lb) && lb > best_lb) { best_lb <- lb; best <- par }
+  }
+  if (is.null(best)) return(NULL)
+
+  ord <- order(best$mu)
+  list(mu1 = best$mu[ord[1]], sigma1 = sqrt(best$v[ord[1]]),
+       mu2 = best$mu[ord[2]], sigma2 = sqrt(best$v[ord[2]]),
+       w1 = best$w[ord[1]],   w2 = best$w[ord[2]])
 }
 
 
