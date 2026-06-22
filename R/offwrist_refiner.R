@@ -21,7 +21,7 @@
 
   # ── ActTrust fixed parameters ────────────────────────────────────────────
   minimum_onwrist_length           <- 20L
-  minimum_offwrist_length          <- 15L   # Python default
+  minimum_offwrist_length          <- 10L   # Python default (wrapper sets 10)
   minimum_preceding_onwrist_length <- 40L
   activity_threshold_quantile      <- 0.24
   minimum_low_activity_proportion  <- 0.8
@@ -211,6 +211,20 @@
     if (s < e) sleep_filtered_ow[(s + 1L):e] <- 0
   }
 
+  # ── DEBUG HOOK (option-guarded; default off, no effect in normal use) ──
+  if (isTRUE(getOption("zeitR.debug_offwrist", FALSE))) {
+    assign(".zeitR_dbg", list(
+      estimated_sleep       = estimated_sleep,
+      forbidden_zone        = forbidden_zone,
+      after_initial_periods = after_initial_periods,
+      sleep_filtered_post   = sleep_filtered,
+      short_only_mask       = short_only_mask,
+      vp_df                 = vp_df,
+      max_offwrist_sleep_prop = max_offwrist_sleep_prop,
+      long_offwrist_length  = long_offwrist_length
+    ), envir = .GlobalEnv)
+  }
+
   # ── check_bimodality ──────────────────────────────────────────────────
   high_act_q    <- act_zero_prop + (1 - act_zero_prop) * 0.9
   high_act_val  <- as.double(stats::quantile(activity, high_act_q, names = FALSE))
@@ -391,6 +405,10 @@
 }
 
 # ── below_prop ───────────────────────────────────────────────────────────────
+#' Proportion of values below thr.
+#' NOTE: Python functions.below_prop uses <=, but empirically R's threshold
+#' values align with Python only under strict < (matches verified Stage-2/sleep
+#' parity); using <= pushes borderline periods over the keep gates. Kept as <.
 #' @noRd
 below_prop <- function(x, thr) {
   if (length(x) == 0L) return(0)
@@ -405,85 +423,105 @@ below_prop <- function(x, thr) {
     min_preceding_onwrist, filter_hws, half_filter_hws, max_low_tv_border,
     temp_var_thr, activity, n
 ) {
+  ntv          <- norm_temp_variance
   refined      <- list()
   periods      <- as.matrix(offwrist_periods[, c("start", "end")])
   n_off        <- nrow(periods)
   ow_idx       <- 1L
   search_start <- TRUE
 
+  # NOTE on indexing: `start`/`end` are stored in Python convention throughout
+  # (start = 0-based first index, end = EXCLUSIVE last index). Python epoch j
+  # maps to R vector index (j + 1L). All array reads below convert explicitly.
+
   while (ow_idx <= n_off) {
 
     if (search_start) {
-      # search_offwrist_start
-      start <- periods[ow_idx, 1L]
+      # ── search_offwrist_start ────────────────────────────────────────────
+      start <- periods[ow_idx, 1L]                      # Python value
       if (length(refined) > 0L) {
         previous_end <- refined[[length(refined)]][2L]
         if (start < previous_end) start <- previous_end + 2L
       } else {
         previous_end <- 0L
       }
-      ri <- start + 1L
 
-      if (start >= filter_hws && ri <= n) {
-        if (norm_temp_variance[ri] >= temp_var_thr) {
-          lo   <- max(1L, ri - filter_hws + 1L)
-          ltvp <- below_prop(norm_temp_variance[lo:ri], temp_var_thr)
+      if (start >= filter_hws) {
+        # gate: Python ntv[start] >= thr  ->  R ntv[start + 1]
+        if ((start + 1L) <= n && ntv[start + 1L] >= temp_var_thr) {
+          lo_py <- max(0L, start - filter_hws)          # Python epoch lower bound
+          # low_temperature_variance_proportion_around_start (non-centered):
+          #   below_prop(ntv[max(0, start - fhwl) : start + 1])  -> epochs lo_py..start
+          win  <- ntv[(lo_py + 1L):(start + 1L)]
+          ltvp <- below_prop(win, temp_var_thr)
           if (ltvp <= max_low_tv_border) {
-            new_start_ri <- lo + which.max(norm_temp_variance[lo:ri]) - 1L
-            refined[[length(refined) + 1L]] <- c(max(new_start_ri - 1L, previous_end), 0L)
+            # start_peak_found:
+            #   start = (start - fhwl) + argmax(ntv[max(0,start-fhwl):start+1])
+            a         <- which.max(win) - 1L            # 0-based argmax
+            new_start <- lo_py + a                      # Python value
+            if (new_start < previous_end) new_start <- previous_end + 2L
+            refined[[length(refined) + 1L]] <- c(new_start, 0L)
             search_start <- FALSE
           } else {
-            res <- .find_peak_base_start2(start, previous_end, norm_temp_variance,
+            # quick_delete_start = FALSE  ->  find_peak_base
+            res <- .find_peak_base_start2(start, previous_end, ntv,
                                           temperature, temperature_threshold,
                                           activity_median, activity_median_low,
                                           activity_thr, temp_var_thr, n)
             if (isTRUE(res$delete)) {
               periods <- periods[-ow_idx, , drop = FALSE]; n_off <- nrow(periods)
-            } else if (!is.null(res$new_start)) {
+            } else {
               refined[[length(refined) + 1L]] <- c(res$new_start, 0L)
               search_start <- FALSE
             }
           }
         } else {
+          # low temperature variance -> find_peak_base, previous_end from
+          # the ORIGINAL preceding period (matches Python).
           prev_end2 <- if (ow_idx > 1L) periods[ow_idx - 1L, 2L] else 0L
-          res <- .find_peak_base_start2(start, prev_end2, norm_temp_variance,
+          res <- .find_peak_base_start2(start, prev_end2, ntv,
                                         temperature, temperature_threshold,
                                         activity_median, activity_median_low,
                                         activity_thr, temp_var_thr, n)
           if (isTRUE(res$delete)) {
             periods <- periods[-ow_idx, , drop = FALSE]; n_off <- nrow(periods)
-          } else if (!is.null(res$new_start)) {
+          } else {
             refined[[length(refined) + 1L]] <- c(res$new_start, 0L)
             search_start <- FALSE
           }
         }
-      } else if (ri >= 1L && ri <= n) {
-        new_start <- which.max(norm_temp_variance[1L:ri]) - 1L
+      } else {
+        # too close to beginning: start = argmax(ntv[0 : start + 1])  (Python value)
+        new_start <- which.max(ntv[1L:(start + 1L)]) - 1L
         refined[[length(refined) + 1L]] <- c(max(new_start, 0L), 0L)
         search_start <- FALSE
-      } else {
-        ow_idx <- ow_idx + 1L
       }
 
     } else {
-      # search_offwrist_end
-      end <- periods[ow_idx, 2L]
-      re  <- min(end, n)
+      # ── search_offwrist_end ──────────────────────────────────────────────
+      end <- periods[ow_idx, 2L]                        # Python EXCLUSIVE end value
+      # gate: Python ntv[end] >= thr  ->  R ntv[end + 1]
+      gate_ok <- (end + 1L) <= n && ntv[end + 1L] >= temp_var_thr
 
-      if (re >= 1L && norm_temp_variance[re] >= temp_var_thr) {
-        if (re + filter_hws <= n) {
-          hi   <- min(n, re + filter_hws)
-          ltvp <- below_prop(norm_temp_variance[re:hi], temp_var_thr)
+      if (gate_ok) {
+        if (end + filter_hws <= n) {
+          # low_temperature_variance_proportion_around_end (non-centered):
+          #   below_prop(ntv[end : end + fhwl])  -> epochs end..end+fhwl-1
+          ltvp <- below_prop(ntv[(end + 1L):(end + filter_hws)], temp_var_thr)
           if (ltvp <= max_low_tv_border) {
-            new_end_ri <- re - 1L + which.max(norm_temp_variance[re:hi])
-            refined[[length(refined)]][2L] <- new_end_ri
+            # end_peak_found:
+            #   end = end + argmax(ntv[end : min(n, end + fhwl + 1)])  -> epochs end..
+            hi      <- min(n, end + filter_hws + 1L)
+            a       <- which.max(ntv[(end + 1L):hi]) - 1L
+            new_end <- end + a                          # Python exclusive-end value
+            refined[[length(refined)]][2L] <- new_end
             search_start <- TRUE; ow_idx <- ow_idx + 1L
           } else {
             if (ow_idx < n_off) {
               next_start <- periods[ow_idx + 1L, 1L]
               res <- .do_more_checks_around_end(ow_idx, next_start, end,
                                                 periods, refined,
-                                                norm_temp_variance, temperature,
+                                                ntv, temperature,
                                                 temperature_threshold, activity_median,
                                                 activity_median_low, activity_thr,
                                                 temp_var_thr, filter_hws,
@@ -494,12 +532,12 @@ below_prop <- function(x, thr) {
               n_off  <- nrow(periods); refined <- res$refined
               search_start <- res$search_start
             } else {
-              refined[[length(refined)]][2L] <- re - 1L + which.max(norm_temp_variance[re:n])
+              refined[[length(refined)]][2L] <- .last_period_end(end, ntv, n)
               search_start <- TRUE; ow_idx <- ow_idx + 1L
             }
           }
         } else {
-          refined[[length(refined)]][2L] <- re - 1L + which.max(norm_temp_variance[re:n])
+          refined[[length(refined)]][2L] <- .last_period_end(end, ntv, n)
           search_start <- TRUE; ow_idx <- ow_idx + 1L
         }
       } else {
@@ -507,7 +545,7 @@ below_prop <- function(x, thr) {
           next_start <- periods[ow_idx + 1L, 1L]
           res <- .try_find_peak_base_end(ow_idx, next_start, end,
                                           periods, refined,
-                                          norm_temp_variance, temperature,
+                                          ntv, temperature,
                                           temperature_threshold, activity_median,
                                           activity_median_low, activity_thr,
                                           temp_var_thr, min_preceding_onwrist,
@@ -516,7 +554,7 @@ below_prop <- function(x, thr) {
           n_off  <- nrow(periods); refined <- res$refined
           search_start <- res$search_start
         } else {
-          refined[[length(refined)]][2L] <- re - 1L + which.max(norm_temp_variance[re:n])
+          refined[[length(refined)]][2L] <- .last_period_end(end, ntv, n)
           search_start <- TRUE; ow_idx <- ow_idx + 1L
         }
       }
@@ -528,6 +566,15 @@ below_prop <- function(x, thr) {
   m <- m[m[, 2L] > 0L, , drop = FALSE]
   if (nrow(m) == 0L) return(data.frame(start = integer(), end = integer()))
   data.frame(start = m[, 1L], end = m[, 2L])
+}
+
+#' Faithful port of the Python last-period end fallback:
+#'   end = end + argmax(ntv[end : data_length])   (epochs end..n-1)
+#' `end` is the Python exclusive-end value; returns the new Python exclusive end.
+#' @noRd
+.last_period_end <- function(end, ntv, n) {
+  if ((end + 1L) > n) return(end)
+  end + which.max(ntv[(end + 1L):n]) - 1L
 }
 
 #' @noRd
@@ -551,10 +598,14 @@ below_prop <- function(x, thr) {
 
   if (last_valid_border == start) {
     if (peak_base < start) {
-      peak_ri <- peak_base + 1L
-      while (peak_ri > 1L && peak_ri < n && ntv[peak_ri] >= ntv[peak_ri + 1L])
-        peak_ri <- peak_ri - 1L
-      return(list(new_start = peak_ri - 1L, delete = FALSE))
+      # Python: peak = peak_base - 1; while ntv[peak] >= ntv[peak+1]: peak -= 1
+      # Python epoch p -> R ntv[p+1]; ntv[peak] -> ntv[peak+1], ntv[peak+1] -> ntv[peak+2]
+      peak <- peak_base - 1L
+      while ((peak + 1L) >= 1L && (peak + 2L) <= n &&
+             ntv[peak + 1L] >= ntv[peak + 2L]) {
+        peak <- peak - 1L
+      }
+      return(list(new_start = peak, delete = FALSE))   # Python value
     } else {
       return(list(new_start = NULL, delete = TRUE))
     }
@@ -580,15 +631,20 @@ below_prop <- function(x, thr) {
   }
 
   re <- min(end, n)
-  lo <- max(1L, re - filter_hws)
-  ltvp <- below_prop(ntv[lo:re], temp_var_thr)
+  # Python: below_prop(ntv[max(0, end - fhwl - 1) : end])  -> epochs lo_py..end-1
+  lo_py <- max(0L, end - filter_hws - 1L)              # Python epoch lower bound
+  win   <- ntv[(lo_py + 1L):end]                       # R indices  (epochs lo_py..end-1)
+  ltvp  <- below_prop(win, temp_var_thr)
 
   if (ltvp > max_low_tv_border) {
     periods <- periods[-ow_idx, , drop = FALSE]
     return(list(ow_idx = ow_idx, periods = periods, refined = refined,
                 search_start = FALSE))
   } else {
-    refined[[length(refined)]][2L] <- lo + which.max(ntv[lo:re]) - 1L
+    # Python: end = (end - fhwl - 1) + argmax(ntv[max(0,end-fhwl-1):end])
+    a       <- which.max(win) - 1L                     # 0-based argmax
+    new_end <- lo_py + a                               # Python exclusive-end value
+    refined[[length(refined)]][2L] <- new_end
     return(list(ow_idx = ow_idx + 1L, periods = periods, refined = refined,
                 search_start = TRUE))
   }
@@ -623,9 +679,11 @@ below_prop <- function(x, thr) {
 
   if (last_valid_border == end) {
     if (peak_base > end) {
-      peak_ri <- peak_base + 1L
-      while (peak_ri < n && ntv[peak_ri] >= ntv[peak_ri - 1L]) peak_ri <- peak_ri + 1L
-      refined[[length(refined)]][2L] <- peak_ri - 1L
+      # Python: peak = peak_base + 1; while ntv[peak] >= ntv[peak-1]: peak += 1
+      # Python epoch p -> R ntv[p+1]; ntv[peak] -> ntv[peak+1], ntv[peak-1] -> ntv[peak]
+      peak <- peak_base + 1L
+      while ((peak + 1L) <= n && ntv[peak + 1L] >= ntv[peak]) peak <- peak + 1L
+      refined[[length(refined)]][2L] <- peak             # Python exclusive-end value
       return(list(ow_idx = ow_idx + 1L, periods = periods, refined = refined,
                   search_start = TRUE))
     } else {
@@ -664,16 +722,44 @@ below_prop <- function(x, thr) {
                                     sleep_act_hws, sleep_all_q, sleep_pos_q,
                                     act_zero_prop, sleep_low_temp_prop_max,
                                     epoch_hour, n) {
-  # Python: pads valid_activity with max(activity) before median filter
+  # Exact translation of Python:
+  #   padding = np.max(activity) * np.ones(2*hws)
+  #   padded = np.insert(valid_activity, 0, padding)
+  #   padded = np.append(padded, padding)
+  #   filtered = median_filter(padded, hws, padding="padded")
+  # where padding="padded" means:
+  #   n -= 4*hws  (n = n_valid)
+  #   rolled = rolling_window(padded, 2*hws+1)  -> n_valid + 2*hws windows
+  #   filt = median(rolled)[hws : n+hws]  -> n_valid values
   pad_val <- max(activity, na.rm = TRUE)
-  padding <- rep(pad_val, 2L * sleep_act_hws)
-  padded  <- c(padding, valid_activity, padding)
+  hws     <- sleep_act_hws
+  padded  <- c(rep(pad_val, 2L * hws), valid_activity, rep(pad_val, 2L * hws))
+  n_valid <- length(valid_activity)
+  win     <- 2L * hws + 1L
+  n_padded <- length(padded)  # = n_valid + 4*hws
 
-  # median filter on padded signal ("padded" mode = already padded)
-  filtered_padded <- median_filter(padded, sleep_act_hws)
-  # Remove the padding
-  filtered_valid  <- filtered_padded[(2L * sleep_act_hws + 1L):
-                                       (2L * sleep_act_hws + length(valid_activity))]
+  # True sliding window median matching Python's rolling_window + median extraction exactly.
+  # rolling_window(padded, win) produces (n_padded - win + 1) = n_valid + 2*hws windows.
+  # We need windows [hws+1 .. hws+n_valid] (1-indexed) = Python's [hws : n+hws].
+  # runmed() does NOT do this: it applies its own boundary rules (Tukey's running median)
+  # that differ from a plain sliding window at the edges. Use RcppRoll if available,
+  # otherwise zoo::rollmedian, otherwise a pure-R fallback.
+  # Python rolling_window(padded, 2*hws+1) + median(axis=-1)[hws : n_valid+hws]
+  # Window i (0-indexed) covers padded[i : i+2*hws+1].
+  # Output i (1-indexed, i in 1..n_valid) = median(padded[(hws+i):(3*hws+i)])
+  # = rollmedian with align="right" at position (3*hws + i) in padded.
+  # Equivalently: the pure-R reference formula is median(padded[(hws+i):(3*hws+i)]).
+  if (requireNamespace("RcppRoll", quietly = TRUE)) {
+    all_windows <- RcppRoll::roll_median(padded, n = win, fill = NA_real_, align = "right")
+    filtered_valid <- as.double(all_windows[(3L * hws + 1L):(3L * hws + n_valid)])
+  } else if (requireNamespace("zoo", quietly = TRUE)) {
+    all_windows <- zoo::rollmedian(padded, k = win, fill = NA_real_, align = "right")
+    filtered_valid <- as.double(all_windows[(3L * hws + 1L):(3L * hws + n_valid)])
+  } else {
+    filtered_valid <- vapply(seq_len(n_valid), function(i) {
+      stats::median(padded[(hws + i):(3L * hws + i)])
+    }, numeric(1))
+  }
 
   # Compute sleep threshold ("both" configuration)
   if (act_zero_prop < sleep_all_q) {
@@ -686,11 +772,13 @@ below_prop <- function(x, thr) {
   # Threshold: 0 = sleep, 1 = wake in valid signal
   sleep_est_valid <- as.integer(filtered_valid > sleep_thr)
 
-  # Short sleep filter (>= epoch_hour)
+  # Short sleep filter: keep only sleep periods longer than long_offwrist_length (4 * epoch_hour)
+  # Python: sleep_periods_df[length > long_offwrist_length]
+  long_offwrist_length <- 4L * as.integer(epoch_hour)
   sleep_periods <- .rle_periods(sleep_est_valid == 0L)
   if (nrow(sleep_periods) > 0L) {
     sleep_periods <- sleep_periods[
-      (sleep_periods$end - sleep_periods$start) > as.integer(epoch_hour), ]
+      (sleep_periods$end - sleep_periods$start) > long_offwrist_length, ]
     sleep_est_valid <- rep(1L, length(valid_activity))
     for (i in seq_len(nrow(sleep_periods))) {
       s <- sleep_periods$start[i]; e <- sleep_periods$end[i]
@@ -719,19 +807,7 @@ below_prop <- function(x, thr) {
   estimated_sleep <- rep(1L, n)
   estimated_sleep[short_only_mask] <- sleep_est_valid
 
-  # sleep_low_temperature_filter: trim sleep borders that are below temp threshold
-  sleep_periods_full <- .rle_periods(estimated_sleep == 0L)
-  for (i in seq_len(nrow(sleep_periods_full))) {
-    s <- sleep_periods_full$start[i]; e <- sleep_periods_full$end[i]
-    ri <- s + 1L
-    while (ri <= e && ri <= n && temperature[ri] < temperature_threshold) {
-      estimated_sleep[ri] <- 1L; ri <- ri + 1L
-    }
-    ri <- e
-    while (ri >= s + 1L && ri >= 1L && temperature[ri] < temperature_threshold) {
-      estimated_sleep[ri] <- 1L; ri <- ri - 1L
-    }
-  }
+  # sleep_low_temperature_filter is disabled for ActTrust (do_sleep_low_temperature_filter=False)
 
   estimated_sleep
 }
@@ -756,8 +832,134 @@ below_prop <- function(x, thr) {
   forbidden
 }
 
-# ── Valley-peak algorithm ─────────────────────────────────────────────────────
-#' Full port of valley_peak_offwrist_algorithm (ActTrust config, no lumus)
+# ── Valley-peak algorithm (faithful port; ActTrust, non-lumus, include_static) ─
+# Mirrors valley_peak_offwrist_algorithm(include_static=TRUE, static_valley=0.95,
+# static_peak=0.98) and valley_peak_detection from the Python refiner.
+#
+# scipy.signal.find_peaks(x, height): local maxima (plateau midpoint) with
+# x[peak] >= height.
+#' @noRd
+.find_peaks_scipy <- function(x, height) {
+  n <- length(x)
+  if (n < 3L) return(integer(0))
+  peaks <- integer(0)
+  i    <- 2L
+  imax <- n - 1L
+  while (i < imax) {
+    if (x[i - 1L] < x[i]) {
+      ahead <- i + 1L
+      while (ahead < imax && x[ahead] == x[i]) ahead <- ahead + 1L
+      if (x[ahead] < x[i]) {
+        left  <- i; right <- ahead - 1L
+        mid   <- left + (right - left) %/% 2L
+        peaks <- c(peaks, mid)
+        i <- ahead
+      }
+    }
+    i <- i + 1L
+  }
+  if (length(peaks) == 0L) return(integer(0))
+  peaks[x[peaks] >= height]
+}
+
+#' Length of the first allowed (zero) run in a 0/1 vector (Python zero_sequences[0]).
+#' @noRd
+.first_allowed_run_len <- function(forbidden) {
+  is_zero <- forbidden == 0
+  if (!any(is_zero)) return(0L)
+  r <- rle(is_zero)
+  idx <- which(r$values)[1L]
+  as.integer(r$lengths[idx])
+}
+
+#' Noon-to-noon day index (Python actigraphy_split_by_day, start_hour = 12),
+#' including the tiny-first/last-day merge.
+#' @noRd
+.vp_day_index <- function(ts, start_hour = 12L, n) {
+  ts <- as.POSIXct(ts)
+  t0 <- ts[1L]
+  lt0_hour <- as.integer(format(t0, "%H"))
+  midnight <- as.POSIXct(format(t0, "%Y-%m-%d 00:00:00"), tz = attr(ts, "tzone") %||% "UTC")
+  if (lt0_hour <= start_hour) {
+    first_date <- midnight - as.difftime(start_hour, units = "hours")
+  } else {
+    first_date <- midnight + as.difftime(start_hour, units = "hours")
+  }
+  delta_h <- as.numeric(difftime(ts, first_date, units = "hours"))
+  idx <- as.integer(floor(delta_h / 24)) + 1L
+  idx[idx < 1L] <- 1L
+  idx <- idx - min(idx) + 1L                       # relabel 1..D contiguous
+
+  # tiny first/last day merge (matches Python)
+  sizes <- as.integer(table(factor(idx, levels = sort(unique(idx)))))
+  D <- length(sizes)
+  labs <- sort(unique(idx))
+  if (D > 2L) {
+    typical <- sizes[2L]
+    if (typical >= 2L * sizes[1L]) idx[idx == labs[1L]] <- labs[2L]
+    if (typical >= 2L * sizes[D]) idx[idx == labs[D]] <- labs[D - 1L]
+  } else if (D == 2L) {
+    if (sizes[1L] >= 2L * sizes[2L] || sizes[2L] >= 2L * sizes[1L])
+      idx[] <- labs[1L]
+  }
+  match(idx, sort(unique(idx)))                    # contiguous 1..k
+}
+
+#' Python compute_temperature_variations decrease_ratio for ONE period.
+#' s,e are Python 0-based start / exclusive end.
+#' @noRd
+.vp_decrease_ratio <- function(temp_derivative, s, e) {
+  if ((s + 1L) > e) return(0)
+  wd  <- temp_derivative[(s + 1L):e]
+  inc <- which(wd > 0)
+  if (length(inc) > 2L) {
+    inc_sum <- sum(wd[inc[2:(length(inc) - 1L)]])    # drop first & last positive
+  } else if (length(inc) == 2L) {
+    inc_sum <- wd[inc[2L]]
+  } else {
+    inc_sum <- sum(wd[inc])
+  }
+  dec <- which(wd < 0)
+  if (length(dec) > 2L) {
+    dec_sum <- -sum(wd[dec[2:length(dec)]])          # drop first negative
+  } else if (length(dec) == 2L) {
+    dec_sum <- -wd[dec[2L]]
+  } else {
+    dec_sum <- -sum(wd[dec])
+  }
+  if (inc_sum > 0) dec_sum / inc_sum else dec_sum
+}
+
+#' test_offwrist_surrounded_by_awake (ActTrust): median activity in the
+#' minimum_onwrist_length window before OR after >= activity_thr.
+#' @noRd
+.vp_surrounded_by_awake <- function(activity, s, e, activity_thr, min_onwrist, n) {
+  bs <- max(0L, s - min_onwrist)
+  before <- if (bs < s) activity[(bs + 1L):s] else numeric(0)
+  after  <- if (e < min(e + min_onwrist, n)) activity[(e + 1L):min(e + min_onwrist, n)] else numeric(0)
+  mb <- if (length(before) > 0L) stats::median(before) else 0
+  ma <- if (length(after)  > 0L) stats::median(after)  else 0
+  (mb >= activity_thr) || (ma >= activity_thr)
+}
+
+#' test_temperature_difference_median_statistically_below (two-sample KS).
+#' NOTE: scipy<->R two-sample KS alternative conventions differ; this affects
+#' only short (<= short_offwrist_length) rescue periods. Uses R ks.test.
+#' @noRd
+.vp_test_tdm_below <- function(dif_temp, s, e, n) {
+  L  <- e - s
+  bs <- max(0L, s - L)
+  before <- if (bs < s) dif_temp[(bs + 1L):s] else numeric(0)
+  after  <- if (e < min(e + L, n)) dif_temp[(e + 1L):min(e + L, n)] else numeric(0)
+  off    <- dif_temp[(s + 1L):e]
+  tdm <- stats::median(off)
+  if (length(before) == 0L || length(after) == 0L || length(off) == 0L)
+    return(list(pval = 100, tdm = tdm))
+  pv_b <- suppressWarnings(stats::ks.test(before, off, alternative = "greater")$p.value)
+  pv_a <- suppressWarnings(stats::ks.test(after,  off, alternative = "greater")$p.value)
+  list(pval = pv_b + pv_a, tdm = tdm)
+}
+
 #' @noRd
 .valley_peak_algorithm_full <- function(
     temp_derivative, activity, temperature, temperature_threshold,
@@ -770,171 +972,197 @@ below_prop <- function(x, thr) {
     datetime_stamps, epoch_hour, n,
     next_possible_length = TRUE
 ) {
-  # Split derivative by day if datetime_stamps available, else treat as one day
+  empty <- data.frame(start = integer(), end = integer(),
+                      length = integer(), valley_peak = logical())
+
+  # fixed wrapper parameters not otherwise threaded in
+  minimum_onwrist_length <- 20L
+  offwrist_min_tdm       <- 0.75    # offwrist_minimum_temperature_difference_median
+  trust_pval             <- 5e-4
+  possible_window_hours  <- 1L
+  static_peak_q          <- 0.98
+  static_valley_q        <- 0.95
+
+  # ── Split derivative into noon-to-noon days (per-day peak/valley thresholds) ─
   if (!is.null(datetime_stamps) && length(datetime_stamps) == n) {
-    days       <- as.Date(datetime_stamps)
-    unique_days <- unique(days)
+    day_id <- .vp_day_index(datetime_stamps, start_hour = 12L, n = n)
   } else {
-    unique_days <- 1L
-    days        <- rep(1L, n)
+    day_id <- rep(1L, n)
   }
+  uday <- sort(unique(day_id))
 
-  all_peaks   <- integer(0)
-  all_valleys <- integer(0)
-
-  for (d in unique_days) {
-    idx      <- which(days == d)
+  all_peaks <- integer(0); all_valleys <- integer(0)
+  for (d in uday) {
+    idx <- which(day_id == d)
     if (length(idx) == 0L) next
     day_deriv <- temp_derivative[idx]
-    idx_shift <- idx[1L] - 1L
+    shift     <- idx[1L] - 1L                         # 0-based global offset
 
-    pos_sig <- day_deriv[day_deriv > 0]
-    neg_sig <- day_deriv[day_deriv < 0]
-    pos_idx <- which(day_deriv > 0)
-    neg_idx <- which(day_deriv < 0)
+    pos <- which(day_deriv > 0); pos_sig <- day_deriv[pos]
+    neg <- which(day_deriv < 0); neg_sig <- day_deriv[neg]
 
+    # peaks (include_static)
     if (length(pos_sig) > 0L) {
-      pk_thr <- as.double(stats::quantile(pos_sig, peak_quantile,
-                                          names = FALSE, type = 1))
-      peaks_local <- which(pos_sig >= pk_thr)
-      # find_peaks equivalent: local maxima
-      peaks_local <- peaks_local[vapply(peaks_local, function(j) {
-        l <- max(1L, j - 1L); r <- min(length(pos_sig), j + 1L)
-        pos_sig[j] >= pos_sig[l] && pos_sig[j] >= pos_sig[r]
-      }, logical(1))]
-      all_peaks <- c(all_peaks, pos_idx[peaks_local] + idx_shift)
+      high  <- as.double(stats::quantile(pos_sig, peak_quantile,  names = FALSE, type = 1))
+      lower <- as.double(stats::quantile(pos_sig, static_peak_q,  names = FALSE, type = 1))
+      cand  <- .find_peaks_scipy(pos_sig, lower)
+      for (pk in cand) {
+        gp   <- (pos[pk] - 1L) + shift                # global 0-based peak index
+        keep <- pos_sig[pk] >= high
+        if (!keep) {
+          bs <- max(0L, gp - minimum_offwrist_length)
+          ab <- if (bs < gp) activity[(bs + 1L):gp] else numeric(0)
+          if (length(ab) > 0L &&
+              below_prop(ab, activity_thr) >= 0.7 && zero_prop(ab) >= 0.4) keep <- TRUE
+        }
+        if (keep) all_peaks <- c(all_peaks, gp)
+      }
     }
-
+    # valleys (include_static)
     if (length(neg_sig) > 0L) {
-      vl_thr <- as.double(stats::quantile(-neg_sig, valley_quantile,
-                                          names = FALSE, type = 1))
-      valleys_local <- which(-neg_sig >= vl_thr)
-      valleys_local <- valleys_local[vapply(valleys_local, function(j) {
-        l <- max(1L, j - 1L); r <- min(length(neg_sig), j + 1L)
-        neg_sig[j] <= neg_sig[l] && neg_sig[j] <= neg_sig[r]
-      }, logical(1))]
-      all_valleys <- c(all_valleys, neg_idx[valleys_local] + idx_shift)
+      negp  <- -neg_sig
+      high  <- as.double(stats::quantile(negp, valley_quantile,  names = FALSE, type = 1))
+      lower <- as.double(stats::quantile(negp, static_valley_q,  names = FALSE, type = 1))
+      cand  <- .find_peaks_scipy(negp, lower)
+      for (vk in cand) {
+        gv   <- (neg[vk] - 1L) + shift
+        keep <- negp[vk] >= high
+        if (!keep) {
+          af <- if (gv < min(gv + minimum_offwrist_length, n))
+                  activity[(gv + 1L):min(gv + minimum_offwrist_length, n)] else numeric(0)
+          la <- if (length(af) > 0L) below_prop(af, activity_thr) else 0
+          zp <- if (length(af) > 0L) zero_prop(af) else 0
+          if ((la >= 0.7 && zp >= 0.4) || la >= 0.9) keep <- TRUE
+        }
+        if (keep) all_valleys <- c(all_valleys, gv)
+      }
     }
   }
 
   all_peaks   <- sort(unique(all_peaks))
   all_valleys <- sort(unique(all_valleys))
+  if (length(all_peaks) == 0L || length(all_valleys) == 0L) return(empty)
 
-  if (length(all_peaks) == 0L || length(all_valleys) == 0L)
-    return(data.frame(start=integer(), end=integer(), length=integer(),
-                      valley_peak=logical()))
+  # ── Match valleys to peaks (with first/last boundary periods) ───────────
+  vp <- list()
+  pc <- length(all_peaks); vc <- length(all_valleys)
+  valley <- 1L; peak <- 1L
 
-  # Match valleys to peaks
-  vp_list    <- list()
-  valley_idx <- 1L
-  peak_idx   <- 1L
-  n_valleys  <- length(all_valleys)
-  n_peaks    <- length(all_peaks)
+  if (all_peaks[1L] < all_valleys[1L]) {
+    fp  <- all_peaks[1L]
+    if (fp >= minimum_offwrist_length &&
+        below_prop(activity[1L:fp], activity_thr) > 0.75) {
+      vp[[length(vp) + 1L]] <- c(0L, fp)
+    }
+  }
 
-  while (valley_idx <= n_valleys && peak_idx <= n_peaks) {
-    if (all_peaks[peak_idx] > all_valleys[valley_idx]) {
-      v     <- all_valleys[valley_idx]
-      p     <- all_peaks[peak_idx]
-      len   <- p - v
+  while (valley <= vc && peak <= pc) {
+    if (all_peaks[peak] > all_valleys[valley]) {
+      len <- all_peaks[peak] - all_valleys[valley]
+      if (valley + 1L <= vc) {
+        npl <- all_peaks[peak] - all_valleys[valley + 1L]    # next_possible_length_criteria
+        if (all_peaks[peak] > all_valleys[valley + 1L] && npl >= minimum_offwrist_length) {
+          valley <- valley + 1L
+        } else {
+          if (len >= minimum_offwrist_length && len < long_offwrist_length) {
+            vp[[length(vp) + 1L]] <- c(all_valleys[valley], all_peaks[peak])
+            peak <- peak + 1L
+          }
+          valley <- valley + 1L
+        }
+      } else {
+        if (len >= minimum_offwrist_length && len < long_offwrist_length) {
+          vp[[length(vp) + 1L]] <- c(all_valleys[valley], all_peaks[peak])
+          peak <- peak + 1L
+        }
+        valley <- valley + 1L
+      }
+    } else {
+      peak <- peak + 1L
+    }
+  }
 
-      # next_possible_length check
-      if (valley_idx + 1L <= n_valleys) {
-        next_v   <- all_valleys[valley_idx + 1L]
-        next_len <- p - next_v
-        if (p > next_v && next_len >= minimum_offwrist_length) {
-          valley_idx <- valley_idx + 1L
-          next
+  if (all_peaks[pc] < all_valleys[vc]) {
+    lv  <- all_valleys[vc]
+    len <- n - lv
+    if (len >= minimum_offwrist_length &&
+        below_prop(activity[(lv + 1L):n], activity_thr) > 0.75) {
+      vp[[length(vp) + 1L]] <- c(lv, n)
+    }
+  }
+
+  if (length(vp) == 0L) return(empty)
+  m    <- do.call(rbind, vp)
+  vpdf <- data.frame(start = m[, 1L], end = m[, 2L])
+  vpdf$length <- vpdf$end - vpdf$start
+
+  # ── Forbidden zone (possible_window_hours rule; do_forbidden_zone = TRUE) ─
+  keep_fz <- logical(nrow(vpdf))
+  for (i in seq_len(nrow(vpdf))) {
+    s <- vpdf$start[i]; e <- min(vpdf$end[i], n)
+    fb <- forbidden_zone[(s + 1L):e]
+    if (sum(fb) == 0L) { keep_fz[i] <- TRUE; next }
+    if ((e - s) > possible_window_hours) {
+      fr <- .first_allowed_run_len(fb)
+      if (fr > 0L) {
+        keep_fz[i] <- ((possible_window_hours - fr) <= 0.66 * possible_window_hours)
+      } else keep_fz[i] <- FALSE
+    } else keep_fz[i] <- FALSE
+  }
+  vpdf <- vpdf[keep_fz, , drop = FALSE]; row.names(vpdf) <- NULL
+  if (nrow(vpdf) == 0L) return(empty)
+
+  # ── Features ────────────────────────────────────────────────────────────
+  vpdf$low_act_prop  <- vapply(seq_len(nrow(vpdf)), function(i)
+    below_prop(activity[(vpdf$start[i] + 1L):vpdf$end[i]], activity_thr), numeric(1))
+  vpdf$low_temp_prop <- vapply(seq_len(nrow(vpdf)), function(i)
+    below_prop(temperature[(vpdf$start[i] + 1L):vpdf$end[i]], temperature_threshold), numeric(1))
+  vpdf$temp_dif_med  <- vapply(seq_len(nrow(vpdf)), function(i)
+    stats::median(dif_temp[(vpdf$start[i] + 1L):vpdf$end[i]], na.rm = TRUE), numeric(1))
+  vpdf$decrease_ratio <- vapply(seq_len(nrow(vpdf)), function(i)
+    .vp_decrease_ratio(temp_derivative, vpdf$start[i], vpdf$end[i]), numeric(1))
+
+  # ── valid_index decision tree (ActTrust, non-lumus) ─────────────────────
+  af <- vpdf$low_act_prop   >= valley_peak_low_act_min
+  tf <- vpdf$low_temp_prop  >= valley_peak_low_temp_min
+  df <- vpdf$decrease_ratio >= decrease_ratio_min
+  xf <- vpdf$temp_dif_med   <= offwrist_max_temp_dif_med    # tempdif pass = <= max
+  comb <- af & tf & df & xf
+
+  keepv <- logical(nrow(vpdf))
+  for (i in seq_len(nrow(vpdf))) {
+    if (comb[i]) { keepv[i] <- TRUE; next }
+    s <- vpdf$start[i]; e <- vpdf$end[i]; L <- vpdf$length[i]
+    if (af[i]) {
+      if (df[i]) {
+        if (tf[i]) {
+          if (L <= short_offwrist_length) {
+            ks <- .vp_test_tdm_below(dif_temp, s, e, n)
+            if (ks$pval < trust_pval && ks$tdm < (offwrist_min_tdm - 0.1)) {
+              if (.vp_surrounded_by_awake(activity, s, e, activity_thr,
+                                          minimum_onwrist_length, n)) keepv[i] <- TRUE
+            }
+          }
+        } else {
+          if (L <= short_offwrist_length && xf[i] &&
+              vpdf$decrease_ratio[i] >= short_vp_decrease_ratio_min) {
+            if (.vp_surrounded_by_awake(activity, s, e, activity_thr,
+                                        minimum_onwrist_length, n)) keepv[i] <- TRUE
+          }
+        }
+      } else {
+        if (tf[i] && L <= short_offwrist_length && xf[i]) {
+          if (.vp_surrounded_by_awake(activity, s, e, activity_thr,
+                                      minimum_onwrist_length, n)) keepv[i] <- TRUE
         }
       }
-
-      if (len >= minimum_offwrist_length && len < long_offwrist_length) {
-        vp_list[[length(vp_list) + 1L]] <- c(v, p)
-        peak_idx <- peak_idx + 1L
-      }
-      valley_idx <- valley_idx + 1L
-    } else {
-      peak_idx <- peak_idx + 1L
     }
   }
+  vpdf <- vpdf[keepv, , drop = FALSE]; row.names(vpdf) <- NULL
+  if (nrow(vpdf) == 0L) return(empty)
 
-  if (length(vp_list) == 0L)
-    return(data.frame(start=integer(), end=integer(), length=integer(),
-                      valley_peak=logical()))
-
-  vp_mat  <- do.call(rbind, vp_list)
-  vp_df   <- data.frame(start = vp_mat[, 1L] - 1L,  # 0-indexed
-                        end   = vp_mat[, 2L],
-                        length = vp_mat[, 2L] - vp_mat[, 1L] + 1L)
-
-  # Apply forbidden zone filter
-  vp_df$forbidden <- vapply(seq_len(nrow(vp_df)), function(i) {
-    s <- vp_df$start[i]; e <- min(vp_df$end[i], n)
-    if (s >= e) return(TRUE)
-    any(forbidden_zone[(s + 1L):e] == 1L)
-  }, logical(1))
-  vp_df <- vp_df[!vp_df$forbidden, ]
-  row.names(vp_df) <- NULL
-
-  if (nrow(vp_df) == 0L)
-    return(data.frame(start=integer(), end=integer(), length=integer(),
-                      valley_peak=logical()))
-
-  # Feature filters
-  vp_df$low_act_prop <- vapply(seq_len(nrow(vp_df)), function(i) {
-    s <- vp_df$start[i]; e <- vp_df$end[i]
-    below_prop(activity[(s + 1L):e], activity_thr)
-  }, numeric(1))
-  vp_df$low_temp_prop <- vapply(seq_len(nrow(vp_df)), function(i) {
-    s <- vp_df$start[i]; e <- vp_df$end[i]
-    below_prop(temperature[(s + 1L):e], temperature_threshold)
-  }, numeric(1))
-  vp_df$temp_dif_med <- vapply(seq_len(nrow(vp_df)), function(i) {
-    s <- vp_df$start[i]; e <- vp_df$end[i]
-    stats::median(dif_temp[(s + 1L):e], na.rm = TRUE)
-  }, numeric(1))
-  vp_df$decrease_ratio <- vapply(seq_len(nrow(vp_df)), function(i) {
-    s <- vp_df$start[i]; e <- vp_df$end[i]
-    .compute_decrease_ratio_v2(temp_derivative, s + 1L, e)
-  }, numeric(1))
-
-  # Apply filters
-  keep <- with(vp_df,
-    low_act_prop  >= valley_peak_low_act_min  &
-    low_temp_prop >= valley_peak_low_temp_min &
-    decrease_ratio >= decrease_ratio_min      &
-    temp_dif_med  <  offwrist_max_temp_dif_med
-  )
-
-  # Short VP rescue: short_offwrist_minimum_decrease_ratio
-  for (i in which(!keep)) {
-    r <- vp_df[i, ]
-    if (r$low_act_prop >= valley_peak_low_act_min &&
-        r$low_temp_prop >= valley_peak_low_temp_min &&
-        r$length <= short_offwrist_length &&
-        r$temp_dif_med < offwrist_max_temp_dif_med &&
-        r$decrease_ratio >= short_vp_decrease_ratio_min) {
-      keep[i] <- TRUE
-    }
-  }
-
-  vp_df <- vp_df[keep, ]
-  row.names(vp_df) <- NULL
-
-  if (nrow(vp_df) == 0L)
-    return(data.frame(start=integer(), end=integer(), length=integer(),
-                      valley_peak=logical()))
-
-  vp_df$valley_peak <- TRUE
-  vp_df[, c("start", "end", "length", "valley_peak")]
-}
-
-#' @noRd
-.compute_decrease_ratio_v2 <- function(temp_derivative, ri_start, ri_end) {
-  if (ri_start > ri_end || ri_start < 1L) return(0)
-  seg <- temp_derivative[ri_start:ri_end]
-  neg <- seg[seg < 0]; pos <- seg[seg > 0]
-  if (length(pos) == 0L || sum(pos) == 0) return(0)
-  abs(sum(neg)) / sum(pos)
+  vpdf$valley_peak <- TRUE
+  vpdf[, c("start", "end", "length", "valley_peak")]
 }
 
 #' @noRd

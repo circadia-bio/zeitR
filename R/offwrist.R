@@ -181,6 +181,7 @@ detect_offwrist_bimodal <- function(
     filter_hws            = hws,
     dif_temp              = dif_temp,
     epoch_hour            = epoch_h,
+    datetime_stamps       = x$datetime[valid_temp],
     do_near_all_off_detection = TRUE
   )
 
