@@ -9,16 +9,18 @@
 #'
 #' @param x A tibble as returned by [detect_offwrist_bimodal()] (or
 #'   [prepare_actigraphy()] if off-wrist detection is skipped), containing
-#'   columns `datetime`, `activity`, and `state`.
+#'   columns `datetime`, `activity`, and `state`. The detector runs on the
+#'   on-wrist subset (`state != 4`) only, mirroring the Python `cspd_wrapper`.
 #' @param epoch_h `numeric(1)`. Number of epochs per hour. If `NULL`
-#'   (default), estimated automatically from the median inter-epoch interval
-#'   in `datetime`.
+#'   (default), derived from the epoch duration (the mode of the on-wrist
+#'   inter-epoch interval), as `3600 / duration`.
 #' @param median_filter_h `numeric(1)`. Length of the preprocessing median
 #'   filter window in hours. Default is `8`.
 #' @param pad_h `numeric(1)`. Padding length in hours added before the
 #'   adaptive median filter. Default is `1`.
 #' @param sleep_quantile `numeric(1)`. Quantile of the filtered activity used
-#'   as the sleep/wake threshold. Default is `1/3`.
+#'   as the MSP sleep/wake threshold. Default is `0.365` (the ActTrust CSPD
+#'   value used by `cspd_wrapper`; the standalone Crespo algorithm uses `1/3`).
 #' @param morph_size `integer(1)`. Size of the structuring element used in
 #'   morphological closing/opening. Default is `61` epochs.
 #' @param consec_zeros_thr `integer(1)`. Runs of zeros longer than this
@@ -32,10 +34,19 @@
 #' @param min_short_window_thr `numeric(1)`. Minimum value of the adaptive
 #'   median threshold; if the fitted quantile falls below this, the threshold
 #'   is clamped here. Default is `1.0`.
+#' @param refine `logical(1)`. If `TRUE` (default), the MSP detection is
+#'   refined into final sleep periods by the CSPD bed-time / get-up-time
+#'   refiners (`.cspd_refine_periods`), reproducing the Python `refined_output`.
+#'   If `FALSE`, the raw MSP detection is used directly.
+#' @param condition `integer(1)`. Condition flag forwarded to the refiner
+#'   (default `0`). Affects only `refine = TRUE`.
 #'
 #' @return The input tibble `x` with `state` and `sleep` columns updated.
 #'   Sleep epochs have `state == 1` and `sleep == 1`; off-wrist epochs
-#'   (`state == 4`) are preserved and excluded from the sleep column.
+#'   (`state == 4`) are preserved and excluded from the sleep column. With
+#'   `refine = TRUE` the sleep epochs delimit the refined sleep PERIODS (the
+#'   Python `refined_output`); per-epoch wake/sleep within them is scored later
+#'   by [compute_waso()].
 #'
 #' @references
 #' Crespo, C., Aboy, M., Fernández, J. R., & Mojón, A. (2012). Automatic
@@ -59,21 +70,44 @@ detect_sleep_crespo <- function(
     epoch_h            = NULL,
     median_filter_h    = 8,
     pad_h              = 1,
-    sleep_quantile     = 1 / 3,
+    sleep_quantile     = 0.365,
     morph_size         = 61L,
     consec_zeros_thr   = 15L,
     awake_zeros_thr    = 2L,
     sleep_zeros_thr    = 30L,
     zero_mitigation_q  = 0.33,
-    min_short_window_thr = 1.0
+    min_short_window_thr = 1.0,
+    refine             = TRUE,
+    condition          = 0L
 ) {
   .check_crespo_input(x)
 
-  activity  <- as.double(x$activity)
-  epoch_h   <- epoch_h %||% .estimate_epoch_h(x$datetime)
+  state_in <- as.integer(x$state)
+  onwrist  <- state_in != 4L
+  if (!any(onwrist)) {
+    x$sleep <- rep(0L, nrow(x))
+    return(x)
+  }
 
-  out <- .crespo_msp(
-    activity             = activity,
+  ow_activity <- as.double(x$activity[onwrist])
+  ow_datetime <- x$datetime[onwrist]
+
+  # Epoch duration = mode of the on-wrist inter-epoch gaps; epoch_h is derived
+  # from it (matches CSPD.model, which sets epoch_hour = 3600 / duration).
+  secs     <- as.numeric(as.POSIXct(ow_datetime))
+  dd       <- diff(secs)
+  duration <- if (length(dd) > 0L)
+    as.numeric(names(sort(table(dd), decreasing = TRUE))[1]) else 60
+  epoch_h  <- epoch_h %||% (3600 / duration)
+
+  # CSPD.model runs detect_msp on the SCALED activity (activity / duration).
+  # The detection is scale-invariant except for the absolute
+  # min_short_window_thr clamp, so the scaling is required to reproduce the
+  # CSPD-internal MSP that feeds the refiner.
+  scaled_activity <- ow_activity / duration
+
+  msp <- .crespo_msp(
+    activity             = scaled_activity,
     epoch_h              = epoch_h,
     median_filter_h      = median_filter_h,
     pad_h                = pad_h,
@@ -86,10 +120,23 @@ detect_sleep_crespo <- function(
     min_short_window_thr = min_short_window_thr
   )
 
-  # out: 0 = sleep, 1 = wake  → invert for state (1 = sleep, 0 = wake)
-  state_new        <- 1L - out
-  x$state          <- ifelse(x$state == 4L, 4L, state_new)
-  x$sleep          <- ifelse(x$state == 4L, 0L, state_new)
+  # Refine the MSP into final sleep PERIODS with the CSPD bed/get-up refiners.
+  if (isTRUE(refine)) {
+    detection <- .cspd_refine_periods(
+      activity        = ow_activity,
+      datetime_stamps = ow_datetime,
+      msp_detection   = msp,
+      condition       = condition
+    )$refined_output
+  } else {
+    detection <- msp
+  }
+
+  # detection: 1 = wake, 0 = sleep  ->  state 1 = sleep, 0 = wake; 4 = off-wrist.
+  new_state          <- state_in
+  new_state[onwrist] <- ifelse(detection == 0, 1L, 0L)
+  x$state            <- new_state
+  x$sleep            <- ifelse(new_state == 4L, 0L, as.integer(new_state == 1L))
 
   x
 }

@@ -67,7 +67,10 @@ test_that("detect_sleep_crespo preserves off-wrist epochs and excludes them from
   ow <- 100:150
   x$state[ow] <- 4L   # mark an off-wrist block
 
-  out <- detect_sleep_crespo(x, epoch_h = 2)   # small epoch_h keeps it fast
+  # refine = FALSE exercises the on-wrist subset + MSP->state wiring without the
+  # full CSPD refiner (which needs realistic-length data; validated separately
+  # against the inst/extdata fixtures via dev/validate_sleep_crespo_wiring.R).
+  out <- detect_sleep_crespo(x, epoch_h = 2, refine = FALSE)
 
   # Off-wrist epochs stay state 4 and are never scored as sleep.
   expect_true(all(out$state[ow] == 4L))
