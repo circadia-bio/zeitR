@@ -114,9 +114,12 @@ test_that(".morphological_open_close uses scipy-style (border_value = 0) padding
     c(0L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 0L)
   )
 
-  # Degenerate inputs are idempotent under closing + opening.
-  expect_identical(morph(rep(1L, 20), 5L), rep(1L, 20))
+  # Degenerate inputs: all-zeros is idempotent under closing + opening, but
+  # all-ones is NOT — scipy-style erosion (border_value = 0) eats hws epochs in
+  # from each border during the closing step. This is the validated reference
+  # behaviour (it is what makes .crespo_msp match the Python detect_msp).
   expect_identical(morph(rep(0L, 20), 5L), rep(0L, 20))
+  expect_identical(morph(rep(1L, 20), 5L), c(0L, 0L, rep(1L, 16), 0L, 0L))
 })
 
 test_that(".estimate_epoch_h recovers the epochs-per-hour from timestamps", {

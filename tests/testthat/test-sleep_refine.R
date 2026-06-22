@@ -31,7 +31,7 @@ testthat::test_that(".peak_valley_length_filter merges a short mid valley+peak (
 
   # p3, v2, p1, v4, p3 ; min_length = 2 -> the v2 and following p1 are absorbed
   input    <- c(1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1)
-  expected <- c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1)
+  expected <- c(1L, 1L, 1L, 1L, 1L, 1L, 0L, 0L, 0L, 0L, 1L, 1L, 1L)
 
   expect_identical(pvlf(input, 2L), expected)
 })
@@ -42,7 +42,7 @@ testthat::test_that(".peak_valley_length_filter special-cases a short first regi
   # v2 (first), p4, v3, p2 ; min_length = 2 -> first valley merges forward,
   # trailing short peak merges back into the valley
   input    <- c(0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1)
-  expected <- c(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0)
+  expected <- c(1L, 1L, 1L, 1L, 1L, 1L, 0L, 0L, 0L, 0L, 0L)
 
   expect_identical(pvlf(input, 2L), expected)
 })
@@ -52,7 +52,7 @@ testthat::test_that(".peak_valley_length_filter merges a short trailing region (
 
   # p4, v5, p4, v1 (last) ; min_length = 2 -> trailing v1 absorbed into the peak
   input    <- c(1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0)
-  expected <- c(1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1)
+  expected <- c(1L, 1L, 1L, 1L, 0L, 0L, 0L, 0L, 0L, 1L, 1L, 1L, 1L, 1L)
 
   expect_identical(pvlf(input, 2L), expected)
 })
@@ -184,7 +184,7 @@ testthat::test_that(".remove_peak_valley merges first region and recomputes feat
   expect_equal(out$mean,                       c(5.4, 0, 9))
   expect_equal(out$median,                     c(9,   0, 9))
   expect_equal(out$zero_proportion,            c(0.4, 1, 0))
-  expect_equal(out$above_threshold_proportion, c(0.6, 1, 0))
+  expect_equal(out$above_threshold_proportion, c(0.6, 0, 1))
 })
 
 # ── Stage 3: bed-time refiner — Unit A (window finding) ────────────────────────
