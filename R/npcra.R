@@ -1,48 +1,51 @@
 #' Non-parametric circadian rhythm analysis (NPCRA)
 #'
 #' Computes the standard non-parametric circadian rhythm analysis variables
-#' from an actigraphy recording. All variables are derived from the 24-hour
-#' activity profile following Van Someren et al. (1999) and Marler et al.
-#' (2006).
+#' from an actigraphy recording, following Gonçalves et al. (2014) and Van
+#' Someren et al. (1999). All variables are derived from the 24-hour average
+#' activity profile built from **hourly means** (p = 24).
 #'
 #' The following variables are computed:
 #'
 #' \describe{
-#'   \item{`IS`}{**Interdaily stability** — consistency of the 24 h activity
+#'   \item{`IS`}{**Interdaily stability** — consistency of the 24 h rest-activity
 #'     pattern across days (range 0--1; higher = more stable).}
 #'   \item{`IV`}{**Intradaily variability** — fragmentation of the
 #'     rest-activity rhythm (>= 0; higher = more fragmented).}
 #'   \item{`RA`}{**Relative amplitude** — contrast between the most active
 #'     10 h window (M10) and least active 5 h window (L5) (range 0--1).}
-#'   \item{`L5`}{Mean activity during the least active 5 h window.}
-#'   \item{`L5_onset`}{Clock time of the L5 window midpoint (hh:mm).}
-#'   \item{`M10`}{Mean activity during the most active 10 h window.}
-#'   \item{`M10_onset`}{Clock time of the M10 window midpoint (hh:mm).}
+#'   \item{`L5`}{Mean activity during the least active 5 consecutive hours.}
+#'   \item{`L5_onset`}{Clock time of the L5 window onset (hh:mm).}
+#'   \item{`M10`}{Mean activity during the most active 10 consecutive hours.}
+#'   \item{`M10_onset`}{Clock time of the M10 window onset (hh:mm).}
 #' }
 #'
 #' @param x A `zeitr_recording` as returned by [read_actigraphy()], or a
 #'   data frame / tibble with at least `datetime` and `activity` columns.
+#'   If a `state` column is present, off-wrist epochs (`state == 4`) are
+#'   excluded before computing all NPCRA variables.
 #' @param epoch_s `numeric(1)`. Epoch duration in seconds. If `NULL`
 #'   (default), estimated automatically from the median inter-epoch interval.
 #' @param L5_hours `numeric(1)`. Width of the least-active window in hours.
 #'   Default is `5`.
 #' @param M10_hours `numeric(1)`. Width of the most-active window in hours.
 #'   Default is `10`.
+#' @param window_days `numeric(1)` or `NULL`. If supplied, the recording is
+#'   split into non-overlapping windows of this length (in days) and NPCRA
+#'   variables are computed for each window. A `window_start` column is added
+#'   to the output. Partial final windows (shorter than `window_days`) are
+#'   included but flagged via a lower `n_days` value. Default `NULL` computes
+#'   a single estimate over the full recording.
 #'
-#' @return A one-row tibble with columns `participant_id`, `IS`, `IV`, `RA`,
-#'   `L5`, `L5_onset`, `M10`, `M10_onset`, `n_days`, `n_epochs`.
+#' @return A tibble with columns `participant_id`, `window_start` (if
+#'   `window_days` is set), `IS`, `IV`, `RA`, `L5`, `L5_onset`, `M10`,
+#'   `M10_onset`, `n_days`, `n_epochs`.
 #'
 #' @references
-#' Van Someren, E. J. W., Lijzenga, C., Mirmiran, M., & Swaab, D. F. (1997).
-#' Long-term fitness training improves the circadian rest-activity rhythm in
-#' healthy elderly males. *Journal of Biological Rhythms*, 12(2), 146--156.
-#' \doi{10.1177/074873049701200206}
-#'
-#' Marler, M. R., Gehrman, P., Martin, J. L., & Ancoli-Israel, S. (2006).
-#' The sigmoidally transformed cosine curve: a mathematical model for
-#' circadian rhythms with symmetric non-sinusoidal shapes.
-#' *Statistics in Medicine*, 25(22), 3893--3904.
-#' \doi{10.1002/sim.2466}
+#' Gonçalves, B. S. B., Adamowicz, T., Louzada, F. M., Moreno, C. R., &
+#' Araujo, J. F. (2014). A fresh look at the use of nonparametric analysis in
+#' actimetry. *Sleep Medicine Reviews*, 20, 84--91.
+#' \doi{10.1016/j.smrv.2014.06.002}
 #'
 #' Van Someren, E. J. W., Swaab, D. F., Colenda, C. C., Cohen, W.,
 #' McCall, W. V., & Rosenquist, P. B. (1999). Bright light therapy:
@@ -54,15 +57,19 @@
 #' @export
 #'
 #' @importFrom tibble tibble
-#' @importFrom lubridate floor_date
 #'
 #' @examples
 #' \dontrun{
 #' rec   <- read_actigraphy("recordings/P001.txt")
-#' npcra <- compute_npcra(rec)
-#' npcra
+#'
+#' # Single estimate over the full recording
+#' compute_npcra(rec)
+#'
+#' # Per-fortnight estimates
+#' compute_npcra(rec, window_days = 14)
 #' }
-compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
+compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
+                          window_days = NULL) {
 
   # ── Extract epochs tibble and participant_id ─────────────────────────────────
   if (inherits(x, "zeitr_recording")) {
@@ -83,8 +90,15 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
 
   datetimes <- as.POSIXct(epochs$datetime)
   activity  <- as.double(epochs$activity)
-  n         <- length(activity)
 
+  # ── Exclude off-wrist epochs if state column is present ──────────────────────
+  if (!is.null(epochs$state)) {
+    keep      <- is.na(epochs$state) | epochs$state != 4L
+    datetimes <- datetimes[keep]
+    activity  <- activity[keep]
+  }
+
+  n <- length(activity)
   if (n < 2L) zeitr_abort("Need at least 2 epochs to compute NPCRA.")
 
   # ── Epoch duration ───────────────────────────────────────────────────────────
@@ -92,64 +106,91 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
     diffs   <- as.numeric(diff(datetimes), units = "secs")
     epoch_s <- stats::median(diffs[diffs > 0], na.rm = TRUE)
   }
-  epochs_per_hour <- 3600 / epoch_s
-  epochs_per_day  <- 24 * epochs_per_hour
 
-  # ── Mean activity ────────────────────────────────────────────────────────────
-  grand_mean <- mean(activity, na.rm = TRUE)
-  if (grand_mean == 0) {
-    zeitr_warn("All activity values are zero; NPCRA variables will be NA/NaN.")
+  epochs_per_day <- 24 * 3600 / epoch_s
+
+  # ── Windowed vs full-recording mode ─────────────────────────────────────────
+  if (!is.null(window_days)) {
+    epochs_per_window <- as.integer(round(window_days * epochs_per_day))
+    starts <- seq(1L, n, by = epochs_per_window)
+    rows <- lapply(starts, function(s) {
+      e   <- min(s + epochs_per_window - 1L, n)
+      row <- .npcra_core(datetimes[s:e], activity[s:e],
+                         epoch_s, L5_hours, M10_hours, participant_id)
+      tibble::add_column(row, window_start = as.Date(datetimes[s]), .after = "participant_id")
+    })
+    return(do.call(rbind, rows))
   }
 
-  # ── IS — Interdaily stability ────────────────────────────────────────────────
-  # IS = (n / p) * sum_h(xh_bar - x_bar)^2 / sum_i(xi - x_bar)^2
-  # where p = epochs per day, xh_bar = mean activity at time-of-day slot h
-  #
-  # floor to local midnight by formatting in the recording tz, then reparsing
-  tz           <- attr(datetimes, "tzone") %||% "UTC"
-  local_midnight <- as.POSIXct(format(datetimes, "%Y-%m-%d", tz = tz), tz = tz)
-  epoch_of_day <- as.integer(
-    as.numeric(difftime(datetimes, local_midnight, units = "secs")) / epoch_s
-  ) %% as.integer(round(epochs_per_day))
+  .npcra_core(datetimes, activity, epoch_s, L5_hours, M10_hours, participant_id)
+}
 
-  p          <- as.integer(round(epochs_per_day))
-  hourly_avg <- vapply(seq(0L, p - 1L), function(h) {
-    idx <- epoch_of_day == h
-    if (any(idx)) mean(activity[idx], na.rm = TRUE) else NA_real_
-  }, numeric(1))
+# ── Internal helpers ──────────────────────────────────────────────────────────
 
-  numerator_IS   <- n / p * sum((hourly_avg - grand_mean)^2, na.rm = TRUE)
-  denominator_IS <- sum((activity - grand_mean)^2, na.rm = TRUE)
-  IS <- if (denominator_IS > 0) numerator_IS / denominator_IS else NA_real_
+#' Core NPCRA computation (per Gonçalves et al. 2014)
+#'
+#' All variables are computed on the hourly-clustered series (p = 24),
+#' matching the formulas in Equations (1) and (2) of the reference paper.
+#'
+#' @noRd
+.npcra_core <- function(datetimes, activity, epoch_s, L5_hours, M10_hours,
+                        participant_id) {
 
-  # ── IV — Intradaily variability ──────────────────────────────────────────────
-  # IV = n * sum_i(xi - x_{i-1})^2 / ((n-1) * sum_i(xi - x_bar)^2)
-  diffs_activity <- diff(activity)
-  numerator_IV   <- n * sum(diffs_activity^2, na.rm = TRUE)
-  denominator_IV <- (n - 1L) * sum((activity - grand_mean)^2, na.rm = TRUE)
-  IV <- if (denominator_IV > 0) numerator_IV / denominator_IV else NA_real_
+  tz         <- attr(datetimes, "tzone") %||% "UTC"
+  n_raw      <- length(activity)
+  epochs_per_day <- 24 * 3600 / epoch_s
 
-  # ── L5 and M10 ───────────────────────────────────────────────────────────────
-  L5_result  <- .rolling_window_mean(activity, epoch_of_day, p,
-                                     window_hours = L5_hours,  epoch_s = epoch_s,
-                                     find_min = TRUE)
-  M10_result <- .rolling_window_mean(activity, epoch_of_day, p,
-                                     window_hours = M10_hours, epoch_s = epoch_s,
-                                     find_min = FALSE)
+  # ── Cluster epochs into hourly means ────────────────────────────────────────
+  # date × hour-of-day gives each epoch a unique slot; mean within slot.
+  local_date  <- as.Date(format(datetimes, "%Y-%m-%d", tz = tz))
+  hour_of_day <- as.integer(format(datetimes, "%H", tz = tz))
 
-  L5       <- L5_result$value
-  L5_onset <- .epochs_to_hhmm(L5_result$onset_epoch, epoch_s)
-  M10      <- M10_result$value
-  M10_onset <- .epochs_to_hhmm(M10_result$onset_epoch, epoch_s)
+  slot_key    <- paste(local_date, sprintf("%02d", hour_of_day))
+  slot_means  <- tapply(activity, slot_key, mean, na.rm = TRUE)
 
-  # ── RA — Relative amplitude ──────────────────────────────────────────────────
+  # Recover hour_of_day for each slot (last two chars of key)
+  slot_names  <- names(slot_means)
+  slot_hour   <- as.integer(substr(slot_names, nchar(slot_names) - 1L, nchar(slot_names)))
+  X           <- as.double(slot_means)   # hourly series, length N
+  N           <- length(X)
+
+  if (N < 2L) zeitr_abort("Fewer than 2 hourly slots after clustering.")
+
+  # ── 24-h mean profile (p = 24) ──────────────────────────────────────────────
+  p          <- 24L
+  Xm         <- mean(X, na.rm = TRUE)
+  Xh         <- vapply(0L:(p - 1L), function(h) {
+    vals <- X[slot_hour == h]
+    if (length(vals) > 0L) mean(vals, na.rm = TRUE) else NA_real_
+  }, numeric(1L))
+
+  # ── IS (Equation 2, Gonçalves 2014) ─────────────────────────────────────────
+  # IS = (N/p) * sum_h(Xh - Xm)^2 / sum_i(Xi - Xm)^2
+  IS_num <- (N / p) * sum((Xh - Xm)^2, na.rm = TRUE)
+  IS_den <- sum((X  - Xm)^2, na.rm = TRUE)
+  IS     <- if (IS_den > 0) IS_num / IS_den else NA_real_
+
+  # ── IV (Equation 1, Gonçalves 2014) ─────────────────────────────────────────
+  # IV = N * sum_i(Xi - Xi-1)^2 / ((N-1) * sum_i(Xi - Xm)^2)
+  IV_num <- N * sum(diff(X)^2, na.rm = TRUE)
+  IV_den <- (N - 1L) * IS_den
+  IV     <- if (IV_den > 0) IV_num / IV_den else NA_real_
+
+  # ── L5 and M10 from the 24-h mean profile ───────────────────────────────────
+  L5_result  <- .rolling_window_profile(Xh, L5_hours,  find_min = TRUE)
+  M10_result <- .rolling_window_profile(Xh, M10_hours, find_min = FALSE)
+
+  L5        <- L5_result$value
+  L5_onset  <- sprintf("%02d:00", L5_result$onset_hour)
+  M10       <- M10_result$value
+  M10_onset <- sprintf("%02d:00", M10_result$onset_hour)
+
+  # ── RA ───────────────────────────────────────────────────────────────────────
   RA <- if (!is.na(M10) && !is.na(L5) && (M10 + L5) > 0) {
     (M10 - L5) / (M10 + L5)
   } else {
     NA_real_
   }
-
-  n_days <- n / epochs_per_day
 
   tibble::tibble(
     participant_id = participant_id,
@@ -160,57 +201,30 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
     L5_onset       = L5_onset,
     M10            = round(M10, 4),
     M10_onset      = M10_onset,
-    n_days         = round(n_days, 2),
-    n_epochs       = n
+    n_days         = round(n_raw / epochs_per_day, 2),
+    n_epochs       = n_raw
   )
 }
 
-# ── Internal helpers ──────────────────────────────────────────────────────────
-
-#' Compute rolling window mean across all days and find min or max window
+#' Find least/most active window from the 24-h mean profile
 #'
-#' The activity series is folded into a 24-hour profile (average activity at
-#' each epoch-of-day position), then a sliding window of `window_hours` is
-#' applied to find the least active (L5) or most active (M10) window.
-#'
-#' @param activity numeric vector
-#' @param epoch_of_day integer vector of time-of-day slot for each epoch (0-based)
-#' @param epochs_per_day integer; number of epochs in one 24-hour period
-#' @param window_hours window width in hours
-#' @param epoch_s epoch duration in seconds
+#' @param profile numeric(24) — hourly mean activity profile (hours 0--23)
+#' @param window_hours integer window width in hours
 #' @param find_min logical; TRUE for L5, FALSE for M10
 #' @noRd
-.rolling_window_mean <- function(activity, epoch_of_day, epochs_per_day,
-                                 window_hours, epoch_s, find_min) {
-  epochs_per_hour <- 3600 / epoch_s
-  window_size     <- as.integer(round(window_hours * epochs_per_hour))
+.rolling_window_profile <- function(profile, window_hours, find_min) {
+  p    <- length(profile)   # 24
+  w    <- as.integer(round(window_hours))
+  if (w >= p) return(list(value = mean(profile, na.rm = TRUE), onset_hour = 0L))
 
-  if (window_size >= epochs_per_day) {
-    return(list(value = mean(activity, na.rm = TRUE), onset_epoch = 0L))
-  }
+  # Circular sliding window over the 24-h profile
+  wrapped      <- c(profile, profile)
+  window_means <- vapply(seq(0L, p - 1L), function(start) {
+    mean(wrapped[(start + 1L):(start + w)], na.rm = TRUE)
+  }, numeric(1L))
 
-  # Build 24-hour average profile keyed by actual time-of-day slot
-  profile <- vapply(seq(0L, epochs_per_day - 1L), function(h) {
-    idx <- epoch_of_day == h
-    if (any(idx)) mean(activity[idx], na.rm = TRUE) else 0
-  }, numeric(1))
-
-  # Wrap profile for circular sliding window
-  wrapped <- c(profile, profile)
-
-  window_means <- vapply(seq(0L, epochs_per_day - 1L), function(start) {
-    mean(wrapped[(start + 1L):(start + window_size)])
-  }, numeric(1))
-
-  if (find_min) {
-    onset <- which.min(window_means) - 1L
-    value <- window_means[onset + 1L]
-  } else {
-    onset <- which.max(window_means) - 1L
-    value <- window_means[onset + 1L]
-  }
-
-  list(value = value, onset_epoch = onset)
+  onset <- if (find_min) which.min(window_means) - 1L else which.max(window_means) - 1L
+  list(value = window_means[onset + 1L], onset_hour = as.integer(onset))
 }
 
 #' Convert an epoch-of-day index to "HH:MM" string
