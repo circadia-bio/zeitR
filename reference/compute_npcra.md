@@ -1,14 +1,20 @@
 # Non-parametric circadian rhythm analysis (NPCRA)
 
 Computes the standard non-parametric circadian rhythm analysis variables
-from an actigraphy recording. All variables are derived from the 24-hour
-activity profile following Van Someren et al. (1999) and Marler et al.
-(2006).
+from an actigraphy recording, following Gonçalves et al. (2014) and Van
+Someren et al. (1999). All variables are derived from the 24-hour
+average activity profile built from **hourly means** (p = 24).
 
 ## Usage
 
 ``` r
-compute_npcra(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10)
+compute_npcra(
+  x,
+  epoch_s = NULL,
+  L5_hours = 5,
+  M10_hours = 10,
+  window_days = NULL
+)
 ```
 
 ## Arguments
@@ -18,7 +24,8 @@ compute_npcra(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10)
   A `zeitr_recording` as returned by
   [`read_actigraphy()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy.md),
   or a data frame / tibble with at least `datetime` and `activity`
-  columns.
+  columns. If a `state` column is present, off-wrist epochs
+  (`state == 4`) are excluded before computing all NPCRA variables.
 
 - epoch_s:
 
@@ -35,10 +42,20 @@ compute_npcra(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10)
   `numeric(1)`. Width of the most-active window in hours. Default is
   `10`.
 
+- window_days:
+
+  `numeric(1)` or `NULL`. If supplied, the recording is split into
+  non-overlapping windows of this length (in days) and NPCRA variables
+  are computed for each window. A `window_start` column is added to the
+  output. Partial final windows (shorter than `window_days`) are
+  included but flagged via a lower `n_days` value. Default `NULL`
+  computes a single estimate over the full recording.
+
 ## Value
 
-A one-row tibble with columns `participant_id`, `IS`, `IV`, `RA`, `L5`,
-`L5_onset`, `M10`, `M10_onset`, `n_days`, `n_epochs`.
+A tibble with columns `participant_id`, `window_start` (if `window_days`
+is set), `IS`, `IV`, `RA`, `L5`, `L5_onset`, `M10`, `M10_onset`,
+`n_days`, `n_epochs`.
 
 ## Details
 
@@ -46,8 +63,8 @@ The following variables are computed:
 
 - `IS`:
 
-  **Interdaily stability** — consistency of the 24 h activity pattern
-  across days (range 0–1; higher = more stable).
+  **Interdaily stability** — consistency of the 24 h rest-activity
+  pattern across days (range 0–1; higher = more stable).
 
 - `IV`:
 
@@ -61,33 +78,26 @@ The following variables are computed:
 
 - `L5`:
 
-  Mean activity during the least active 5 h window.
+  Mean activity during the least active 5 consecutive hours.
 
 - `L5_onset`:
 
-  Clock time of the L5 window midpoint (hh:mm).
+  Clock time of the L5 window onset (hh:mm).
 
 - `M10`:
 
-  Mean activity during the most active 10 h window.
+  Mean activity during the most active 10 consecutive hours.
 
 - `M10_onset`:
 
-  Clock time of the M10 window midpoint (hh:mm).
+  Clock time of the M10 window onset (hh:mm).
 
 ## References
 
-Van Someren, E. J. W., Lijzenga, C., Mirmiran, M., & Swaab, D. F.
-(1997). Long-term fitness training improves the circadian rest-activity
-rhythm in healthy elderly males. *Journal of Biological Rhythms*, 12(2),
-146–156.
-[doi:10.1177/074873049701200206](https://doi.org/10.1177/074873049701200206)
-
-Marler, M. R., Gehrman, P., Martin, J. L., & Ancoli-Israel, S. (2006).
-The sigmoidally transformed cosine curve: a mathematical model for
-circadian rhythms with symmetric non-sinusoidal shapes. *Statistics in
-Medicine*, 25(22), 3893–3904.
-[doi:10.1002/sim.2466](https://doi.org/10.1002/sim.2466)
+Gonçalves, B. S. B., Adamowicz, T., Louzada, F. M., Moreno, C. R., &
+Araujo, J. F. (2014). A fresh look at the use of nonparametric analysis
+in actimetry. *Sleep Medicine Reviews*, 20, 84–91.
+[doi:10.1016/j.smrv.2014.06.002](https://doi.org/10.1016/j.smrv.2014.06.002)
 
 Van Someren, E. J. W., Swaab, D. F., Colenda, C. C., Cohen, W., McCall,
 W. V., & Rosenquist, P. B. (1999). Bright light therapy: Improved
@@ -101,7 +111,11 @@ International*, 16(4), 505–518.
 ``` r
 if (FALSE) { # \dontrun{
 rec   <- read_actigraphy("recordings/P001.txt")
-npcra <- compute_npcra(rec)
-npcra
+
+# Single estimate over the full recording
+compute_npcra(rec)
+
+# Per-fortnight estimates
+compute_npcra(rec, window_days = 14)
 } # }
 ```
