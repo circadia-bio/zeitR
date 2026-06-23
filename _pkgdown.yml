@@ -226,6 +226,11 @@ articles:
   - npcra
   - study-analysis
 
+- title: "Example analyses"
+  navbar: "Examples"
+  contents:
+  - sleep-analysis
+
 news:
   releases:
   - text: "Changelog"

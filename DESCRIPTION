@@ -36,6 +36,7 @@ Imports:
     zoo (>= 1.8.0)
 Suggests:
     dplyr (>= 1.1.0),
+    forcats (>= 1.0.0),
     ggplot2 (>= 3.4.0),
     mclust,
     RcppRoll,
