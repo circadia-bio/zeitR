@@ -129,11 +129,11 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
   IV <- if (denominator_IV > 0) numerator_IV / denominator_IV else NA_real_
 
   # ── L5 and M10 ───────────────────────────────────────────────────────────────
-  L5_result  <- .rolling_window_mean(activity, epoch_s,
-                                     window_hours = L5_hours,
+  L5_result  <- .rolling_window_mean(activity, epoch_of_day, p,
+                                     window_hours = L5_hours,  epoch_s = epoch_s,
                                      find_min = TRUE)
-  M10_result <- .rolling_window_mean(activity, epoch_s,
-                                     window_hours = M10_hours,
+  M10_result <- .rolling_window_mean(activity, epoch_of_day, p,
+                                     window_hours = M10_hours, epoch_s = epoch_s,
                                      find_min = FALSE)
 
   L5       <- L5_result$value
@@ -173,22 +173,24 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
 #' applied to find the least active (L5) or most active (M10) window.
 #'
 #' @param activity numeric vector
-#' @param epoch_s epoch duration in seconds
+#' @param epoch_of_day integer vector of time-of-day slot for each epoch (0-based)
+#' @param epochs_per_day integer; number of epochs in one 24-hour period
 #' @param window_hours window width in hours
+#' @param epoch_s epoch duration in seconds
 #' @param find_min logical; TRUE for L5, FALSE for M10
 #' @noRd
-.rolling_window_mean <- function(activity, epoch_s, window_hours, find_min) {
+.rolling_window_mean <- function(activity, epoch_of_day, epochs_per_day,
+                                 window_hours, epoch_s, find_min) {
   epochs_per_hour <- 3600 / epoch_s
-  epochs_per_day  <- as.integer(round(24 * epochs_per_hour))
   window_size     <- as.integer(round(window_hours * epochs_per_hour))
 
   if (window_size >= epochs_per_day) {
     return(list(value = mean(activity, na.rm = TRUE), onset_epoch = 0L))
   }
 
-  # Build 24-hour average profile
+  # Build 24-hour average profile keyed by actual time-of-day slot
   profile <- vapply(seq(0L, epochs_per_day - 1L), function(h) {
-    idx <- (seq_along(activity) - 1L) %% epochs_per_day == h
+    idx <- epoch_of_day == h
     if (any(idx)) mean(activity[idx], na.rm = TRUE) else 0
   }, numeric(1))
 
