@@ -105,13 +105,11 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10) {
   # IS = (n / p) * sum_h(xh_bar - x_bar)^2 / sum_i(xi - x_bar)^2
   # where p = epochs per day, xh_bar = mean activity at time-of-day slot h
   #
-  # floor_date must use the recording timezone so that slot 0 = local midnight.
+  # floor to local midnight by formatting in the recording tz, then reparsing
+  tz           <- attr(datetimes, "tzone") %||% "UTC"
+  local_midnight <- as.POSIXct(format(datetimes, "%Y-%m-%d", tz = tz), tz = tz)
   epoch_of_day <- as.integer(
-    as.numeric(
-      difftime(datetimes,
-               lubridate::floor_date(datetimes, "day", tz = attr(datetimes, "tzone")),
-               units = "secs")
-    ) / epoch_s
+    as.numeric(difftime(datetimes, local_midnight, units = "secs")) / epoch_s
   ) %% as.integer(round(epochs_per_day))
 
   p          <- as.integer(round(epochs_per_day))

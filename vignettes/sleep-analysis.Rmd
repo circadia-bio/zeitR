@@ -1,0 +1,214 @@
+---
+title: "Single-recording sleep analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Single-recording sleep analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.width  = 9,
+  fig.height = 10,
+  dpi = 150,
+  out.width = "100%"
+)
+library(zeitR)
+library(dplyr)
+library(ggplot2)
+```
+
+This vignette walks through a complete single-recording analysis using the
+ActTrust validation recording bundled with zeitR. It covers:
+
+1. Reading the recording
+2. Running the full pipeline
+3. Inspecting nightly sleep statistics
+4. Plotting an actogram
+5. Computing circadian rhythm variables (NPCRA)
+
+---
+
+## 1. Read the recording
+
+`read_acttrust()` parses the raw ActTrust file and returns a
+`zeitr_recording` with two slots: `$epochs` (epoch-level tibble) and
+`$metadata` (device and subject information from the file header).
+
+```{r read}
+FILE <- system.file("extdata", "input1.txt", package = "zeitR")
+TZ   <- "America/Sao_Paulo"
+
+rec <- read_acttrust(FILE, tz = TZ)
+rec
+```
+
+The recording spans 52 days at 1-minute epochs — a typical ambulatory study
+length.
+
+---
+
+## 2. Run the full pipeline
+
+`run_pipeline()` chains all analysis steps in sequence:
+
+1. Timestamp consistency check
+2. Prepare (temperature clamping, state column initialisation)
+3. Off-wrist detection (Condor bimodal algorithm)
+4. Main sleep period detection (Crespo, 2012)
+5. Nap detection (Crespo, 2012)
+6. WASO scoring (Cole-Kripke, 1992)
+
+```{r pipeline}
+result <- run_pipeline(FILE, tz = TZ, quiet = TRUE)
+result
+```
+
+---
+
+## 3. Nightly sleep statistics
+
+`result$nights` contains one row per detected sleep period (main nights and
+naps). Epoch counts are in minutes for a 1-minute epoch device.
+
+```{r nights}
+result$nights |>
+  mutate(
+    bed_time    = format(bed_time,    "%Y-%m-%d %H:%M"),
+    get_up_time = format(get_up_time, "%Y-%m-%d %H:%M"),
+    tbt_h       = round(tbt  / 60, 1),
+    tst_h       = round(tst  / 60, 1),
+    eff_pct     = round(eff  * 100,  1)
+  ) |>
+  select(night, is_nap, bed_time, get_up_time, tbt_h, tst_h, waso, sol, eff_pct) |>
+  knitr::kable(
+    col.names = c("Night", "Nap?", "Bed time", "Get-up time",
+                  "TBT (h)", "TST (h)", "WASO (min)", "SOL (min)", "Eff (%)"),
+    align = "clllrrrrr"
+  )
+```
+
+Key sleep variables:
+
+| Variable | Definition |
+|---|---|
+| **TBT** | Total Bed Time — duration from lights-out to get-up |
+| **TST** | Total Sleep Time — TBT minus WASO and SOL |
+| **WASO** | Wake After Sleep Onset — wake epochs after first sleep |
+| **SOL** | Sleep Onset Latency — epochs from lights-out to first sleep |
+| **Eff** | Sleep efficiency — TST / TBT |
+
+### Timestamp issues
+
+```{r issues}
+if (nrow(result$issues) == 0L) {
+  cat("No timestamp issues detected.\n")
+} else {
+  knitr::kable(result$issues)
+}
+```
+
+---
+
+## 4. Actogram
+
+An actogram displays the full epoch-level state sequence as a raster, with
+one row per day and time-of-day on the x-axis. It is the standard visual
+summary for actigraphy data.
+
+```{r actogram}
+state_colours <- c(
+  "wake"      = "#D9C8A0",
+  "sleep"     = "#3B2F6B",
+  "off-wrist" = "#C25E2A"
+)
+
+d <- result$data |>
+  mutate(
+    state_label         = label_states(state),
+    date                = as.Date(datetime, tz = TZ),
+    mins_since_midnight = as.integer(format(datetime, "%H")) * 60L +
+                          as.integer(format(datetime, "%M"))
+  )
+
+ggplot(d, aes(x = mins_since_midnight,
+              y = forcats::fct_rev(factor(date)),
+              fill = state_label)) +
+  geom_tile(height = 0.9, width = 1) +
+  scale_fill_manual(values = state_colours, name = "State", drop = TRUE) +
+  scale_x_continuous(
+    breaks = seq(0, 23 * 60, 4 * 60),
+    labels = function(x) sprintf("%02d:00", x %/% 60L),
+    expand = c(0, 0),
+    limits = c(0, 24 * 60)
+  ) +
+  scale_y_discrete(
+    breaks = function(x) x[seq(1, length(x), by = 7)],
+    labels = function(x) format(as.Date(x), "%d %b"),
+    expand = c(0.01, 0.01)
+  ) +
+  labs(x = NULL, y = NULL, title = paste0("Actogram \u2014 ", result$subject_id)) +
+  theme_minimal(base_size = 13) +
+  theme(
+    panel.grid.major.x = element_line(colour = "grey80", linewidth = 0.3),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),
+    legend.position    = "bottom",
+    legend.title       = element_text(face = "bold"),
+    plot.title         = element_text(face = "bold"),
+    axis.text.y        = element_text(size = 10)
+  )
+```
+
+The recording shows a consistent nocturnal sleep pattern (dark purple bands
+centred around midnight) with a brief off-wrist episode visible in the first
+week.
+
+---
+
+## 5. Circadian rhythm analysis (NPCRA)
+
+`compute_npcra()` derives the standard non-parametric circadian rhythm
+variables from the raw activity time series.
+
+```{r npcra}
+npcra <- compute_npcra(rec)
+
+npcra |>
+  select(-participant_id) |>
+  mutate(across(everything(), as.character)) |>
+  tidyr::pivot_longer(everything(), names_to = "Variable", values_to = "Value") |>
+  mutate(Description = c(
+    "Interdaily stability (0\u20131; higher = more consistent rhythm)",
+    "Intradaily variability (\u22650; higher = more fragmented rhythm)",
+    "Relative amplitude (0\u20131; contrast between M10 and L5)",
+    "Mean activity during the least-active 5 h window",
+    "Clock time of the L5 window onset (hh:mm)",
+    "Mean activity during the most-active 10 h window",
+    "Clock time of the M10 window onset (hh:mm)",
+    "Recording duration in days",
+    "Total number of epochs"
+  )) |>
+  knitr::kable(col.names = c("Variable", "Value", "Description"),
+               align = "lrl")
+```
+
+For a healthy adult with a regular sleep-wake schedule you would expect:
+
+- **IS** > 0.6 (consistent 24 h rhythm)
+- **IV** < 1.0 (low fragmentation)
+- **RA** > 0.8 (high contrast between rest and activity)
+- **L5 onset** around 01:00–04:00 (nocturnal rest trough)
+- **M10 onset** around 08:00–12:00 (morning activity peak)
+
+---
+
+## Next steps
+
+- `vignette("study-analysis")` — batch processing across multiple participants
+- `vignette("npcra")` — NPCRA variable definitions and interpretation
+- `?run_pipeline` — full pipeline parameter reference
+- `?acttrust_params` — default algorithm parameters for the ActTrust device
