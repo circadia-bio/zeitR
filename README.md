@@ -10,8 +10,7 @@
 
 ---
 
-> [!WARNING]
-> **zeitR is in early development and has not been formally validated.** The pipeline has been validated epoch-for-epoch against the Condor circadiaBase Python reference on an ActTrust recording, but the package has not undergone formal peer review. Verify outputs independently before using in any research context.
+> ⚠️ **zeitR is in early development and has not been formally validated.** The pipeline has been validated epoch-for-epoch against the Condor circadiaBase Python reference on an ActTrust recording, but the package has not undergone formal peer review. Verify outputs independently before using in any research context.
 
 ---
 
