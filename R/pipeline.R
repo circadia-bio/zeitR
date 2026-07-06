@@ -184,3 +184,199 @@ print.zeitr_result <- function(x, ...) {
   ))
   invisible(x)
 }
+
+
+# ── Native pipeline ───────────────────────────────────────────────────────────
+
+#' Run the native actigraphy sleep analysis pipeline
+#'
+#' Orchestrates the vendor-independent sleep analysis pipeline for a single
+#' ActTrust recording. Shares the read / prepare / off-wrist / CSPD epoch-scorer
+#' stages with [run_pipeline()], then replaces Condor's `nights_df` classification
+#' with the JRSV rule set ported from Julia Vallim's condor pipeline (Fixes 25,
+#' 26a/b/c, 27, 29).
+#'
+#' Steps:
+#' \enumerate{
+#'   \item **Read** -- [read_acttrust()]
+#'   \item **Consistency check** -- [check_consistency()]
+#'   \item **Prepare** -- [prepare_actigraphy()]
+#'   \item **Off-wrist detection** -- [detect_offwrist_bimodal()]
+#'   \item **Epoch scoring** -- [detect_sleep_crespo()] (CSPD; same scorer as [run_pipeline()])
+#'   \item **Episode extraction** -- [extract_sleep_episodes()]
+#'   \item **Episode classification** -- [classify_sleep_episodes()] (JRSV rules)
+#'   \item **Fine-grained state** -- [compute_waso()] (Cole-Kripke within periods, for `result$data`)
+#' }
+#'
+#' @param path `character(1)`. Path to the ActTrust `.txt` file.
+#' @param tz `character(1)`. Recording time zone. Default `"UTC"`.
+#' @param gap_s `numeric(1)`. Gap threshold (seconds) for [check_consistency()].
+#'   Default `120`.
+#' @param params Device parameter preset, as returned by [acttrust_params()].
+#' @param offwrist_args `list`. Additional arguments for [detect_offwrist_bimodal()].
+#' @param sleep_args `list`. Additional arguments for [detect_sleep_crespo()].
+#' @param classify_args `list`. Additional arguments for [classify_sleep_episodes()].
+#' @param quiet `logical(1)`. Suppress timestamp warnings. Default `FALSE`.
+#'
+#' @return A `zeitr_result` S3 object with the same structure as [run_pipeline()],
+#'   except `nights` additionally contains:
+#'   \describe{
+#'     \item{`sleep_type`}{`character` -- `"main"` or `"secondary"`.}
+#'     \item{`bed_time`, `get_up_time`}{POSIXct -- from JRSV bts/gts convention
+#'       (last sleep epoch for get-up, not first wake epoch).}
+#'   }
+#'   The `is_nap` column is retained for backwards compatibility
+#'   (`is_nap == (sleep_type == "secondary")`).
+#'
+#' @seealso [run_pipeline()] for the vendor (Condor) pipeline,
+#'   [extract_sleep_episodes()], [classify_sleep_episodes()]
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' result <- run_pipeline_native("recordings/P001.txt", tz = "America/Sao_Paulo")
+#' result$nights
+#' }
+run_pipeline_native <- function(
+    path,
+    tz             = "UTC",
+    gap_s          = 120,
+    params         = acttrust_params(),
+    offwrist_args  = list(),
+    sleep_args     = list(),
+    classify_args  = list(),
+    quiet          = FALSE
+) {
+  path       <- as.character(path)
+  subject_id <- tools::file_path_sans_ext(basename(path))
+
+  cli::cli_inform(c("i" = "Reading {.path {basename(path)}} ..."),
+                  .envir = environment())
+
+  # 1. Read
+  rec <- read_acttrust(path, tz = tz)
+
+  # 2. Consistency check
+  issues <- check_consistency(rec, gap_s = gap_s)
+  if (nrow(issues) > 0L && !quiet) {
+    cli::cli_warn(
+      "[{subject_id}] {nrow(issues)} timestamp issue(s) detected. Check {.code result$issues}.",
+      .envir = environment()
+    )
+  }
+
+  # 3. Prepare
+  prep <- prepare_actigraphy(rec)
+
+  ow_args <- utils::modifyList(params$offwrist, offwrist_args)
+  sl_args <- utils::modifyList(params$sleep,    sleep_args)
+
+  # 4. Off-wrist detection
+  prep <- do.call(detect_offwrist_bimodal, c(list(x = prep), ow_args))
+
+  # 5. Epoch scoring (CSPD -- same as run_pipeline)
+  prep <- do.call(detect_sleep_crespo, c(list(x = prep), sl_args))
+
+  # 6. Extract raw episodes from CSPD state
+  episodes_raw <- extract_sleep_episodes(prep)
+
+  # 7. Classify with JRSV rule set
+  episodes <- do.call(classify_sleep_episodes,
+                      c(list(episodes = episodes_raw, data = prep), classify_args))
+
+  # 8. Fine-grained CK state for result$data (mirrors run_pipeline output format)
+  waso_result <- compute_waso(prep, wake_thresh = params$waso$wake_thresh)
+
+  n_main <- if (nrow(episodes) > 0L) sum(episodes$sleep_type == "main") else 0L
+  n_sec  <- if (nrow(episodes) > 0L) sum(episodes$sleep_type == "secondary") else 0L
+
+  cli::cli_inform(
+    c("v" = "[{subject_id}] Done. {n_main} main night(s), {n_sec} secondary episode(s)."),
+    .envir = environment()
+  )
+
+  # Build nights tibble (zeitr_result schema + sleep_type)
+  if (nrow(episodes) > 0L) {
+    nights_tbl <- tibble::tibble(
+      night       = seq_len(nrow(episodes)),
+      is_nap      = episodes$is_nap,
+      sleep_type  = episodes$sleep_type,
+      bed_time    = episodes$bts,
+      get_up_time = episodes$gts,
+      tbt         = episodes$tbt,
+      tst         = episodes$tst,
+      waso        = episodes$waso,
+      sol         = episodes$sol,
+      soi         = episodes$soi,
+      nw          = episodes$nw,
+      eff         = episodes$eff
+    )
+  } else {
+    nights_tbl <- tibble::tibble(
+      night = integer(), is_nap = logical(), sleep_type = character(),
+      bed_time = as.POSIXct(character()), get_up_time = as.POSIXct(character()),
+      tbt = double(), tst = double(), waso = double(),
+      sol = double(), soi = double(), nw = integer(), eff = double()
+    )
+  }
+
+  result <- structure(
+    list(
+      subject_id  = subject_id,
+      source_file = normalizePath(path, mustWork = FALSE),
+      data        = waso_result$data,   # CK-scored epoch state for consistency
+      nights      = nights_tbl,
+      issues      = issues,
+      metadata    = attr(rec, "metadata")
+    ),
+    class = "zeitr_result"
+  )
+
+  result
+}
+
+#' Run the native pipeline on all files in a directory
+#'
+#' Applies [run_pipeline_native()] to every file matching `pattern` in
+#' `folder`, returning a named list of `zeitr_result` objects. Files that
+#' fail are skipped with a warning.
+#'
+#' @param folder `character(1)`. Path to a directory of ActTrust files.
+#' @param pattern `character(1)`. Glob pattern. Default `"*.txt"`.
+#' @param ... Additional arguments forwarded to [run_pipeline_native()].
+#'
+#' @return A named list of `zeitr_result` objects.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo")
+#' lapply(results, function(r) r$nights)
+#' }
+run_pipeline_native_batch <- function(folder, pattern = "*.txt", ...) {
+  folder <- as.character(folder)
+  files  <- Sys.glob(file.path(folder, pattern))
+
+  if (length(files) == 0L) {
+    zeitr_warn("No files matching {.val {pattern}} found in {.path {folder}}.")
+    return(list())
+  }
+
+  results <- list()
+  for (f in files) {
+    subject_id <- tools::file_path_sans_ext(basename(f))
+    tryCatch(
+      {
+        results[[subject_id]] <- run_pipeline_native(f, ...)
+      },
+      error = function(e) {
+        cli::cli_warn(
+          "Failed to process {.path {basename(f)}}: {conditionMessage(e)}",
+          .envir = parent.env(environment())
+        )
+      }
+    )
+  }
+  results
+}

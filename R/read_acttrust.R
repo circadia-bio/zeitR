@@ -16,16 +16,18 @@
 #'   \describe{
 #'     \item{`datetime`}{`POSIXct` — epoch timestamp.}
 #'     \item{`activity`}{`double` — PIM activity count.}
-#'     \item{`int_temp`}{`double` — internal (on-body) temperature, °C.}
-#'     \item{`ext_temp`}{`double` — external (ambient) temperature, °C.
+#'     \item{`int_temp`}{`double` — internal (on-body) temperature, degC.}
+#'     \item{`ext_temp`}{`double` — external (ambient) temperature, degC.
 #'       `NA` if unavailable.}
 #'     \item{`ZCMn`}{`double` — normalised zero-crossing mode count.
+#'       `NA` if unavailable.}
+#'     \item{`light`}{`double` — total light intensity (lux).
 #'       `NA` if unavailable.}
 #'     \item{`state`}{`double` — state column, initialised to `0`.}
 #'     \item{`offwrist`}{`double` — off-wrist indicator, initialised to `0`.}
 #'     \item{`sleep`}{`double` — sleep indicator, initialised to `0`.}
 #'   }
-#'   The tibble carries a `"zeitr_recording"` class and a `metadata` attribute
+#'   The tibble carries a `"zeitr_acttrust"` class and a `metadata` attribute
 #'   (a named list with `subject`, `device_id`, `device_model`,
 #'   `firmware_version`, `interval_s`, `source_file`).
 #'
@@ -100,17 +102,18 @@ read_acttrust <- function(path, tz = "UTC", encoding = "latin1") {
   )
 
   # ── Column mapping ───────────────────────────────────────────────────────────
-  # Raw ActTrust name  →  zeitR standard name
+  # Raw ActTrust name  ->  zeitR standard name
   col_map <- c(
     "DATE/TIME"       = "datetime",
     "PIM"             = "activity",
     "TEMPERATURE"     = "int_temp",
     "EXT TEMPERATURE" = "ext_temp",
-    "ZCMn"            = "ZCMn"
+    "ZCMn"            = "ZCMn",
+    "LIGHT"           = "light"
   )
 
-  present <- intersect(names(col_map), names(raw))
-  raw     <- raw[, present, drop = FALSE]
+  present    <- intersect(names(col_map), names(raw))
+  raw        <- raw[, present, drop = FALSE]
   names(raw) <- col_map[present]
 
   # ── Required columns check ──────────────────────────────────────────────────
@@ -134,9 +137,11 @@ read_acttrust <- function(path, tz = "UTC", encoding = "latin1") {
 
   if (!"ext_temp" %in% names(raw)) raw$ext_temp <- NA_real_
   if (!"ZCMn"     %in% names(raw)) raw$ZCMn     <- NA_real_
+  if (!"light"    %in% names(raw)) raw$light    <- NA_real_
 
   raw$ext_temp <- suppressWarnings(as.double(raw$ext_temp))
   raw$ZCMn     <- suppressWarnings(as.double(raw$ZCMn))
+  raw$light    <- suppressWarnings(as.double(raw$light))
 
   # ── State columns ────────────────────────────────────────────────────────────
   raw$state    <- 0
@@ -150,4 +155,3 @@ read_acttrust <- function(path, tz = "UTC", encoding = "latin1") {
 
   out
 }
-
