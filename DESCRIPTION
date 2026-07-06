@@ -29,15 +29,18 @@ Depends:
 Imports:
     cli (>= 3.6.0),
     lubridate (>= 1.9.0),
+    mclust,
+    Rcpp (>= 1.0.0),
     tibble (>= 3.0.0),
     tidyr (>= 1.3.0),
     tools,
     zoo (>= 1.8.0)
+LinkingTo:
+    Rcpp
 Suggests:
     dplyr (>= 1.1.0),
     forcats (>= 1.0.0),
     ggplot2 (>= 3.4.0),
-    mclust,
     RcppRoll,
     rlang (>= 1.1.0),
     knitr,

@@ -43,12 +43,7 @@ zero_prop <- function(x) {
 #' @param pad_value value used for boundary padding (default 1)
 #' @noRd
 zero_prop_filter <- function(x, hws, pad_value = 1) {
-  n <- length(x)
-  pad <- rep(pad_value, hws)
-  padded <- c(pad, x, pad)
-  vapply(seq_len(n), function(i) {
-    zero_prop(padded[i:(i + 2L * hws)])
-  }, numeric(1))
+  rolling_zero_prop_cpp(as.double(x), as.integer(hws), as.double(pad_value))
 }
 
 # ── Rolling filters ───────────────────────────────────────────────────────────
@@ -80,7 +75,7 @@ rolling_apply <- function(x, hws, FUN, pad_value = NULL) {
 #' @param hws integer half-window size
 #' @noRd
 median_filter <- function(x, hws) {
-  rolling_apply(x, hws, stats::median)
+  rolling_median_cpp(as.double(x), as.integer(hws))
 }
 
 #' Rolling mean filter with border replication padding
@@ -88,7 +83,7 @@ median_filter <- function(x, hws) {
 #' @param hws integer half-window size
 #' @noRd
 mean_filter <- function(x, hws) {
-  rolling_apply(x, hws, mean)
+  rolling_mean_cpp(as.double(x), as.integer(hws))
 }
 
 #' Rolling variance filter with border replication padding
@@ -96,7 +91,7 @@ mean_filter <- function(x, hws) {
 #' @param hws integer half-window size
 #' @noRd
 var_filter <- function(x, hws) {
-  rolling_apply(x, hws, stats::var)
+  rolling_var_cpp(as.double(x), as.integer(hws))
 }
 
 #' Rolling quantile filter with border replication padding
@@ -105,7 +100,7 @@ var_filter <- function(x, hws) {
 #' @param q quantile probability (default 0.6)
 #' @noRd
 quantile_filter <- function(x, hws, q = 0.6) {
-  rolling_apply(x, hws, function(w) stats::quantile(w, q, names = FALSE))
+  rolling_quantile_cpp(as.double(x), as.integer(hws), as.double(q))
 }
 
 # ── Five-point derivative ─────────────────────────────────────────────────────

@@ -631,7 +631,7 @@ classify_sleep_episodes <- function(
 
   act      <- as.numeric(data$activity[mask])
   hws      <- max(1L, as.integer(rolling_min / 2L))
-  smoothed <- rolling_apply(act, hws, mean)
+  smoothed <- mean_filter(act, hws)
   peak_i   <- which.max(smoothed)
   anchor   <- dt[mask][peak_i]
 

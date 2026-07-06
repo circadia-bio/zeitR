@@ -7,5 +7,7 @@
 #' downstream chronobiological analysis. Designed to complement `slumbR` in
 #' the Circadia Lab ecosystem.
 #'
+#' @useDynLib zeitR, .registration = TRUE
+#' @importFrom Rcpp sourceCpp
 #' @keywords internal
 "_PACKAGE"
