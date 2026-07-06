@@ -21,16 +21,18 @@ A tibble with one row per epoch and the following columns:
 \describe{
 \item{\code{datetime}}{\code{POSIXct} — epoch timestamp.}
 \item{\code{activity}}{\code{double} — PIM activity count.}
-\item{\code{int_temp}}{\code{double} — internal (on-body) temperature, °C.}
-\item{\code{ext_temp}}{\code{double} — external (ambient) temperature, °C.
+\item{\code{int_temp}}{\code{double} — internal (on-body) temperature, degC.}
+\item{\code{ext_temp}}{\code{double} — external (ambient) temperature, degC.
 \code{NA} if unavailable.}
 \item{\code{ZCMn}}{\code{double} — normalised zero-crossing mode count.
+\code{NA} if unavailable.}
+\item{\code{light}}{\code{double} — total light intensity (lux).
 \code{NA} if unavailable.}
 \item{\code{state}}{\code{double} — state column, initialised to \code{0}.}
 \item{\code{offwrist}}{\code{double} — off-wrist indicator, initialised to \code{0}.}
 \item{\code{sleep}}{\code{double} — sleep indicator, initialised to \code{0}.}
 }
-The tibble carries a \code{"zeitr_recording"} class and a \code{metadata} attribute
+The tibble carries a \code{"zeitr_acttrust"} class and a \code{metadata} attribute
 (a named list with \code{subject}, \code{device_id}, \code{device_model},
 \code{firmware_version}, \code{interval_s}, \code{source_file}).
 }
