@@ -188,13 +188,13 @@ print.zeitr_result <- function(x, ...) {
 
 # ── Native pipeline ───────────────────────────────────────────────────────────
 
-#' Run the native actigraphy sleep analysis pipeline
+#' Run the Vallim native actigraphy sleep analysis pipeline
 #'
-#' Orchestrates the vendor-independent sleep analysis pipeline for a single
-#' ActTrust recording. Shares the read / prepare / off-wrist / CSPD epoch-scorer
-#' stages with [run_pipeline()], then replaces Condor's `nights_df` classification
-#' with the JRSV rule set ported from Julia Vallim's condor pipeline (Fixes 25,
-#' 26a/b/c, 27, 29).
+#' Orchestrates the vendor-independent (Vallim) sleep analysis pipeline for a
+#' single ActTrust recording. Shares the read / prepare / off-wrist / CSPD
+#' epoch-scorer stages with [run_pipeline()], then replaces Condor's
+#' `nights_df` classification with the rule set developed by Julia Ribeiro da
+#' Silva Vallim and ported from her condor pipeline (Fixes 25, 26a/b/c, 27, 29).
 #'
 #' Steps:
 #' \enumerate{

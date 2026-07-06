@@ -1,5 +1,6 @@
-# ── Native sleep episode extraction and classification ────────────────────────
-# R port of Julia Vallim's (JRSV) condor_pipeline post-processing rules.
+# ── Vallim pipeline: native sleep episode extraction and classification ─────────
+# R port of Julia Ribeiro da Silva Vallim's (JRSV) condor_pipeline post-processing
+# rules. Codename: Vallim.
 # Source: pipeline_functions_fix27.py + vs_condor_py_pipeline_fix29_jrsv.ipynb
 #
 # Fixes ported:
