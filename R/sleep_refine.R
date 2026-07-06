@@ -650,7 +650,7 @@
   c(0, diff(s))
 }
 
-#' numpy-style slice assignment: x[start:stop] <- value with 0-indexed,
+#' numpy-style slice assignment: `x[start:stop] <- value` with 0-indexed,
 #' exclusive-end semantics, including negative-index wrap and out-of-range
 #' clamping (matches NumPy exactly, so boundary gaps behave as in Python).
 #' @noRd
@@ -797,7 +797,7 @@
   pv
 }
 
-#' numpy-style slice read: x[start:stop] with 0-indexed, exclusive-end
+#' numpy-style slice read: `x[start:stop]` with 0-indexed, exclusive-end
 #' semantics, negative-index wrap and out-of-range clamping. Read counterpart
 #' of `.np_slice_assign`.
 #' @noRd

@@ -17,7 +17,7 @@ zeitr_inform <- function(msg, ...) cli::cli_inform(msg, ...)
 
 # ── Scaling ───────────────────────────────────────────────────────────────────
 
-#' Min-max scale a numeric vector to [0, 1]
+#' Min-max scale a numeric vector to `[0, 1]`
 #' @param x numeric vector
 #' @noRd
 norm_01 <- function(x) {

@@ -398,8 +398,8 @@
 }
 
 # ── .rle_periods ─────────────────────────────────────────────────────────────
-#' Python-style 0-indexed exclusive-end periods from a binary vector
-#' length = end - start; R access: x[(start+1):end]
+#' Python-style 0-indexed exclusive-end periods from a binary vector.
+#' length = end - start; R access: `x[(start+1):end]`
 #' @noRd
 .rle_periods <- function(x) {
   r    <- rle(as.integer(x))
@@ -575,7 +575,7 @@ below_prop <- function(x, thr) {
 }
 
 #' Faithful port of the Python last-period end fallback:
-#'   end = end + argmax(ntv[end : data_length])   (epochs end..n-1)
+#'   `end = end + argmax(ntv[end : data_length])`   (epochs end..n-1)
 #' `end` is the Python exclusive-end value; returns the new Python exclusive end.
 #' @noRd
 .last_period_end <- function(end, ntv, n) {
@@ -871,7 +871,7 @@ below_prop <- function(x, thr) {
   peaks[x[peaks] >= height]
 }
 
-#' Length of the first allowed (zero) run in a 0/1 vector (Python zero_sequences[0]).
+#' Length of the first allowed (zero) run in a 0/1 vector (Python `zero_sequences[0]`).
 #' @noRd
 .first_allowed_run_len <- function(forbidden) {
   is_zero <- forbidden == 0
