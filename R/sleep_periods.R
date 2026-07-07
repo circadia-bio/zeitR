@@ -266,25 +266,13 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
   padded_activity <- c(rep(maximum_activity, pad_size), activity,
                        rep(maximum_activity, pad_size))
 
-  # Adaptive median filter (variable window), identical to the main MSP path.
-  adaptive_median_filtered_activity <- numeric(data_length)
-  half_window_size <- pad_size
-  for (i in seq_len(data_length)) {
-    i0     <- i - 1L
-    center <- i0 + pad_size
-    lo_r   <- max(1L, center - half_window_size + 1L)
-    hi_r   <- min(length(padded_activity), center + half_window_size + 1L)
-    val    <- stats::median(padded_activity[lo_r:hi_r], na.rm = TRUE)
-    if (is.nan(val) || is.na(val)) {
-      val <- if (i0 > 0L) adaptive_median_filtered_activity[i - 1L] else 0
-    }
-    adaptive_median_filtered_activity[i] <- val
-    if (i0 < (data_length - mf_hws + pad_size - 1L)) {
-      if (half_window_size < mf_hws) half_window_size <- half_window_size + 1L
-    } else {
-      if (half_window_size > pad_size) half_window_size <- half_window_size - 1L
-    }
-  }
+  # Adaptive median filter (variable window) -- same as main MSP path.
+  adaptive_median_filtered_activity <- adaptive_median_filter_cpp(
+    padded_activity,
+    n        = data_length,
+    pad_size = pad_size,
+    max_hws  = mf_hws
+  )
 
   # Nap thresholds (detect_msp else-branch). zero_prop_filter pads with 1s.
   azp   <- zero_prop_filter(activity, nap_zero_prop_window, pad_value = 1)
@@ -337,27 +325,11 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
 
   # ── Zero mitigation (pass 1) ───────────────────────────────────────────────
   # Python loops i in range(data_length), 0-indexed
-  mitigated_zeros_activity <- activity
   zero_mitigation_activity_level <- as.double(
     stats::quantile(activity, zero_mitigation_q, names = FALSE))
-
-  zero_sequence_length <- 0L
-  for (i in seq_len(data_length)) {           # i is 1-indexed in R
-    i0 <- i - 1L                               # 0-indexed equivalent
-    if (activity[i] == 0) {
-      zero_sequence_length <- zero_sequence_length + 1L
-    } else {
-      if (zero_sequence_length > consec_zeros_thr) {
-        # Python: mitigated[i-run:i] += level   (0-indexed, exclusive end)
-        # R equivalent: [(i-run) : (i-1)] (1-indexed)
-        start_r <- i - zero_sequence_length
-        end_r   <- i - 1L
-        mitigated_zeros_activity[start_r:end_r] <-
-          mitigated_zeros_activity[start_r:end_r] + zero_mitigation_activity_level
-      }
-      zero_sequence_length <- 0L
-    }
-  }
+  mitigated_zeros_activity <- zero_mitigation_cpp(
+    as.double(activity), as.integer(consec_zeros_thr), zero_mitigation_activity_level
+  )
 
   # ── Coarse median filter ───────────────────────────────────────────────────
   # Python: median_filter(padded_mit, mf_hws, padding='padded', center=True)
@@ -365,21 +337,14 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
   # rolling_window(padded_mit, 2*mf_hws+1) produces (len-2*mf_hws) windows
   # filt = median(rolled)[mf_hws : data_length+mf_hws]  (0-indexed)
   # = R 1-indexed: [mf_hws+1 : data_length+mf_hws]
-  coarse_pad <- as.integer(epoch_h * median_filter_h)
-  padded_mit <- c(rep(maximum_activity, coarse_pad),
-                  mitigated_zeros_activity,
-                  rep(maximum_activity, coarse_pad))
-  # Direct sliding window median — matches Python rolling_window exactly
-  padded_mitigated_zeros_activity <- vapply(seq_len(data_length), function(i) {
-    # Python median_filter(..., padding='padded') returns, for output position
-    # k (0-indexed), the CENTRED median over original position k. With
-    # coarse_pad = 2*mf_hws padding on each side, the centred window for R
-    # position i (1-indexed) is padded_mit[(i + mf_hws):(i + 3*mf_hws)] —
-    # exactly 2*mf_hws + 1 elements. The previous (i+1):(i+2*mf_hws+1) window
-    # was shifted left by mf_hws - 1 (~4 h), corrupting morph_det and hence
-    # which zeros were marked invalid.
-    stats::median(padded_mit[(i + mf_hws):(i + 3L * mf_hws)])
-  }, numeric(1))
+  # Coarse median: constant pad = maximum_activity, window = 2*mf_hws+1
+  # equivalent to rolling_median_cpp with replicate=FALSE, pad_value=maximum_activity.
+  padded_mitigated_zeros_activity <- rolling_median_cpp(
+    as.double(mitigated_zeros_activity),
+    as.integer(mf_hws),
+    replicate = FALSE,
+    pad_value = maximum_activity
+  )
 
   # ── Coarse threshold + morphological filter ────────────────────────────────
   sleep_median_activity_threshold <- as.double(
@@ -395,56 +360,14 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
   # invalid_zero_indexes are 0-indexed signal positions
   # then shifted by +pad_size to match padded_activity (also 0-indexed)
   # padded_activity[invalid_zero_indexes] = NaN
-  invalid_zero_indexes <- integer(0)
-  awake_zero_sequence_length <- 0L
-  sleep_zero_sequence_length <- 0L
-
-  for (i in seq_len(data_length)) {
-    i0 <- i - 1L  # 0-indexed
-    if (morphological_filtered_initial_detection[i] == 1L) {  # awake
-      if (sleep_zero_sequence_length > sleep_zeros_thr) {
-        # Python: range(i-run, i) 0-indexed
-        run_start_0 <- i0 - sleep_zero_sequence_length
-        run_end_0   <- i0 - 1L
-        invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
-      }
-      sleep_zero_sequence_length <- 0L
-      if (activity[i] == 0) {
-        awake_zero_sequence_length <- awake_zero_sequence_length + 1L
-      } else {
-        if (awake_zero_sequence_length > awake_zeros_thr) {
-          run_start_0 <- i0 - awake_zero_sequence_length
-          run_end_0   <- i0 - 1L
-          invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
-        }
-        awake_zero_sequence_length <- 0L
-      }
-    } else {  # sleep
-      if (awake_zero_sequence_length > awake_zeros_thr) {
-        run_start_0 <- i0 - awake_zero_sequence_length
-        run_end_0   <- i0 - 1L
-        invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
-      }
-      awake_zero_sequence_length <- 0L
-      if (activity[i] == 0) {
-        sleep_zero_sequence_length <- sleep_zero_sequence_length + 1L
-      } else {
-        if (sleep_zero_sequence_length > sleep_zeros_thr) {
-          run_start_0 <- i0 - sleep_zero_sequence_length
-          run_end_0   <- i0 - 1L
-          invalid_zero_indexes <- c(invalid_zero_indexes, run_start_0:run_end_0)
-        }
-        sleep_zero_sequence_length <- 0L
-      }
-    }
-  }
-
-  # Python: invalid_zero_indexes += pad_size  (still 0-indexed padded positions)
-  # Python: padded_activity[invalid_zero_indexes] = NaN
-  # R: convert 0-indexed to 1-indexed by adding 1
-  if (length(invalid_zero_indexes) > 0L) {
-    padded_idx_r <- unique(invalid_zero_indexes) + pad_size + 1L
-    padded_activity[padded_idx_r] <- NA_real_
+  invalid_zero_indexes_0 <- mark_invalid_zeros_cpp(
+    as.double(activity),
+    as.integer(morphological_filtered_initial_detection),
+    as.integer(awake_zeros_thr),
+    as.integer(sleep_zeros_thr)
+  )
+  if (length(invalid_zero_indexes_0) > 0L) {
+    padded_activity[invalid_zero_indexes_0 + pad_size + 1L] <- NA_real_
   }
 
   # ── Adaptive median filter ─────────────────────────────────────────────────
@@ -453,32 +376,12 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
   #   window = padded_activity[center-hws : center+hws+1]  (exclusive end)
   #   hws starts at minimum (pad_size), grows to maximum (mf_hws), then shrinks
   #   condition to grow: i < data_length - mf_hws + pad_size - 1
-  adaptive_median_filtered_activity <- numeric(data_length)
-  half_window_size <- pad_size  # starts at minimum
-
-  for (i in seq_len(data_length)) {
-    i0     <- i - 1L                    # 0-indexed
-    center <- i0 + pad_size             # 0-indexed center in padded_activity
-    # Python slice [center-hws : center+hws+1] is 0-indexed exclusive end
-    # R equivalent: [(center-hws)+1 : center+hws] = [center-hws+1 : center+hws]
-    lo_r <- center - half_window_size + 1L   # 1-indexed
-    hi_r <- center + half_window_size + 1L   # 1-indexed (exclusive end +1, then +1 for R)
-    lo_r <- max(1L, lo_r)
-    hi_r <- min(length(padded_activity), hi_r)
-    val  <- stats::median(padded_activity[lo_r:hi_r], na.rm = TRUE)
-
-    if (is.nan(val) || is.na(val)) {
-      val <- if (i0 > 0L) adaptive_median_filtered_activity[i - 1L] else 0
-    }
-    adaptive_median_filtered_activity[i] <- val
-
-    # Python: if i < data_length - mf_hws + pad_size - 1: grow
-    if (i0 < (data_length - mf_hws + pad_size - 1L)) {
-      if (half_window_size < mf_hws) half_window_size <- half_window_size + 1L
-    } else {
-      if (half_window_size > pad_size) half_window_size <- half_window_size - 1L
-    }
-  }
+  adaptive_median_filtered_activity <- adaptive_median_filter_cpp(
+    padded_activity,
+    n        = data_length,
+    pad_size = pad_size,
+    max_hws  = mf_hws
+  )
 
   # ── Final threshold ────────────────────────────────────────────────────────
   # The clamp (threshold < min_short_window_thr) is exactly where Python's
@@ -551,13 +454,13 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
 .morphological_open_close <- function(x, size) {
   hws <- as.integer((size - 1L) / 2L)
 
-  # Dilation then erosion (closing)
-  dilated <- rolling_apply(x, hws, max, pad_value = 0L)
-  closed  <- rolling_apply(dilated, hws, min, pad_value = 0L)
+  # Dilation then erosion (closing) -- constant 0 padding matches Python
+  dilated <- rolling_max_cpp(as.double(x), hws, replicate = FALSE, pad_value = 0.0)
+  closed  <- rolling_min_cpp(dilated,       hws, replicate = FALSE, pad_value = 0.0)
 
   # Erosion then dilation (opening)
-  eroded  <- rolling_apply(closed, hws, min, pad_value = 0L)
-  opened  <- rolling_apply(eroded, hws, max, pad_value = 0L)
+  eroded  <- rolling_min_cpp(closed,  hws, replicate = FALSE, pad_value = 0.0)
+  opened  <- rolling_max_cpp(eroded,  hws, replicate = FALSE, pad_value = 0.0)
 
   as.integer(round(opened))
 }

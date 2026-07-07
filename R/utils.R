@@ -103,6 +103,26 @@ quantile_filter <- function(x, hws, q = 0.6) {
   rolling_quantile_cpp(as.double(x), as.integer(hws), as.double(q))
 }
 
+#' Rolling maximum filter
+#' @param x numeric vector
+#' @param hws integer half-window size
+#' @param pad_value boundary pad value (default 0, for morphological ops)
+#' @noRd
+max_filter <- function(x, hws, pad_value = 0) {
+  rolling_max_cpp(as.double(x), as.integer(hws), replicate = FALSE,
+                  pad_value = as.double(pad_value))
+}
+
+#' Rolling minimum filter
+#' @param x numeric vector
+#' @param hws integer half-window size
+#' @param pad_value boundary pad value (default 0, for morphological ops)
+#' @noRd
+min_filter <- function(x, hws, pad_value = 0) {
+  rolling_min_cpp(as.double(x), as.integer(hws), replicate = FALSE,
+                  pad_value = as.double(pad_value))
+}
+
 # ── Five-point derivative ─────────────────────────────────────────────────────
 
 #' Five-point stencil derivative estimate
