@@ -130,3 +130,38 @@ test_that("hws=0 returns the input unchanged for mean and median", {
   expect_equal(rolling_mean_cpp(x_small, 0L),   as.double(x_small))
   expect_equal(rolling_median_cpp(x_small, 0L), as.double(x_small))
 })
+
+# ── diff5_cpp ─────────────────────────────────────────────────────────────────
+
+# R reference implementation (original loop-based diff5)
+ref_diff5 <- function(x, delta = 1) {
+  n <- length(x)
+  d <- numeric(n)
+  for (i in seq(3L, n - 2L))
+    d[i] <- (1 / (12 * delta)) * (-x[i+2] + 8*x[i+1] - 8*x[i-1] + x[i-2])
+  d[1]   <- (1/(12*delta)) * (-25*x[1] + 48*x[2] - 36*x[3] + 16*x[4] -  3*x[5])
+  d[2]   <- (1/(12*delta)) * (-25*x[2] + 48*x[3] - 36*x[4] + 16*x[5] -  3*x[6])
+  d[n-1] <- (1/(12*delta)) * ( 25*x[n-1] - 48*x[n-2] + 36*x[n-3] - 16*x[n-4] + 3*x[n-5])
+  d[n]   <- (1/(12*delta)) * ( 25*x[n]   - 48*x[n-1] + 36*x[n-2] - 16*x[n-3] + 3*x[n-4])
+  d
+}
+
+test_that("diff5_cpp matches R reference on smooth input (x^2)", {
+  x <- as.double(seq(1, 10)^2)
+  expect_equal(diff5_cpp(x, 1.0), ref_diff5(x, 1))
+})
+
+test_that("diff5_cpp matches R reference on noisy input", {
+  set.seed(42)
+  x <- cumsum(rnorm(40))
+  expect_equal(diff5_cpp(x, 1.0), ref_diff5(x, 1))
+})
+
+test_that("diff5_cpp respects delta scaling", {
+  x <- as.double(seq(1, 10)^2)
+  expect_equal(diff5_cpp(x, 30.0), ref_diff5(x, 30))
+})
+
+test_that("diff5_cpp errors on input shorter than 5", {
+  expect_error(diff5_cpp(1:4, 1.0))
+})

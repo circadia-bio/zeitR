@@ -170,3 +170,32 @@ NumericVector rolling_quantile_cpp(
   }
   return result;
 }
+
+// ── diff5_cpp ─────────────────────────────────────────────────────────────────
+// Five-point stencil first-derivative estimate.
+// Interior points use the central formula; four boundary points use
+// one-sided forward/backward stencils. Matches R's diff5() exactly.
+
+// [[Rcpp::export]]
+NumericVector diff5_cpp(NumericVector x, double delta = 1.0) {
+  int n = x.size();
+  if (n < 5) Rcpp::stop("diff5_cpp requires length >= 5");
+
+  NumericVector d(n);
+  double c = 1.0 / (12.0 * delta);
+
+  // Interior: central five-point stencil (0-based i = 2 .. n-3)
+  for (int i = 2; i <= n - 3; i++) {
+    d[i] = c * (-x[i + 2] + 8.0 * x[i + 1] - 8.0 * x[i - 1] + x[i - 2]);
+  }
+
+  // Boundary: forward stencil at i=0 and i=1
+  d[0] = c * (-25.0*x[0] + 48.0*x[1] - 36.0*x[2] + 16.0*x[3] -  3.0*x[4]);
+  d[1] = c * (-25.0*x[1] + 48.0*x[2] - 36.0*x[3] + 16.0*x[4] -  3.0*x[5]);
+
+  // Boundary: backward stencil at i=n-2 and i=n-1
+  d[n - 2] = c * (25.0*x[n-2] - 48.0*x[n-3] + 36.0*x[n-4] - 16.0*x[n-5] + 3.0*x[n-6]);
+  d[n - 1] = c * (25.0*x[n-1] - 48.0*x[n-2] + 36.0*x[n-3] - 16.0*x[n-4] + 3.0*x[n-5]);
+
+  return d;
+}

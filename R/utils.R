@@ -114,27 +114,7 @@ quantile_filter <- function(x, hws, q = 0.6) {
 #' @param delta epoch duration in seconds (default 1)
 #' @noRd
 diff5 <- function(x, delta = 1) {
-  n <- length(x)
-  stopifnot(n >= 5)
-  d <- numeric(n)
-
-  # Interior points — central five-point stencil
-  for (i in seq(3L, n - 2L)) {
-    d[i] <- (1 / (12 * delta)) *
-      (-x[i + 2] + 8 * x[i + 1] - 8 * x[i - 1] + x[i - 2])
-  }
-
-  # Boundary points — forward/backward five-point stencil
-  d[1] <- (1 / (12 * delta)) *
-    (-25 * x[1] + 48 * x[2] - 36 * x[3] + 16 * x[4] - 3 * x[5])
-  d[2] <- (1 / (12 * delta)) *
-    (-25 * x[2] + 48 * x[3] - 36 * x[4] + 16 * x[5] - 3 * x[6])
-  d[n - 1] <- (1 / (12 * delta)) *
-    (25 * x[n - 1] - 48 * x[n - 2] + 36 * x[n - 3] - 16 * x[n - 4] + 3 * x[n - 5])
-  d[n] <- (1 / (12 * delta)) *
-    (25 * x[n] - 48 * x[n - 1] + 36 * x[n - 2] - 16 * x[n - 3] + 3 * x[n - 4])
-
-  d
+  diff5_cpp(as.double(x), as.double(delta))
 }
 
 # ── Zero-sequence detection ───────────────────────────────────────────────────
