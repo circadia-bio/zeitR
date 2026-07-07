@@ -24,7 +24,7 @@
 * `circ_sd_h()` — circular SD using mean resultant length formula
   (Fix 24; invariant to the wrap point).
 * Julia Ribeiro da Silva Vallim (ORCID 0000-0001-8708-8479) added as
-  contributor in DESCRIPTION, `_pkgdown.yml`, and pipeline documentation.
+  author in DESCRIPTION, `_pkgdown.yml`, and pipeline documentation.
 
 ### Performance (Rcpp)
 

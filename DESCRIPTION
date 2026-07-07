@@ -11,7 +11,7 @@ Authors@R: c(
            role = "aut",
            comment = c(ORCID = "0000-0002-7248-3529")),
     person("Julia Ribeiro da Silva", "Vallim",
-           role = "ctb",
+           role = "aut",
            comment = c(ORCID = "0000-0001-8708-8479"))
   )
 Description: Provides tools for importing, parsing, and analysing raw actigraphy
