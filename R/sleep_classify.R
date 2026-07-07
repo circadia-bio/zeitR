@@ -475,9 +475,14 @@ classify_sleep_episodes <- function(
     seg_mask <- dt >= win_start & dt <= win_end
     if (sum(seg_mask) < 60L) next
 
-    seg_state <- as.integer(data$state)[seg_mask]
-    seg_dt    <- dt[seg_mask]
-    is_sleep  <- seg_state == 1L
+    seg_dt  <- dt[seg_mask]
+    # Use Cole-Kripke epoch scoring on ZCMn (0=sleep, 1=wake) to mirror
+    # Python's epoch-level state column. The CSPD state column is period-level
+    # (all epochs inside a detected period are state=1) -- using it here would
+    # treat entire 19+ h periods as one sleep run, incorrectly triggering recovery.
+    seg_zcm  <- as.double(data$ZCMn)[seg_mask]
+    ck_score <- score_epochs_cole_kripke(seg_zcm)
+    is_sleep <- ck_score == 0L   # CK: 0=sleep, 1=wake
     if (!any(is_sleep)) next
 
     rle_res    <- rle(is_sleep)
