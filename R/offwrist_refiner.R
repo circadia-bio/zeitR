@@ -262,8 +262,8 @@
                              length = integer(), valley_peak = logical())
     }
 
-    long_df$valley_peak  <- FALSE
-    short_df$valley_peak <- FALSE
+    long_df$valley_peak  <- rep(FALSE, nrow(long_df))
+    short_df$valley_peak <- rep(FALSE, nrow(short_df))
 
     combined <- rbind(
       long_df[,  c("start", "end", "length", "valley_peak")],
