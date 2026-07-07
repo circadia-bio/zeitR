@@ -92,6 +92,75 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// rolling_max_cpp
+NumericVector rolling_max_cpp(NumericVector x, int hws, bool replicate, double pad_value);
+RcppExport SEXP _zeitR_rolling_max_cpp(SEXP xSEXP, SEXP hwsSEXP, SEXP replicateSEXP, SEXP pad_valueSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type hws(hwsSEXP);
+    Rcpp::traits::input_parameter< bool >::type replicate(replicateSEXP);
+    Rcpp::traits::input_parameter< double >::type pad_value(pad_valueSEXP);
+    rcpp_result_gen = Rcpp::wrap(rolling_max_cpp(x, hws, replicate, pad_value));
+    return rcpp_result_gen;
+END_RCPP
+}
+// rolling_min_cpp
+NumericVector rolling_min_cpp(NumericVector x, int hws, bool replicate, double pad_value);
+RcppExport SEXP _zeitR_rolling_min_cpp(SEXP xSEXP, SEXP hwsSEXP, SEXP replicateSEXP, SEXP pad_valueSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type hws(hwsSEXP);
+    Rcpp::traits::input_parameter< bool >::type replicate(replicateSEXP);
+    Rcpp::traits::input_parameter< double >::type pad_value(pad_valueSEXP);
+    rcpp_result_gen = Rcpp::wrap(rolling_min_cpp(x, hws, replicate, pad_value));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zero_mitigation_cpp
+NumericVector zero_mitigation_cpp(NumericVector activity, int consec_zeros_thr, double mitigation_level);
+RcppExport SEXP _zeitR_zero_mitigation_cpp(SEXP activitySEXP, SEXP consec_zeros_thrSEXP, SEXP mitigation_levelSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type activity(activitySEXP);
+    Rcpp::traits::input_parameter< int >::type consec_zeros_thr(consec_zeros_thrSEXP);
+    Rcpp::traits::input_parameter< double >::type mitigation_level(mitigation_levelSEXP);
+    rcpp_result_gen = Rcpp::wrap(zero_mitigation_cpp(activity, consec_zeros_thr, mitigation_level));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mark_invalid_zeros_cpp
+IntegerVector mark_invalid_zeros_cpp(NumericVector activity, IntegerVector morph_detection, int awake_zeros_thr, int sleep_zeros_thr);
+RcppExport SEXP _zeitR_mark_invalid_zeros_cpp(SEXP activitySEXP, SEXP morph_detectionSEXP, SEXP awake_zeros_thrSEXP, SEXP sleep_zeros_thrSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type activity(activitySEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type morph_detection(morph_detectionSEXP);
+    Rcpp::traits::input_parameter< int >::type awake_zeros_thr(awake_zeros_thrSEXP);
+    Rcpp::traits::input_parameter< int >::type sleep_zeros_thr(sleep_zeros_thrSEXP);
+    rcpp_result_gen = Rcpp::wrap(mark_invalid_zeros_cpp(activity, morph_detection, awake_zeros_thr, sleep_zeros_thr));
+    return rcpp_result_gen;
+END_RCPP
+}
+// adaptive_median_filter_cpp
+NumericVector adaptive_median_filter_cpp(NumericVector padded_activity, int n, int pad_size, int max_hws);
+RcppExport SEXP _zeitR_adaptive_median_filter_cpp(SEXP padded_activitySEXP, SEXP nSEXP, SEXP pad_sizeSEXP, SEXP max_hwsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type padded_activity(padded_activitySEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< int >::type pad_size(pad_sizeSEXP);
+    Rcpp::traits::input_parameter< int >::type max_hws(max_hwsSEXP);
+    rcpp_result_gen = Rcpp::wrap(adaptive_median_filter_cpp(padded_activity, n, pad_size, max_hws));
+    return rcpp_result_gen;
+END_RCPP
+}
 // score_epochs_cole_kripke_cpp
 IntegerVector score_epochs_cole_kripke_cpp(NumericVector zcm, double P, NumericVector weights_before, NumericVector weights_after);
 RcppExport SEXP _zeitR_score_epochs_cole_kripke_cpp(SEXP zcmSEXP, SEXP PSEXP, SEXP weights_beforeSEXP, SEXP weights_afterSEXP) {
@@ -114,6 +183,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"_zeitR_rolling_zero_prop_cpp", (DL_FUNC) &_zeitR_rolling_zero_prop_cpp, 3},
     {"_zeitR_rolling_quantile_cpp", (DL_FUNC) &_zeitR_rolling_quantile_cpp, 5},
     {"_zeitR_diff5_cpp", (DL_FUNC) &_zeitR_diff5_cpp, 2},
+    {"_zeitR_rolling_max_cpp", (DL_FUNC) &_zeitR_rolling_max_cpp, 4},
+    {"_zeitR_rolling_min_cpp", (DL_FUNC) &_zeitR_rolling_min_cpp, 4},
+    {"_zeitR_zero_mitigation_cpp", (DL_FUNC) &_zeitR_zero_mitigation_cpp, 3},
+    {"_zeitR_mark_invalid_zeros_cpp", (DL_FUNC) &_zeitR_mark_invalid_zeros_cpp, 4},
+    {"_zeitR_adaptive_median_filter_cpp", (DL_FUNC) &_zeitR_adaptive_median_filter_cpp, 4},
     {"_zeitR_score_epochs_cole_kripke_cpp", (DL_FUNC) &_zeitR_score_epochs_cole_kripke_cpp, 4},
     {NULL, NULL, 0}
 };

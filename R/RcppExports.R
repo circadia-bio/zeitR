@@ -25,6 +25,26 @@ diff5_cpp <- function(x, delta = 1.0) {
     .Call(`_zeitR_diff5_cpp`, x, delta)
 }
 
+rolling_max_cpp <- function(x, hws, replicate = TRUE, pad_value = 0.0) {
+    .Call(`_zeitR_rolling_max_cpp`, x, hws, replicate, pad_value)
+}
+
+rolling_min_cpp <- function(x, hws, replicate = TRUE, pad_value = 0.0) {
+    .Call(`_zeitR_rolling_min_cpp`, x, hws, replicate, pad_value)
+}
+
+zero_mitigation_cpp <- function(activity, consec_zeros_thr, mitigation_level) {
+    .Call(`_zeitR_zero_mitigation_cpp`, activity, consec_zeros_thr, mitigation_level)
+}
+
+mark_invalid_zeros_cpp <- function(activity, morph_detection, awake_zeros_thr, sleep_zeros_thr) {
+    .Call(`_zeitR_mark_invalid_zeros_cpp`, activity, morph_detection, awake_zeros_thr, sleep_zeros_thr)
+}
+
+adaptive_median_filter_cpp <- function(padded_activity, n, pad_size, max_hws) {
+    .Call(`_zeitR_adaptive_median_filter_cpp`, padded_activity, n, pad_size, max_hws)
+}
+
 score_epochs_cole_kripke_cpp <- function(zcm, P = 0.000464, weights_before = as.numeric( c(         34.5, 133.0, 529.0, 375.0, 408.0, 400.5, 1074.0, 2048.5, 2424.5)), weights_after = as.numeric( c(         1920.0, 149.5, 257.5, 125.0, 111.5, 120.0, 69.0, 40.5))) {
     .Call(`_zeitR_score_epochs_cole_kripke_cpp`, zcm, P, weights_before, weights_after)
 }
