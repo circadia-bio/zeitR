@@ -165,3 +165,50 @@ test_that("diff5_cpp respects delta scaling", {
 test_that("diff5_cpp errors on input shorter than 5", {
   expect_error(diff5_cpp(1:4, 1.0))
 })
+
+# ── score_epochs_cole_kripke_cpp ──────────────────────────────────────────────
+
+# R reference (original vectorised implementation)
+ref_cole_kripke <- function(zcm, P = 0.000464,
+                             wb = c(34.5,133,529,375,408,400.5,1074,2048.5,2424.5),
+                             wa = c(1920,149.5,257.5,125,111.5,120,69,40.5)) {
+  n <- length(zcm); nb <- length(wb); s <- numeric(n)
+  for (i in seq_along(wb)) {
+    off <- nb - i + 1L
+    if (off < n) s[seq(off+1,n)] <- s[seq(off+1,n)] + wb[i]*zcm[seq(1,n-off)]
+  }
+  for (i in seq_along(wa)) {
+    off <- i
+    if (off < n) s[seq(1,n-off)] <- s[seq(1,n-off)] + wa[i]*zcm[seq(off+1,n)]
+  }
+  as.integer(s * P >= 1.0)
+}
+
+test_that("score_epochs_cole_kripke_cpp matches R reference on random input", {
+  set.seed(42)
+  zcm <- as.double(rpois(500L, lambda = 50))
+  expect_identical(score_epochs_cole_kripke_cpp(zcm), ref_cole_kripke(zcm))
+})
+
+test_that("score_epochs_cole_kripke_cpp handles all-zero input (all sleep)", {
+  zcm <- as.double(rep(0, 100))
+  expect_identical(score_epochs_cole_kripke_cpp(zcm), integer(100))
+})
+
+test_that("score_epochs_cole_kripke_cpp handles short vector (n < nb)", {
+  zcm <- as.double(c(1000, 2000, 3000))
+  expect_identical(
+    score_epochs_cole_kripke_cpp(zcm),
+    ref_cole_kripke(zcm)
+  )
+})
+
+test_that("score_epochs_cole_kripke_cpp respects custom weights and P", {
+  set.seed(7)
+  zcm <- as.double(rpois(200L, lambda = 30))
+  wb  <- rep(100, 9); wa <- rep(50, 8)
+  expect_identical(
+    score_epochs_cole_kripke_cpp(zcm, P = 0.001, wb, wa),
+    ref_cole_kripke(zcm, P = 0.001, wb, wa)
+  )
+})

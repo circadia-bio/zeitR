@@ -49,34 +49,16 @@ score_epochs_cole_kripke <- function(
 ) {
   zcm <- as.double(zcm)
   n   <- length(zcm)
-  nb  <- length(weights_before)
-  na_ <- length(weights_after)
 
   if (n < 2L) {
     zeitr_warn("ZCM vector has fewer than 2 epochs; returning all zeros.")
     return(integer(n))
   }
 
-  scores <- numeric(n)
-
-  # Contributions from epochs *before* the current epoch
-  for (i in seq_along(weights_before)) {
-    offset <- nb - i + 1L
-    if (offset >= n) next
-    idx_to   <- seq(offset + 1L, n)
-    idx_from <- seq(1L, n - offset)
-    scores[idx_to] <- scores[idx_to] + weights_before[i] * zcm[idx_from]
-  }
-
-  # Contributions from epochs *after* the current epoch
-  for (i in seq_along(weights_after)) {
-    offset <- i
-    if (offset >= n) next
-    idx_to   <- seq(1L, n - offset)
-    idx_from <- seq(offset + 1L, n)
-    scores[idx_to] <- scores[idx_to] + weights_after[i] * zcm[idx_from]
-  }
-
-  scores <- scores * P
-  as.integer(scores >= 1.0)
+  score_epochs_cole_kripke_cpp(
+    zcm,
+    as.double(P),
+    as.double(weights_before),
+    as.double(weights_after)
+  )
 }

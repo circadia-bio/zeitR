@@ -5,8 +5,8 @@
 //   - Border-replication padding by default (repeat first/last value)
 //   - Constant padding when replicate = false (use pad_value)
 //
-// All five functions are called from R wrappers (see R/utils.R) and are not
-// exported to the user-facing namespace.
+// All functions are called from R wrappers and are not exported to the
+// user-facing namespace.
 
 #include <Rcpp.h>
 #include <algorithm>
@@ -33,7 +33,7 @@ static inline std::vector<double> make_padded(
 }
 
 // ── rolling_median_cpp ────────────────────────────────────────────────────────
-// Uses nth_element (O(win) per epoch) — fast for the small windows used in
+// Uses nth_element (O(win) per epoch) -- fast for the small windows used in
 // zeitR (hws 5-10, so win 11-21).
 
 // [[Rcpp::export]]
@@ -198,4 +198,48 @@ NumericVector diff5_cpp(NumericVector x, double delta = 1.0) {
   d[n - 1] = c * (25.0*x[n-1] - 48.0*x[n-2] + 36.0*x[n-3] - 16.0*x[n-4] + 3.0*x[n-5]);
 
   return d;
+}
+
+// ── score_epochs_cole_kripke_cpp ──────────────────────────────────────────────
+// Single-pass Cole-Kripke scorer. For each epoch i, accumulates:
+//   before: weights_before[nb - lag] * zcm[i - lag]  for lag = 1..nb
+//   after:  weights_after[j]         * zcm[i + j+1]  for j   = 0..na-1
+// Multiplies by P and thresholds at 1.0. Matches score_epochs_cole_kripke()
+// exactly; replaces 17 vectorised R additions with one O(n) C++ loop.
+
+// [[Rcpp::export]]
+IntegerVector score_epochs_cole_kripke_cpp(
+    NumericVector zcm,
+    double P = 0.000464,
+    NumericVector weights_before = NumericVector::create(
+        34.5, 133.0, 529.0, 375.0, 408.0, 400.5, 1074.0, 2048.5, 2424.5),
+    NumericVector weights_after = NumericVector::create(
+        1920.0, 149.5, 257.5, 125.0, 111.5, 120.0, 69.0, 40.5)
+) {
+  int n  = zcm.size();
+  int nb = weights_before.size();
+  int na = weights_after.size();
+
+  IntegerVector result(n, 0);
+  if (n < 2) return result;
+
+  for (int i = 0; i < n; i++) {
+    double score = 0.0;
+
+    // Before: weight for lag is weights_before[nb - lag] (matches R indexing)
+    for (int lag = 1; lag <= nb; lag++) {
+      int src = i - lag;
+      if (src >= 0) score += weights_before[nb - lag] * zcm[src];
+    }
+
+    // After: weights_after[j] applied at lead j+1
+    for (int j = 0; j < na; j++) {
+      int src = i + j + 1;
+      if (src < n) score += weights_after[j] * zcm[src];
+    }
+
+    result[i] = (score * P >= 1.0) ? 1 : 0;
+  }
+
+  return result;
 }
