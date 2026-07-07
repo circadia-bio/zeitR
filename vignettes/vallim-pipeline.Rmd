@@ -1,0 +1,222 @@
+---
+title: "The Vallim pipeline: native sleep classification"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The Vallim pipeline: native sleep classification}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.width  = 9,
+  fig.height = 5,
+  dpi = 150,
+  out.width = "100%"
+)
+library(zeitR)
+library(dplyr)
+```
+
+This vignette introduces `run_pipeline_native()`, the **Vallim pipeline** — a
+sleep classification layer developed by Julia Ribeiro da Silva Vallim that
+addresses limitations of the base CSPD pipeline in detecting and classifying
+sleep episodes from actigraphy data.
+
+---
+
+## Background
+
+The Condor CSPD pipeline (`run_pipeline()`) detects sleep periods using an
+adaptive median filter and returns one row per period. It works well for
+clear-cut recordings but can misclassify episodes in several edge cases:
+
+- Daytime naps adjacent to a long main sleep (date collision)
+- Recordings ending mid-sleep (truncated episodes)
+- Sleep periods fragmented across multiple short blocks
+- Unusually long in-bed periods (TBT > 14 h) that should be split
+
+The Vallim pipeline keeps the same off-wrist detection and CSPD epoch scorer
+as `run_pipeline()` but replaces the final classification step with a 7-rule
+adaptive system ported from Julia Vallim's Python notebook
+(`vs_condor_py_pipeline_fix29_jrsv.ipynb`).
+
+---
+
+## The rule set
+
+The classification follows this fixed execution order (Fix 27):
+
+| Step | Fix/Rule | Description |
+|------|----------|-------------|
+| 1 | Fix 25 | Exclude truncated episodes at the recording end |
+| 2 | Fix 26a | Infer adaptive nocturnal window from wrist temperature and light |
+| 3 | Fix 29 / Rule 2 | Split TBT 14–16 h episodes; exclude TBT > 16 h |
+| 4 | Fix 26c | Recover fragmented sleep nights missed by the scorer |
+| 5 | Rules 3–5 | Classify as main or secondary using the nocturnal window |
+| 6 | Fix 26b | Resolve sleep-date collisions from the noon threshold |
+| 7 | Rule 6 | Keep the longest main episode per sleep date |
+| 8 | Rule 7 | Exclude all episodes on days with no main sleep |
+
+The nocturnal window (Fix 26a) is inferred adaptively per participant rather
+than fixed at 18:00–06:00. Episodes where wrist temperature ≥ 28 °C and
+ambient light ≤ 5 lux are used as candidates; the circular mean of their
+onsets becomes the window anchor (±4 h).
+
+---
+
+## Basic usage
+
+```{r run}
+FILE <- system.file("extdata", "input1.txt", package = "zeitR")
+TZ   <- "America/Sao_Paulo"
+
+result <- run_pipeline_native(FILE, tz = TZ, quiet = TRUE)
+result
+```
+
+The `nights` table has the same schema as `run_pipeline()` but adds a
+`sleep_type` column:
+
+```{r nights}
+result$nights |>
+  mutate(
+    bed_time    = format(bed_time,    "%Y-%m-%d %H:%M"),
+    get_up_time = format(get_up_time, "%Y-%m-%d %H:%M"),
+    tbt_h       = round(tbt / 60, 1),
+    tst_h       = round(tst / 60, 1),
+    eff_pct     = round(eff * 100, 1)
+  ) |>
+  select(night, sleep_type, bed_time, get_up_time, tbt_h, tst_h, waso, sol, eff_pct) |>
+  head(10) |>
+  knitr::kable(
+    col.names = c("Night", "Type", "Bed time", "Get-up time",
+                  "TBT (h)", "TST (h)", "WASO (min)", "SOL (min)", "Eff (%)"),
+    align = "clllrrrrr"
+  )
+```
+
+---
+
+## Comparing the two pipelines
+
+Running both pipelines on the same recording lets you see exactly what the
+Vallim rule set changes:
+
+```{r compare}
+cspd   <- run_pipeline(FILE, tz = TZ, quiet = TRUE)
+native <- run_pipeline_native(FILE, tz = TZ, quiet = TRUE)
+
+cat("CSPD nights:  ", nrow(cspd$nights),   "\n")
+cat("Vallim nights:", nrow(native$nights), "\n")
+cat("  main:      ", sum(native$nights$sleep_type == "main"),      "\n")
+cat("  secondary: ", sum(native$nights$sleep_type == "secondary"), "\n")
+```
+
+The Vallim pipeline consolidates duplicate-date episodes (Rule 6) and
+discards dates where no valid main sleep exists (Rule 7), resulting in a
+cleaner set of main nights.
+
+---
+
+## Sleep onset and offset statistics
+
+`circ_mean_h()` and `circ_sd_h()` compute circular statistics for clock-time
+variables. Using standard arithmetic mean for times like sleep onset (which
+often straddles midnight) inflates variability estimates and produces biased
+means; the circular mean handles the wrap correctly.
+
+```{r circ}
+main <- native$nights |> filter(sleep_type == "main")
+
+# Decimal hours of bed time and get-up time
+onset_h  <- as.numeric(format(main$bed_time,    "%H", tz = TZ)) +
+            as.numeric(format(main$bed_time,    "%M", tz = TZ)) / 60
+offset_h <- as.numeric(format(main$get_up_time, "%H", tz = TZ)) +
+            as.numeric(format(main$get_up_time, "%M", tz = TZ)) / 60
+
+cat(sprintf("Mean sleep onset:  %05.2f h  (SD = %.2f h)\n",
+            circ_mean_h(onset_h),  circ_sd_h(onset_h)))
+cat(sprintf("Mean sleep offset: %05.2f h  (SD = %.2f h)\n",
+            circ_mean_h(offset_h), circ_sd_h(offset_h)))
+```
+
+The `circ_mean_h()` function returns decimal hours in [0, 24). To display as
+HH:MM:
+
+```{r fmt}
+fmt_h <- function(h) sprintf("%02d:%02d", as.integer(h) %% 24L,
+                              as.integer((h %% 1) * 60))
+
+cat("Mean sleep onset: ", fmt_h(circ_mean_h(onset_h)),  "\n")
+cat("Mean get-up time: ", fmt_h(circ_mean_h(offset_h)), "\n")
+```
+
+---
+
+## Advanced: running each step directly
+
+For custom workflows, `extract_sleep_episodes()` and
+`classify_sleep_episodes()` expose the two stages independently.
+
+```{r advanced, eval = FALSE}
+# Step 1: read, prepare, detect off-wrist and CSPD-score epochs
+rec  <- read_acttrust(FILE, tz = TZ)
+prep <- prepare_actigraphy(rec)
+prep <- detect_offwrist_bimodal(prep)
+prep <- detect_sleep_crespo(prep)
+
+# Step 2: extract per-episode statistics from the CSPD state
+episodes_raw <- extract_sleep_episodes(prep)
+
+# Step 3: apply the Vallim rule set
+episodes <- classify_sleep_episodes(
+  episodes = episodes_raw,
+  data     = prep,
+  verbose  = TRUE           # print each fix as it fires
+)
+
+episodes |> filter(sleep_type == "main")
+```
+
+The `verbose = TRUE` argument prints a trace of each rule:
+
+```
+[Fix 26a] anchor=23.8 h -> nocturnal window 19.8 h-3.8 h
+[Fix 26c] No fragmented episodes recovered.
+[Fix 26b] No sleep-date collisions detected.
+```
+
+---
+
+## Batch processing
+
+`run_pipeline_native_batch()` works identically to `run_pipeline_batch()`:
+
+```{r batch, eval = FALSE}
+results <- run_pipeline_native_batch(
+  "recordings/",
+  tz    = "America/Sao_Paulo",
+  quiet = TRUE
+)
+
+# Combine all main nights
+main_all <- bind_rows(
+  lapply(names(results), function(id) {
+    results[[id]]$nights |>
+      filter(sleep_type == "main") |>
+      mutate(subject_id = id)
+  })
+)
+```
+
+---
+
+## Next steps
+
+- `vignette("sleep-analysis")` — CSPD pipeline walkthrough with actogram
+- `?classify_sleep_episodes` — full parameter reference for the rule set
+- `?circ_mean_h`, `?circ_sd_h` — circular statistics for clock-time variables
+- `?acttrust_params` — device parameter defaults

@@ -236,6 +236,7 @@ articles:
   navbar: "Examples"
   contents:
   - sleep-analysis
+  - vallim-pipeline
 
 news:
   releases:
