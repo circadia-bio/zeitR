@@ -299,7 +299,7 @@ Julia Vallim’s Python reference notebook.
 |----|----|----|
 | Author, maintainer | Lucas França | Northumbria University, Circadia Lab |
 | Author | Mario Leocadio-Miguel | Northumbria University, Circadia Lab |
-| Contributor | Julia Ribeiro da Silva Vallim | Universidade Federal de São Paulo |
+| Author | Julia Ribeiro da Silva Vallim | Universidade Federal de São Paulo |
 
 ------------------------------------------------------------------------
 
