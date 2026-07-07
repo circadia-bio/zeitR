@@ -21,3 +21,11 @@ rolling_quantile_cpp <- function(x, hws, q = 0.6, replicate = TRUE, pad_value = 
     .Call(`_zeitR_rolling_quantile_cpp`, x, hws, q, replicate, pad_value)
 }
 
+diff5_cpp <- function(x, delta = 1.0) {
+    .Call(`_zeitR_diff5_cpp`, x, delta)
+}
+
+score_epochs_cole_kripke_cpp <- function(zcm, P = 0.000464, weights_before = as.numeric( c(         34.5, 133.0, 529.0, 375.0, 408.0, 400.5, 1074.0, 2048.5, 2424.5)), weights_after = as.numeric( c(         1920.0, 149.5, 257.5, 125.0, 111.5, 120.0, 69.0, 40.5))) {
+    .Call(`_zeitR_score_epochs_cole_kripke_cpp`, zcm, P, weights_before, weights_after)
+}
+

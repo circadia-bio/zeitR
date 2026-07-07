@@ -80,6 +80,32 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// diff5_cpp
+NumericVector diff5_cpp(NumericVector x, double delta);
+RcppExport SEXP _zeitR_diff5_cpp(SEXP xSEXP, SEXP deltaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    rcpp_result_gen = Rcpp::wrap(diff5_cpp(x, delta));
+    return rcpp_result_gen;
+END_RCPP
+}
+// score_epochs_cole_kripke_cpp
+IntegerVector score_epochs_cole_kripke_cpp(NumericVector zcm, double P, NumericVector weights_before, NumericVector weights_after);
+RcppExport SEXP _zeitR_score_epochs_cole_kripke_cpp(SEXP zcmSEXP, SEXP PSEXP, SEXP weights_beforeSEXP, SEXP weights_afterSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type zcm(zcmSEXP);
+    Rcpp::traits::input_parameter< double >::type P(PSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type weights_before(weights_beforeSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type weights_after(weights_afterSEXP);
+    rcpp_result_gen = Rcpp::wrap(score_epochs_cole_kripke_cpp(zcm, P, weights_before, weights_after));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_zeitR_rolling_median_cpp", (DL_FUNC) &_zeitR_rolling_median_cpp, 4},
@@ -87,6 +113,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_zeitR_rolling_var_cpp", (DL_FUNC) &_zeitR_rolling_var_cpp, 4},
     {"_zeitR_rolling_zero_prop_cpp", (DL_FUNC) &_zeitR_rolling_zero_prop_cpp, 3},
     {"_zeitR_rolling_quantile_cpp", (DL_FUNC) &_zeitR_rolling_quantile_cpp, 5},
+    {"_zeitR_diff5_cpp", (DL_FUNC) &_zeitR_diff5_cpp, 2},
+    {"_zeitR_score_epochs_cole_kripke_cpp", (DL_FUNC) &_zeitR_score_epochs_cole_kripke_cpp, 4},
     {NULL, NULL, 0}
 };
 
