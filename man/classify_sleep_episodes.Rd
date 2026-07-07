@@ -85,15 +85,28 @@ Applies the JRSV classification rule set to a raw episode table from
 \enumerate{
 \item \strong{Fix 25} -- exclude truncated episodes at the recording end.
 \item \strong{Fix 26a} -- infer adaptive nocturnal window from \code{int_temp}
-and \code{light}.
-\item \strong{Fix 29} -- split TBT 14-16 h episodes first; exclude TBT > 16 h
-directly without attempting a split.
-\item \strong{Fix 26c} -- recover fragmented sleep nights missed by the scorer.
-\item \strong{Rules 3-5} -- classify as main or secondary using the nocturnal
-window and \code{min_main_tib_h}.
-\item \strong{Fix 26b} -- resolve sleep-date collisions from the noon threshold.
-\item \strong{Rule 6} -- keep the longest main episode per sleep date.
-\item \strong{Rule 7} -- exclude all episodes on days with no main sleep.
+and \code{light}. Falls back to \code{nocturnal_onset_start}/\code{nocturnal_onset_end}
+if fewer than 2 candidate episodes pass the temperature and light filter.
+\item \strong{Fix 29 / Rule 1} -- split TBT 14\u201316 h episodes at their
+activity peak (recursive, up to \code{max_split_iterations}). Fragments still
+exceeding \code{max_main_tib_h} after splitting are excluded.
+\item \strong{Rule 2} -- exclude episodes with TBT > \code{max_tib_h} (16 h)
+directly, without attempting a split.
+\item \strong{Fix 26c} -- recover sleep nights missed by the scorer for dates
+with no classified main episode. Sleep and wake within the candidate
+window are determined by Cole\u2013Kripke epoch scoring on ZCMn (not the
+period-level CSPD state). Adjacent sleep runs are merged when the
+intervening gap has wrist temperature \u2265 \code{temp_thresh} and ambient
+light \u2264 \code{light_thresh_recovery}.
+\item \strong{Rules 3\u20135} -- classify each episode as \code{"main"} or
+\code{"secondary"} using the nocturnal window and \code{min_main_tib_h}.
+\item \strong{Fix 26b} -- resolve sleep-date collisions: when two main
+episodes share a noon-threshold sleep date and are separated by
+\u2265 \code{collision_gap_h}, reassign the later one to the next calendar date.
+\item \strong{Rule 6} -- keep the longest main episode per sleep date;
+demote all others to \code{"secondary"}.
+\item \strong{Rule 7} -- exclude all episodes (main and secondary) on dates
+that have no valid main sleep after Rule 6.
 }
 }
 \seealso{

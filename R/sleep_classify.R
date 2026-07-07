@@ -131,15 +131,28 @@ extract_sleep_episodes <- function(data, wake_thresh = 60L) {
 #' \enumerate{
 #'   \item **Fix 25** -- exclude truncated episodes at the recording end.
 #'   \item **Fix 26a** -- infer adaptive nocturnal window from `int_temp`
-#'     and `light`.
-#'   \item **Fix 29** -- split TBT 14-16 h episodes first; exclude TBT > 16 h
-#'     directly without attempting a split.
-#'   \item **Fix 26c** -- recover fragmented sleep nights missed by the scorer.
-#'   \item **Rules 3-5** -- classify as main or secondary using the nocturnal
-#'     window and `min_main_tib_h`.
-#'   \item **Fix 26b** -- resolve sleep-date collisions from the noon threshold.
-#'   \item **Rule 6** -- keep the longest main episode per sleep date.
-#'   \item **Rule 7** -- exclude all episodes on days with no main sleep.
+#'     and `light`. Falls back to `nocturnal_onset_start`/`nocturnal_onset_end`
+#'     if fewer than 2 candidate episodes pass the temperature and light filter.
+#'   \item **Fix 29 / Rule 1** -- split TBT 14\u201316 h episodes at their
+#'     activity peak (recursive, up to `max_split_iterations`). Fragments still
+#'     exceeding `max_main_tib_h` after splitting are excluded.
+#'   \item **Rule 2** -- exclude episodes with TBT > `max_tib_h` (16 h)
+#'     directly, without attempting a split.
+#'   \item **Fix 26c** -- recover sleep nights missed by the scorer for dates
+#'     with no classified main episode. Sleep and wake within the candidate
+#'     window are determined by Cole\u2013Kripke epoch scoring on ZCMn (not the
+#'     period-level CSPD state). Adjacent sleep runs are merged when the
+#'     intervening gap has wrist temperature \u2265 `temp_thresh` and ambient
+#'     light \u2264 `light_thresh_recovery`.
+#'   \item **Rules 3\u20135** -- classify each episode as `"main"` or
+#'     `"secondary"` using the nocturnal window and `min_main_tib_h`.
+#'   \item **Fix 26b** -- resolve sleep-date collisions: when two main
+#'     episodes share a noon-threshold sleep date and are separated by
+#'     \u2265 `collision_gap_h`, reassign the later one to the next calendar date.
+#'   \item **Rule 6** -- keep the longest main episode per sleep date;
+#'     demote all others to `"secondary"`.
+#'   \item **Rule 7** -- exclude all episodes (main and secondary) on dates
+#'     that have no valid main sleep after Rule 6.
 #' }
 #'
 #' @param episodes A tibble as returned by [extract_sleep_episodes()].
