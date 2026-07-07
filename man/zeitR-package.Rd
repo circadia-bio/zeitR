@@ -30,5 +30,10 @@ Authors:
   \item Mario Leocadio-Miguel \email{mario.miguel@northumbria.ac.uk} (\href{https://orcid.org/0000-0002-7248-3529}{ORCID})
 }
 
+Other contributors:
+\itemize{
+  \item Julia Ribeiro da Silva Vallim (\href{https://orcid.org/0000-0001-8708-8479}{ORCID}) [contributor]
+}
+
 }
 \keyword{internal}

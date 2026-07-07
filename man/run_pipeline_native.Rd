@@ -2,7 +2,7 @@
 % Please edit documentation in R/pipeline.R
 \name{run_pipeline_native}
 \alias{run_pipeline_native}
-\title{Run the native actigraphy sleep analysis pipeline}
+\title{Run the Vallim native actigraphy sleep analysis pipeline}
 \usage{
 run_pipeline_native(
   path,
@@ -45,11 +45,11 @@ The \code{is_nap} column is retained for backwards compatibility
 (\code{is_nap == (sleep_type == "secondary")}).
 }
 \description{
-Orchestrates the vendor-independent sleep analysis pipeline for a single
-ActTrust recording. Shares the read / prepare / off-wrist / CSPD epoch-scorer
-stages with \code{\link[=run_pipeline]{run_pipeline()}}, then replaces Condor's \code{nights_df} classification
-with the JRSV rule set ported from Julia Vallim's condor pipeline (Fixes 25,
-26a/b/c, 27, 29).
+Orchestrates the vendor-independent (Vallim) sleep analysis pipeline for a
+single ActTrust recording. Shares the read / prepare / off-wrist / CSPD
+epoch-scorer stages with \code{\link[=run_pipeline]{run_pipeline()}}, then replaces Condor's
+\code{nights_df} classification with the rule set developed by Julia Ribeiro da
+Silva Vallim and ported from her condor pipeline (Fixes 25, 26a/b/c, 27, 29).
 }
 \details{
 Steps:
