@@ -212,6 +212,12 @@ reference:
   - extract_sleep_episodes
   - classify_sleep_episodes
 
+- title: "Sleep metrics"
+  desc: "Summarise sleep across nights and compute chronobiological phenotype metrics."
+  contents:
+  - compute_sleep_metrics
+  - compute_cpd_metrics
+
 - title: "Utilities"
   desc: "Helper functions for working with pipeline output."
   contents:
