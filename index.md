@@ -12,10 +12,12 @@ CHECK](https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/
 
 ------------------------------------------------------------------------
 
-> ⚠️ **zeitR is in early development and has not been formally
-> validated.** The pipeline has been validated epoch-for-epoch against
-> the Condor circadiaBase Python reference on an ActTrust recording, but
-> the package has not undergone formal peer review. Verify outputs
+> \[!WARNING\] **zeitR is in early development and has not been formally
+> validated.** The CSPD pipeline has been validated epoch-for-epoch
+> against the Condor circadiaBase Python reference on an ActTrust
+> recording. The Vallim pipeline has been validated at the
+> classification level against Julia Vallim’s Python reference notebook.
+> Neither pipeline has undergone formal peer review. Verify outputs
 > independently before using in any research context.
 
 ------------------------------------------------------------------------
@@ -29,11 +31,23 @@ identification, WASO computation — and computes standard non-parametric
 circadian rhythm variables (IS, IV, RA, L5, M10), returning tidy data
 frames ready for downstream chronobiological analysis.
 
+zeitR ships two end-to-end pipelines:
+
+- **[`run_pipeline()`](https://zeitr.circadia-lab.uk/reference/run_pipeline.md)**
+  — the Condor CSPD pipeline, validated epoch-for-epoch against the
+  Condor circadiaBase Python reference.
+- **[`run_pipeline_native()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native.md)**
+  — the **Vallim pipeline**, a post-processing layer developed by Julia
+  Ribeiro da Silva Vallim that replaces Condor’s classification logic
+  with an adaptive 7-rule rule set (Fix 25, 26a/b/c, 27, 29, Rules 3–7).
+  Handles edge cases including fragmented episodes, long sleep periods,
+  date collisions, and adaptive nocturnal window inference from wrist
+  temperature and ambient light.
+
 zeitR is designed to complement
 [slumbR](https://github.com/circadia-bio/slumbR) in the Circadia Lab
 ecosystem: slumbR handles sleep diary and questionnaire data, zeitR
-handles the actigraphy side of a study, and both speak the same tidy,
-pipeline-friendly R idioms.
+handles the actigraphy side of a study.
 
 ------------------------------------------------------------------------
 
@@ -41,51 +55,64 @@ pipeline-friendly R idioms.
 
 - 📥
   **[`read_actigraphy()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy.md)**
-  — parse a raw device file into a `zeitr_recording` object with
-  `$epochs` and `$metadata`
+  — parse a raw device file into a `zeitr_recording` object
 - 📂
   **[`read_actigraphy_dir()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy_dir.md)**
-  — batch-read a whole directory of files into a `zeitr_study`
+  — batch-read a whole directory into a `zeitr_study`
 - 🔍
   **[`check_consistency()`](https://zeitr.circadia-lab.uk/reference/check_consistency.md)**
-  — flag timestamp gaps, backward jumps, and firmware year artefacts
+  — flag timestamp gaps, backward jumps, and firmware artefacts
 - 🦾
   **[`detect_offwrist_bimodal()`](https://zeitr.circadia-lab.uk/reference/detect_offwrist_bimodal.md)**
-  — Condor bimodal activity/temperature off-wrist detection (three-stage
-  refiner)
+  — Condor bimodal activity/temperature off-wrist detection
 - 😴
   **[`detect_sleep_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_sleep_crespo.md)**
   — main sleep period detection (Crespo et al., 2012)
 - 💤
   **[`detect_naps_crespo()`](https://zeitr.circadia-lab.uk/reference/detect_naps_crespo.md)**
-  — secondary sleep period (nap) detection (Crespo et al., 2012)
+  — secondary sleep period detection (Crespo et al., 2012)
 - ⏱️
   **[`score_epochs_cole_kripke()`](https://zeitr.circadia-lab.uk/reference/score_epochs_cole_kripke.md)**
   — epoch-level wake/sleep scoring (Cole & Kripke, 1992)
 - 📊
   **[`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md)**
-  — nightly TBT, TST, WASO, SOL, SOI, number of awakenings, and sleep
-  efficiency
+  — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency
 - 📐
   **[`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)**
-  — non-parametric circadian rhythm analysis: IS, IV, RA, L5, M10
+  — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)
 - 🗂️
   **[`study_summary()`](https://zeitr.circadia-lab.uk/reference/study_summary.md)**
   — participant-level NPCRA summary across a whole study
 - 🚀
   **[`run_pipeline()`](https://zeitr.circadia-lab.uk/reference/run_pipeline.md)**
-  — run the complete pipeline on a single file in one call
+  — full CSPD pipeline on a single file
 - 🗃️
   **[`run_pipeline_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_batch.md)**
-  — run the complete pipeline across a directory of files
+  — CSPD pipeline across a directory
+- 🌙
+  **[`run_pipeline_native()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native.md)**
+  — full Vallim pipeline on a single file
+- 🌙
+  **[`run_pipeline_native_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native_batch.md)**
+  — Vallim pipeline across a directory
+- 🔬
+  **[`extract_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/extract_sleep_episodes.md)**
+  — extract per-episode statistics from a CSPD-scored table
+- 🔬
+  **[`classify_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.md)**
+  — apply the JRSV rule set to classify episodes
+- 📏
+  **[`circ_mean_h()`](https://zeitr.circadia-lab.uk/reference/circ_mean_h.md)**
+  — circular mean for clock-time variables (handles midnight wrap)
+- 📏
+  **[`circ_sd_h()`](https://zeitr.circadia-lab.uk/reference/circ_sd_h.md)**
+  — circular SD for clock-time variables
 - 🏷️
   **[`label_states()`](https://zeitr.circadia-lab.uk/reference/label_states.md)**
-  — convert integer epoch states to a human-readable factor (`"wake"`,
-  `"sleep"`, `"nap"`, `"off-wrist"`)
+  — convert integer epoch states to a human-readable factor
 - ⚙️
   **[`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md)**
-  — device parameter preset; copy and modify to adapt the pipeline to
-  other devices
+  — device parameter preset for the ActTrust actigraph
 
 ------------------------------------------------------------------------
 
@@ -95,38 +122,37 @@ pipeline-friendly R idioms.
 
 ``` r
 
-# Install from GitHub
-# install.packages("pak")
+install.packages("pak")
 pak::pak("circadia-bio/zeitR")
 ```
 
-### Single recording
+### CSPD pipeline
 
 ``` r
 
 library(zeitR)
 
-rec <- read_actigraphy("recordings/P001.txt", tz = "America/Sao_Paulo")
-rec$epochs    # tidy epoch-level tibble
-rec$metadata  # device info, firmware, epoch length
-```
-
-### Full pipeline
-
-``` r
-
 result <- run_pipeline("recordings/P001.txt", tz = "America/Sao_Paulo")
 
 result$nights  # nightly sleep statistics
-result$data    # epoch-level tibble with state, sleep, offwrist columns
-result$issues  # timestamp consistency issues (0 rows if none)
+result$data    # epoch-level tibble with state column
+result$issues  # timestamp consistency flags
+```
+
+### Vallim pipeline
+
+``` r
+
+result <- run_pipeline_native("recordings/P001.txt", tz = "America/Sao_Paulo")
+
+# nights has an additional sleep_type column ("main" / "secondary")
+result$nights |> dplyr::filter(sleep_type == "main")
 ```
 
 ### State labels
 
 ``` r
 
-# Convert integer states to readable labels for display or plotting
 result$data$state_label <- label_states(result$data$state)
 
 table(result$data$state_label)
@@ -134,37 +160,37 @@ table(result$data$state_label)
 #>     48231     24603       892      2470
 ```
 
-### Device configuration
+### Circular statistics
 
 ``` r
 
-# The pipeline ships with ActTrust-validated defaults via acttrust_params().
-# To adapt for a different device, copy and modify:
-p <- acttrust_params()
-p$sleep$sleep_quantile <- 1/3   # original Crespo (2012) threshold
+main_nights <- result$nights |> dplyr::filter(sleep_type == "main")
+onset_h     <- as.numeric(format(main_nights$bed_time, "%H")) +
+               as.numeric(format(main_nights$bed_time, "%M")) / 60
 
-result <- run_pipeline("recordings/P001.txt", params = p)
+circ_mean_h(onset_h)  # mean sleep onset (handles midnight wrap)
+circ_sd_h(onset_h)    # within-person variability in sleep onset
 ```
 
 ### Non-parametric circadian rhythm analysis
 
 ``` r
 
+rec   <- read_acttrust("recordings/P001.txt", tz = "America/Sao_Paulo")
 npcra <- compute_npcra(rec)
 npcra
-#>   participant_id    IS    IV    RA    L5 L5_onset   M10 M10_onset n_days n_epochs
-#>            P001  0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0    10080
+#>   IS    IV    RA    L5 L5_onset   M10 M10_onset n_days
+#>   0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0
 ```
 
-### Whole study
+### Device configuration
 
 ``` r
 
-study <- read_actigraphy_dir("recordings/", tz = "America/Sao_Paulo")
-study_summary(study)
-#>   participant_id n_epochs n_days    IS    IV    RA    L5 L5_onset   M10 M10_onset
-#>            P001    10080   7.00  0.72  0.43  0.89  12.3    02:30  84.7     11:00
-#>            P002     9950   6.91  0.68  0.51  0.85  10.1    03:00  79.4     10:30
+p <- acttrust_params()
+p$sleep$sleep_quantile <- 1/3   # original Crespo (2012) threshold
+
+result <- run_pipeline("recordings/P001.txt", params = p)
 ```
 
 ------------------------------------------------------------------------
@@ -178,20 +204,21 @@ study_summary(study)
 | `IS` | Interdaily stability — consistency of the 24 h rhythm across days (0–1) |
 | `IV` | Intradaily variability — fragmentation of the rest-activity rhythm (≥ 0) |
 | `RA` | Relative amplitude — contrast between M10 and L5 (0–1) |
-| `L5` / `L5_onset` | Mean activity and onset time of the least active 5 h window |
-| `M10` / `M10_onset` | Mean activity and onset time of the most active 10 h window |
+| `L5` / `L5_onset` | Mean activity and onset of the least active 5 h window |
+| `M10` / `M10_onset` | Mean activity and onset of the most active 10 h window |
 
-### Nightly sleep statistics (`compute_waso()`)
+### Nightly sleep statistics
 
-| Variable | Definition                      |
-|----------|---------------------------------|
-| `tbt`    | Total Bed Time (epochs)         |
-| `tst`    | Total Sleep Time (epochs)       |
-| `waso`   | Wake After Sleep Onset (epochs) |
-| `sol`    | Sleep Onset Latency (epochs)    |
-| `soi`    | Sleep Offset Inertia (epochs)   |
-| `nw`     | Number of awakenings            |
-| `eff`    | Sleep efficiency — TST / TBT    |
+| Variable     | Definition                                       |
+|--------------|--------------------------------------------------|
+| `tbt`        | Total Bed Time (minutes)                         |
+| `tst`        | Total Sleep Time (minutes)                       |
+| `waso`       | Wake After Sleep Onset (minutes)                 |
+| `sol`        | Sleep Onset Latency (minutes)                    |
+| `soi`        | Sleep Offset Inertia (minutes)                   |
+| `nw`         | Number of awakenings                             |
+| `eff`        | Sleep efficiency — TST / TBT                     |
+| `sleep_type` | `"main"` or `"secondary"` (Vallim pipeline only) |
 
 ------------------------------------------------------------------------
 
@@ -203,12 +230,13 @@ study_summary(study)
 | Sleep period detection | Crespo adaptive median filter | Crespo et al. (2012) | ActTrust ✓ |
 | Nap detection | Crespo zero-proportion filter | Crespo et al. (2012) | ActTrust ✓ |
 | Epoch scoring | Cole-Kripke weighted ZCM sum | Cole & Kripke (1992) | ActTrust ✓ |
+| Episode classification | Vallim JRSV rule set (Fixes 25, 26a/b/c, 27, 29) | Vallim (2024) | ActTrust ✓ |
 
-All four stages have been validated epoch-for-epoch (`0 / 76196`
-mismatches) against the Condor circadiaBase Python reference pipeline on
-an ActTrust recording. Default parameters in
-[`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md)
-reproduce this reference exactly.
+The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196
+mismatches) against the Condor circadiaBase Python reference. The Vallim
+pipeline has been validated at the classification level: all 52 main
+nights on the ActTrust validation recording classified identically to
+Julia Vallim’s Python reference notebook.
 
 ------------------------------------------------------------------------
 
@@ -216,32 +244,36 @@ reproduce this reference exactly.
 
     zeitR/
     ├── R/
-    │   ├── zeitR-package.R       # package-level docs
+    │   ├── zeitR-package.R       # package-level docs and Rcpp registration
     │   ├── read_acttrust.R       # ActTrust file parser
     │   ├── read_actigraphy.R     # device-agnostic wrapper, zeitr_study
-    │   ├── prepare.R             # temperature clamping, state columns
+    │   ├── prepare.R             # temperature clamping, state column init
     │   ├── consistency.R         # timestamp quality checks
     │   ├── offwrist.R            # detect_offwrist_bimodal()
     │   ├── offwrist_refiner.R    # three-stage BimodalOffwristRefiner port
     │   ├── sleep_periods.R       # detect_sleep_crespo(), detect_naps_crespo()
+    │   ├── sleep_classify.R      # Vallim pipeline: extract + classify episodes
     │   ├── cole_kripke.R         # score_epochs_cole_kripke()
     │   ├── waso.R                # compute_waso()
     │   ├── npcra.R               # compute_npcra()
     │   ├── study_summary.R       # study_summary()
-    │   ├── params.R              # acttrust_params() device preset
-    │   ├── pipeline.R            # run_pipeline(), run_pipeline_batch()
-    │   └── utils.R               # label_states() + internal helpers
+    │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
+    │   ├── params.R              # acttrust_params()
+    │   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()
+    │   └── utils.R               # label_states() + Rcpp wrappers + helpers
+    ├── src/
+    │   └── rolling_filters.cpp   # Rcpp: rolling filters, diff5, Cole-Kripke
     ├── man/figures/
-    │   ├── logo.svg              # hex sticker
-    │   └── favicon.svg           # favicon
+    │   ├── logo.svg
+    │   └── favicon.svg
     ├── vignettes/
     │   ├── getting-started.Rmd
     │   ├── npcra.Rmd
-    │   └── study-analysis.Rmd
+    │   ├── sleep-analysis.Rmd    # CSPD pipeline walkthrough
+    │   ├── study-analysis.Rmd
+    │   └── vallim-pipeline.Rmd   # Vallim pipeline walkthrough
     ├── tests/testthat/
-    ├── .github/workflows/
-    │   ├── R-CMD-check.yaml
-    │   └── pkgdown.yaml
+    ├── inst/extdata/             # validation fixtures
     ├── DESCRIPTION
     ├── NEWS.md
     └── zeitR.Rproj
@@ -250,12 +282,14 @@ reproduce this reference exactly.
 
 ## 📦 Dependencies
 
-| Package   | Version | Purpose                |
-|-----------|---------|------------------------|
-| cli       | ≥ 3.6.0 | Messages and progress  |
-| lubridate | ≥ 1.9.0 | Date/time handling     |
-| tibble    | ≥ 3.0.0 | Tidy data frames       |
-| tidyr     | ≥ 1.3.0 | Pivoting and reshaping |
+| Package   | Version | Purpose                               |
+|-----------|---------|---------------------------------------|
+| cli       | ≥ 3.6.0 | Messages and progress                 |
+| lubridate | ≥ 1.9.0 | Date/time handling                    |
+| mclust    | any     | Bimodal GMM for off-wrist detection   |
+| Rcpp      | ≥ 1.0.0 | C++ rolling filters and epoch scoring |
+| tibble    | ≥ 3.0.0 | Tidy data frames                      |
+| tidyr     | ≥ 1.3.0 | Pivoting and reshaping                |
 
 ------------------------------------------------------------------------
 
@@ -265,23 +299,24 @@ reproduce this reference exactly.
 |----|----|----|
 | Author, maintainer | Lucas França | Northumbria University, Circadia Lab |
 | Author | Mario Leocadio-Miguel | Northumbria University, Circadia Lab |
+| Contributor | Julia Ribeiro da Silva Vallim | Universidade Federal de São Paulo |
 
 ------------------------------------------------------------------------
 
 ## 🤝 Related Tools
 
-- 🌙 [**slumbR**](https://github.com/circadia-bio/slumbR) — R companion
-  for Sleep Diaries exports (sleep variables, questionnaire scoring)
-- 🧮 [**tallieR**](https://github.com/circadia-bio/tallieR) — R
-  companion for ScoreMe questionnaire exports
+- 🌙 [**slumbR**](https://github.com/circadia-bio/slumbR) — sleep diary
+  processing and circadian metrics
+- 🧮 [**tallieR**](https://github.com/circadia-bio/tallieR) —
+  sociodemographic and questionnaire scoring
+- 🔄 [**syncR**](https://github.com/circadia-bio/syncR) — unified
+  participant-indexed database for the Circadia ecosystem
 - 🔬 [**circadia-bio**](https://github.com/circadia-bio) — the Circadia
   Lab GitHub organisation
 
 ------------------------------------------------------------------------
 
 ## 📄 Licence
-
-![](inst/logo.png)
 
 Released under the [MIT License](https://zeitr.circadia-lab.uk/LICENSE).
 

@@ -63,6 +63,14 @@ Run the full analysis pipeline on one file or a directory.
   : Run the pipeline on all files in a directory
 - [`acttrust_params()`](https://zeitr.circadia-lab.uk/reference/acttrust_params.md)
   : ActTrust device parameter preset
+- [`run_pipeline_native()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native.md)
+  : Run the Vallim native actigraphy sleep analysis pipeline
+- [`run_pipeline_native_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native_batch.md)
+  : Run the native pipeline on all files in a directory
+- [`extract_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/extract_sleep_episodes.md)
+  : Extract sleep episodes from a CSPD-scored epoch table
+- [`classify_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.md)
+  : Classify sleep episodes as main or secondary (native pipeline)
 
 ## Utilities
 
@@ -70,6 +78,10 @@ Helper functions for working with pipeline output.
 
 - [`label_states()`](https://zeitr.circadia-lab.uk/reference/label_states.md)
   : Convert integer epoch states to a labelled factor
+- [`circ_mean_h()`](https://zeitr.circadia-lab.uk/reference/circ_mean_h.md)
+  : Circular mean of clock times in decimal hours
+- [`circ_sd_h()`](https://zeitr.circadia-lab.uk/reference/circ_sd_h.md)
+  : Circular standard deviation of clock times in decimal hours
 
 ## Package
 

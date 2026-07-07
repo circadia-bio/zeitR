@@ -8,10 +8,14 @@
 - **[Mario Leocadio-Miguel](https://orcid.org/0000-0002-7248-3529)**.
   Author. [](https://orcid.org/0000-0002-7248-3529)
 
+- **[Julia Ribeiro da Silva
+  Vallim](https://orcid.org/0000-0001-8708-8479)**. Contributor.
+  [](https://orcid.org/0000-0001-8708-8479)
+
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/circadia-bio/zeitR/blob/v0.1.0/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/circadia-bio/zeitR/blob/main/DESCRIPTION)
 
 França L, Leocadio-Miguel M (2026). *zeitR: Actigraphy Data Parsing and
 Analysis for R*. R package version 0.1.0,

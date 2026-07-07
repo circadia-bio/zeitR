@@ -109,6 +109,7 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Examples</h6></li>
     <li><a class="dropdown-item" href="../articles/sleep-analysis.html">Single-recording sleep analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
   </ul></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
@@ -128,9 +129,50 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.0/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.1" id="zeitr-011-2026-07">zeitR 0.1.1 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-011-2026-07"></a></h2>
+<div class="section level3">
+<h3 id="vallim-native-pipeline-0-1-1">Vallim native pipeline<a class="anchor" aria-label="anchor" href="#vallim-native-pipeline-0-1-1"></a></h3>
+<ul><li>
+<code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code> — full single-recording pipeline using the Vallim (JRSV) rule set developed by Julia Ribeiro da Silva Vallim. Replaces Condor’s <code>nights_df</code> classification with a 7-step adaptive rule set: Fix 25 (truncated episode exclusion), Fix 26a (adaptive nocturnal window inferred from wrist temperature and ambient light), Fix 26b (sleep-date collision resolution), Fix 26c (fragmented episode recovery), Fix 29 (14–16 h episode splitting), Rules 3–5 (main/secondary classification), Rule 6 (longest-main-per-date selection), Rule 7 (days-without-main exclusion). Validated against the Python reference pipeline: all 52 main nights on the ActTrust validation recording classified identically.</li>
+<li>
+<code><a href="../reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code> — directory-level wrapper for <code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code>.</li>
+<li>
+<code><a href="../reference/extract_sleep_episodes.html">extract_sleep_episodes()</a></code> — convert a CSPD-scored epoch table into a per-episode tibble with WASO, SOL, SOI, TST, NW, EFF derived via Cole-Kripke epoch scoring.</li>
+<li>
+<code><a href="../reference/classify_sleep_episodes.html">classify_sleep_episodes()</a></code> — apply the full JRSV rule set to a raw episode table and return <code>sleep_type</code> (<code>"main"</code> / <code>"secondary"</code>).</li>
+<li>
+<code><a href="../reference/circ_mean_h.html">circ_mean_h()</a></code> — unit-circle circular mean for clock-time variables (Fix 20; handles midnight wrap correctly).</li>
+<li>
+<code><a href="../reference/circ_sd_h.html">circ_sd_h()</a></code> — circular SD using mean resultant length formula (Fix 24; invariant to the wrap point).</li>
+<li>Julia Ribeiro da Silva Vallim (ORCID 0000-0001-8708-8479) added as contributor in DESCRIPTION, <code>_pkgdown.yml</code>, and pipeline documentation.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="performance-rcpp-0-1-1">Performance (Rcpp)<a class="anchor" aria-label="anchor" href="#performance-rcpp-0-1-1"></a></h3>
+<ul><li>Five rolling filters replaced with Rcpp implementations — <strong>215×</strong> speedup on a 40,000-epoch recording (12 GB → 312 KB memory): <code>rolling_median_cpp</code>, <code>rolling_mean_cpp</code>, <code>rolling_var_cpp</code>, <code>rolling_zero_prop_cpp</code>, <code>rolling_quantile_cpp</code>.</li>
+<li>
+<code>diff5()</code> five-point stencil derivative ported to <code>diff5_cpp</code> — replaces the interior R <code>for</code> loop; used in off-wrist temperature derivative.</li>
+<li>
+<code><a href="../reference/score_epochs_cole_kripke.html">score_epochs_cole_kripke()</a></code> ported to <code>score_epochs_cole_kripke_cpp</code> — single-pass O(n) convolution replaces 17 vectorised R additions.</li>
+<li>
+<code>Rcpp (&gt;= 1.0.0)</code> added to <code>Imports</code> and <code>LinkingTo</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="other-changes-0-1-1">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-1"></a></h3>
+<ul><li>
+<code>mclust</code> moved from <code>Suggests</code> to <code>Imports</code>; the GMM fallback warning is no longer emitted for standard ActTrust recordings.</li>
+<li>
+<code>_pkgdown.yml</code> updated with all new exports and Julia Vallim authorship.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="tests-0-1-1">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-1"></a></h3>
+<ul><li>Rcpp rolling filter parity tests (<code>test-rolling-filters-parity.R</code>): all five filters, <code>diff5_cpp</code>, and <code>score_epochs_cole_kripke_cpp</code> validated against R reference implementations.</li>
+<li>Vallim pipeline classification parity tests (<code>test-vallim-parity.R</code>): episode count, sleep-date coverage, and <code>sleep_type</code> classification locked against <code>inst/extdata/vallim_nights.csv</code> (generated by <code>dev/parity_vallim.py</code> on the Python reference pipeline).</li>
+</ul><hr></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="zeitr-010-2026-06">zeitR 0.1.0 (2026-06)<a class="anchor" aria-label="anchor" href="#zeitr-010-2026-06"></a></h2>
 <div class="section level3">

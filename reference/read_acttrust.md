@@ -45,15 +45,19 @@ A tibble with one row per epoch and the following columns:
 
 - `int_temp`:
 
-  `double` — internal (on-body) temperature, °C.
+  `double` — internal (on-body) temperature, degC.
 
 - `ext_temp`:
 
-  `double` — external (ambient) temperature, °C. `NA` if unavailable.
+  `double` — external (ambient) temperature, degC. `NA` if unavailable.
 
 - `ZCMn`:
 
   `double` — normalised zero-crossing mode count. `NA` if unavailable.
+
+- `light`:
+
+  `double` — total light intensity (lux). `NA` if unavailable.
 
 - `state`:
 
@@ -67,8 +71,8 @@ A tibble with one row per epoch and the following columns:
 
   `double` — sleep indicator, initialised to `0`.
 
-The tibble carries a `"zeitr_recording"` class and a `metadata`
-attribute (a named list with `subject`, `device_id`, `device_model`,
+The tibble carries a `"zeitr_acttrust"` class and a `metadata` attribute
+(a named list with `subject`, `device_id`, `device_model`,
 `firmware_version`, `interval_s`, `source_file`).
 
 ## Examples

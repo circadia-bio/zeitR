@@ -141,6 +141,7 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Examples</h6></li>
     <li><a class="dropdown-item" href="../articles/sleep-analysis.html">Single-recording sleep analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -173,7 +174,7 @@
       <img src="../logo.svg" class="logo" alt=""><h1>Single-recording sleep analysis</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.0/vignettes/sleep-analysis.Rmd" class="external-link"><code>vignettes/sleep-analysis.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/vignettes/sleep-analysis.Rmd" class="external-link"><code>vignettes/sleep-analysis.Rmd</code></a></small>
       <div class="d-none name"><code>sleep-analysis.Rmd</code></div>
     </div>
 
@@ -203,20 +204,21 @@ information from the file header).</p>
 <span></span>
 <span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_acttrust.html">read_acttrust</a></span><span class="op">(</span><span class="va">FILE</span>, tz <span class="op">=</span> <span class="va">TZ</span><span class="op">)</span></span>
 <span><span class="va">rec</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 76,196 × 8</span></span></span>
-<span><span class="co">#&gt;    datetime            activity int_temp ext_temp      ZCMn state offwrist sleep</span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;dttm&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> 2021-05-27 <span style="color: #949494;">11:10:15</span>     <span style="text-decoration: underline;">4</span>856     24.2     23.9   6.35<span style="color: #949494;">e</span><span style="color: #BB0000;">-8</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> 2021-05-27 <span style="color: #949494;">11:11:15</span>     <span style="text-decoration: underline;">4</span>483     24.4     24.1   1.5 <span style="color: #949494;">e</span>+0     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> 2021-05-27 <span style="color: #949494;">11:12:15</span>      425     24.4     23.9   5   <span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> 2021-05-27 <span style="color: #949494;">11:13:15</span>      873     24.4     23.9   2.67<span style="color: #949494;">e</span><span style="color: #BB0000;">-1</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> 2021-05-27 <span style="color: #949494;">11:14:15</span>      413     24.4     23.8   1.67<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> 2021-05-27 <span style="color: #949494;">11:15:15</span>      388     24.4     23.8   8.33<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> 2021-05-27 <span style="color: #949494;">11:16:15</span>      561     24.3     23.8   1.17<span style="color: #949494;">e</span><span style="color: #BB0000;">-1</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> 2021-05-27 <span style="color: #949494;">11:17:15</span>      447     24.3     23.7   5   <span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> 2021-05-27 <span style="color: #949494;">11:18:15</span>      196     24.2     23.6   0   <span style="color: #949494;"> </span>       0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> 2021-05-27 <span style="color: #949494;">11:19:15</span>      192     24.2     23.6   1.67<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>     0        0     0</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 76,186 more rows</span></span></span></code></pre></div>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 76,196 × 9</span></span></span>
+<span><span class="co">#&gt;    datetime            activity int_temp ext_temp      ZCMn light state offwrist</span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;dttm&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> 2021-05-27 <span style="color: #949494;">11:10:15</span>     <span style="text-decoration: underline;">4</span>856     24.2     23.9   6.35<span style="color: #949494;">e</span><span style="color: #BB0000;">-8</span>  26.0     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> 2021-05-27 <span style="color: #949494;">11:11:15</span>     <span style="text-decoration: underline;">4</span>483     24.4     24.1   1.5 <span style="color: #949494;">e</span>+0  12.6     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> 2021-05-27 <span style="color: #949494;">11:12:15</span>      425     24.4     23.9   5   <span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>  41.6     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> 2021-05-27 <span style="color: #949494;">11:13:15</span>      873     24.4     23.9   2.67<span style="color: #949494;">e</span><span style="color: #BB0000;">-1</span>  43.9     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> 2021-05-27 <span style="color: #949494;">11:14:15</span>      413     24.4     23.8   1.67<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>  34.6     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> 2021-05-27 <span style="color: #949494;">11:15:15</span>      388     24.4     23.8   8.33<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>  42.4     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> 2021-05-27 <span style="color: #949494;">11:16:15</span>      561     24.3     23.8   1.17<span style="color: #949494;">e</span><span style="color: #BB0000;">-1</span>  58.7     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> 2021-05-27 <span style="color: #949494;">11:17:15</span>      447     24.3     23.7   5   <span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>  57.7     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> 2021-05-27 <span style="color: #949494;">11:18:15</span>      196     24.2     23.6   0   <span style="color: #949494;"> </span>    51.8     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> 2021-05-27 <span style="color: #949494;">11:19:15</span>      192     24.2     23.6   1.67<span style="color: #949494;">e</span><span style="color: #BB0000;">-2</span>  56.8     0        0</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 76,186 more rows</span></span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 1 more variable: sleep &lt;dbl&gt;</span></span></span></code></pre></div>
 <p>The recording spans 52 days at 1-minute epochs — a typical ambulatory
 study length.</p>
 <hr>

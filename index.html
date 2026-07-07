@@ -146,6 +146,7 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Examples</h6></li>
     <li><a class="dropdown-item" href="articles/sleep-analysis.html">Single-recording sleep analysis</a></li>
+    <li><a class="dropdown-item" href="articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -179,36 +180,48 @@
 <p><a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a> <a href="https://www.r-project.org/" class="external-link"><img src="https://img.shields.io/badge/R-%3E%3D4.1-276DC3" alt="R"></a> <a href="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R CMD CHECK"></a> <a href="https://github.com/circadia-bio/zeitR" class="external-link"><img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status"></a> <a href="https://zeitr.circadia-lab.uk"><img src="https://img.shields.io/badge/docs-zeitr.circadia--lab.uk-F0A500" alt="pkgdown"></a></p>
 <hr>
 <blockquote>
-<p>⚠️ <strong>zeitR is in early development and has not been formally validated.</strong> The pipeline has been validated epoch-for-epoch against the Condor circadiaBase Python reference on an ActTrust recording, but the package has not undergone formal peer review. Verify outputs independently before using in any research context.</p>
+<p>[!WARNING] <strong>zeitR is in early development and has not been formally validated.</strong> The CSPD pipeline has been validated epoch-for-epoch against the Condor circadiaBase Python reference on an ActTrust recording. The Vallim pipeline has been validated at the classification level against Julia Vallim’s Python reference notebook. Neither pipeline has undergone formal peer review. Verify outputs independently before using in any research context.</p>
 </blockquote>
 <hr>
 <div class="section level2">
 <h2 id="open_book-what-is-zeitr">📖 What is zeitR?<a class="anchor" aria-label="anchor" href="#open_book-what-is-zeitr"></a>
 </h2>
 <p>zeitR is an R package for importing, parsing, and analysing raw actigraphy recordings from wrist-worn devices. It runs a full rest-activity pipeline — off-wrist detection, sleep period identification, WASO computation — and computes standard non-parametric circadian rhythm variables (IS, IV, RA, L5, M10), returning tidy data frames ready for downstream chronobiological analysis.</p>
-<p>zeitR is designed to complement <a href="https://github.com/circadia-bio/slumbR" class="external-link">slumbR</a> in the Circadia Lab ecosystem: slumbR handles sleep diary and questionnaire data, zeitR handles the actigraphy side of a study, and both speak the same tidy, pipeline-friendly R idioms.</p>
+<p>zeitR ships two end-to-end pipelines:</p>
+<ul>
+<li>
+<strong><code><a href="reference/run_pipeline.html">run_pipeline()</a></code></strong> — the Condor CSPD pipeline, validated epoch-for-epoch against the Condor circadiaBase Python reference.</li>
+<li>
+<strong><code><a href="reference/run_pipeline_native.html">run_pipeline_native()</a></code></strong> — the <strong>Vallim pipeline</strong>, a post-processing layer developed by Julia Ribeiro da Silva Vallim that replaces Condor’s classification logic with an adaptive 7-rule rule set (Fix 25, 26a/b/c, 27, 29, Rules 3–7). Handles edge cases including fragmented episodes, long sleep periods, date collisions, and adaptive nocturnal window inference from wrist temperature and ambient light.</li>
+</ul>
+<p>zeitR is designed to complement <a href="https://github.com/circadia-bio/slumbR" class="external-link">slumbR</a> in the Circadia Lab ecosystem: slumbR handles sleep diary and questionnaire data, zeitR handles the actigraphy side of a study.</p>
 <hr>
 </div>
 <div class="section level2">
 <h2 id="sparkles-features">✨ Features<a class="anchor" aria-label="anchor" href="#sparkles-features"></a>
 </h2>
 <ul>
-<li>📥 <strong><code><a href="reference/read_actigraphy.html">read_actigraphy()</a></code></strong> — parse a raw device file into a <code>zeitr_recording</code> object with <code>$epochs</code> and <code>$metadata</code>
+<li>📥 <strong><code><a href="reference/read_actigraphy.html">read_actigraphy()</a></code></strong> — parse a raw device file into a <code>zeitr_recording</code> object</li>
+<li>📂 <strong><code><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code></strong> — batch-read a whole directory into a <code>zeitr_study</code>
 </li>
-<li>📂 <strong><code><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code></strong> — batch-read a whole directory of files into a <code>zeitr_study</code>
-</li>
-<li>🔍 <strong><code><a href="reference/check_consistency.html">check_consistency()</a></code></strong> — flag timestamp gaps, backward jumps, and firmware year artefacts</li>
-<li>🦾 <strong><code><a href="reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code></strong> — Condor bimodal activity/temperature off-wrist detection (three-stage refiner)</li>
+<li>🔍 <strong><code><a href="reference/check_consistency.html">check_consistency()</a></code></strong> — flag timestamp gaps, backward jumps, and firmware artefacts</li>
+<li>🦾 <strong><code><a href="reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code></strong> — Condor bimodal activity/temperature off-wrist detection</li>
 <li>😴 <strong><code><a href="reference/detect_sleep_crespo.html">detect_sleep_crespo()</a></code></strong> — main sleep period detection (Crespo et al., 2012)</li>
-<li>💤 <strong><code><a href="reference/detect_naps_crespo.html">detect_naps_crespo()</a></code></strong> — secondary sleep period (nap) detection (Crespo et al., 2012)</li>
+<li>💤 <strong><code><a href="reference/detect_naps_crespo.html">detect_naps_crespo()</a></code></strong> — secondary sleep period detection (Crespo et al., 2012)</li>
 <li>⏱️ <strong><code><a href="reference/score_epochs_cole_kripke.html">score_epochs_cole_kripke()</a></code></strong> — epoch-level wake/sleep scoring (Cole &amp; Kripke, 1992)</li>
-<li>📊 <strong><code><a href="reference/compute_waso.html">compute_waso()</a></code></strong> — nightly TBT, TST, WASO, SOL, SOI, number of awakenings, and sleep efficiency</li>
-<li>📐 <strong><code><a href="reference/compute_npcra.html">compute_npcra()</a></code></strong> — non-parametric circadian rhythm analysis: IS, IV, RA, L5, M10</li>
+<li>📊 <strong><code><a href="reference/compute_waso.html">compute_waso()</a></code></strong> — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency</li>
+<li>📐 <strong><code><a href="reference/compute_npcra.html">compute_npcra()</a></code></strong> — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)</li>
 <li>🗂️ <strong><code><a href="reference/study_summary.html">study_summary()</a></code></strong> — participant-level NPCRA summary across a whole study</li>
-<li>🚀 <strong><code><a href="reference/run_pipeline.html">run_pipeline()</a></code></strong> — run the complete pipeline on a single file in one call</li>
-<li>🗃️ <strong><code><a href="reference/run_pipeline_batch.html">run_pipeline_batch()</a></code></strong> — run the complete pipeline across a directory of files</li>
-<li>🏷️ <strong><code><a href="reference/label_states.html">label_states()</a></code></strong> — convert integer epoch states to a human-readable factor (<code>"wake"</code>, <code>"sleep"</code>, <code>"nap"</code>, <code>"off-wrist"</code>)</li>
-<li>⚙️ <strong><code><a href="reference/acttrust_params.html">acttrust_params()</a></code></strong> — device parameter preset; copy and modify to adapt the pipeline to other devices</li>
+<li>🚀 <strong><code><a href="reference/run_pipeline.html">run_pipeline()</a></code></strong> — full CSPD pipeline on a single file</li>
+<li>🗃️ <strong><code><a href="reference/run_pipeline_batch.html">run_pipeline_batch()</a></code></strong> — CSPD pipeline across a directory</li>
+<li>🌙 <strong><code><a href="reference/run_pipeline_native.html">run_pipeline_native()</a></code></strong> — full Vallim pipeline on a single file</li>
+<li>🌙 <strong><code><a href="reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code></strong> — Vallim pipeline across a directory</li>
+<li>🔬 <strong><code><a href="reference/extract_sleep_episodes.html">extract_sleep_episodes()</a></code></strong> — extract per-episode statistics from a CSPD-scored table</li>
+<li>🔬 <strong><code><a href="reference/classify_sleep_episodes.html">classify_sleep_episodes()</a></code></strong> — apply the JRSV rule set to classify episodes</li>
+<li>📏 <strong><code><a href="reference/circ_mean_h.html">circ_mean_h()</a></code></strong> — circular mean for clock-time variables (handles midnight wrap)</li>
+<li>📏 <strong><code><a href="reference/circ_sd_h.html">circ_sd_h()</a></code></strong> — circular SD for clock-time variables</li>
+<li>🏷️ <strong><code><a href="reference/label_states.html">label_states()</a></code></strong> — convert integer epoch states to a human-readable factor</li>
+<li>⚙️ <strong><code><a href="reference/acttrust_params.html">acttrust_params()</a></code></strong> — device parameter preset for the ActTrust actigraph</li>
 </ul>
 <hr>
 </div>
@@ -219,70 +232,69 @@
 <h3 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h3>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install from GitHub</span></span>
-<span><span class="co"># install.packages("pak")</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"pak"</span><span class="op">)</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"circadia-bio/zeitR"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="single-recording">Single recording<a class="anchor" aria-label="anchor" href="#single-recording"></a>
+<h3 id="cspd-pipeline">CSPD pipeline<a class="anchor" aria-label="anchor" href="#cspd-pipeline"></a>
 </h3>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://zeitr.circadia-lab.uk">zeitR</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_actigraphy.html">read_actigraphy</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
-<span><span class="va">rec</span><span class="op">$</span><span class="va">epochs</span>    <span class="co"># tidy epoch-level tibble</span></span>
-<span><span class="va">rec</span><span class="op">$</span><span class="va">metadata</span>  <span class="co"># device info, firmware, epoch length</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="full-pipeline">Full pipeline<a class="anchor" aria-label="anchor" href="#full-pipeline"></a>
-</h3>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline.html">run_pipeline</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline.html">run_pipeline</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">result</span><span class="op">$</span><span class="va">nights</span>  <span class="co"># nightly sleep statistics</span></span>
-<span><span class="va">result</span><span class="op">$</span><span class="va">data</span>    <span class="co"># epoch-level tibble with state, sleep, offwrist columns</span></span>
-<span><span class="va">result</span><span class="op">$</span><span class="va">issues</span>  <span class="co"># timestamp consistency issues (0 rows if none)</span></span></code></pre></div>
+<span><span class="va">result</span><span class="op">$</span><span class="va">data</span>    <span class="co"># epoch-level tibble with state column</span></span>
+<span><span class="va">result</span><span class="op">$</span><span class="va">issues</span>  <span class="co"># timestamp consistency flags</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="vallim-pipeline">Vallim pipeline<a class="anchor" aria-label="anchor" href="#vallim-pipeline"></a>
+</h3>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline_native.html">run_pipeline_native</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># nights has an additional sleep_type column ("main" / "secondary")</span></span>
+<span><span class="va">result</span><span class="op">$</span><span class="va">nights</span> <span class="op">|&gt;</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">sleep_type</span> <span class="op">==</span> <span class="st">"main"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="state-labels">State labels<a class="anchor" aria-label="anchor" href="#state-labels"></a>
 </h3>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Convert integer states to readable labels for display or plotting</span></span>
-<span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state_label</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/label_states.html">label_states</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state_label</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/label_states.html">label_states</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">state_label</span><span class="op">)</span></span>
 <span><span class="co">#&gt;      wake     sleep       nap off-wrist</span></span>
 <span><span class="co">#&gt;     48231     24603       892      2470</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
+<h3 id="circular-statistics">Circular statistics<a class="anchor" aria-label="anchor" href="#circular-statistics"></a>
 </h3>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># The pipeline ships with ActTrust-validated defaults via acttrust_params().</span></span>
-<span><span class="co"># To adapt for a different device, copy and modify:</span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/acttrust_params.html">acttrust_params</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">p</span><span class="op">$</span><span class="va">sleep</span><span class="op">$</span><span class="va">sleep_quantile</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="fl">3</span>   <span class="co"># original Crespo (2012) threshold</span></span>
+<code class="sourceCode R"><span><span class="va">main_nights</span> <span class="op">&lt;-</span> <span class="va">result</span><span class="op">$</span><span class="va">nights</span> <span class="op">|&gt;</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">sleep_type</span> <span class="op">==</span> <span class="st">"main"</span><span class="op">)</span></span>
+<span><span class="va">onset_h</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="va">main_nights</span><span class="op">$</span><span class="va">bed_time</span>, <span class="st">"%H"</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>               <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="va">main_nights</span><span class="op">$</span><span class="va">bed_time</span>, <span class="st">"%M"</span><span class="op">)</span><span class="op">)</span> <span class="op">/</span> <span class="fl">60</span></span>
 <span></span>
-<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline.html">run_pipeline</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, params <span class="op">=</span> <span class="va">p</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="reference/circ_mean_h.html">circ_mean_h</a></span><span class="op">(</span><span class="va">onset_h</span><span class="op">)</span>  <span class="co"># mean sleep onset (handles midnight wrap)</span></span>
+<span><span class="fu"><a href="reference/circ_sd_h.html">circ_sd_h</a></span><span class="op">(</span><span class="va">onset_h</span><span class="op">)</span>    <span class="co"># within-person variability in sleep onset</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="non-parametric-circadian-rhythm-analysis">Non-parametric circadian rhythm analysis<a class="anchor" aria-label="anchor" href="#non-parametric-circadian-rhythm-analysis"></a>
 </h3>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">npcra</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_npcra.html">compute_npcra</a></span><span class="op">(</span><span class="va">rec</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">rec</span>   <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_acttrust.html">read_acttrust</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="va">npcra</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_npcra.html">compute_npcra</a></span><span class="op">(</span><span class="va">rec</span><span class="op">)</span></span>
 <span><span class="va">npcra</span></span>
-<span><span class="co">#&gt;   participant_id    IS    IV    RA    L5 L5_onset   M10 M10_onset n_days n_epochs</span></span>
-<span><span class="co">#&gt;            P001  0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0    10080</span></span></code></pre></div>
+<span><span class="co">#&gt;   IS    IV    RA    L5 L5_onset   M10 M10_onset n_days</span></span>
+<span><span class="co">#&gt;   0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="whole-study">Whole study<a class="anchor" aria-label="anchor" href="#whole-study"></a>
+<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
 </h3>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">study</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir</a></span><span class="op">(</span><span class="st">"recordings/"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/study_summary.html">study_summary</a></span><span class="op">(</span><span class="va">study</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   participant_id n_epochs n_days    IS    IV    RA    L5 L5_onset   M10 M10_onset</span></span>
-<span><span class="co">#&gt;            P001    10080   7.00  0.72  0.43  0.89  12.3    02:30  84.7     11:00</span></span>
-<span><span class="co">#&gt;            P002     9950   6.91  0.68  0.51  0.85  10.1    03:00  79.4     10:30</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/acttrust_params.html">acttrust_params</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">p</span><span class="op">$</span><span class="va">sleep</span><span class="op">$</span><span class="va">sleep_quantile</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="fl">3</span>   <span class="co"># original Crespo (2012) threshold</span></span>
+<span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline.html">run_pipeline</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, params <span class="op">=</span> <span class="va">p</span><span class="op">)</span></span></code></pre></div>
 <hr>
 </div>
 </div>
@@ -318,19 +330,19 @@
 <td>
 <code>L5</code> / <code>L5_onset</code>
 </td>
-<td>Mean activity and onset time of the least active 5 h window</td>
+<td>Mean activity and onset of the least active 5 h window</td>
 </tr>
 <tr>
 <td>
 <code>M10</code> / <code>M10_onset</code>
 </td>
-<td>Mean activity and onset time of the most active 10 h window</td>
+<td>Mean activity and onset of the most active 10 h window</td>
 </tr>
 </tbody>
 </table>
 </div>
 <div class="section level3">
-<h3 id="nightly-sleep-statistics-compute_waso">Nightly sleep statistics (<code>compute_waso()</code>)<a class="anchor" aria-label="anchor" href="#nightly-sleep-statistics-compute_waso"></a>
+<h3 id="nightly-sleep-statistics">Nightly sleep statistics<a class="anchor" aria-label="anchor" href="#nightly-sleep-statistics"></a>
 </h3>
 <table class="table">
 <thead><tr>
@@ -340,23 +352,23 @@
 <tbody>
 <tr>
 <td><code>tbt</code></td>
-<td>Total Bed Time (epochs)</td>
+<td>Total Bed Time (minutes)</td>
 </tr>
 <tr>
 <td><code>tst</code></td>
-<td>Total Sleep Time (epochs)</td>
+<td>Total Sleep Time (minutes)</td>
 </tr>
 <tr>
 <td><code>waso</code></td>
-<td>Wake After Sleep Onset (epochs)</td>
+<td>Wake After Sleep Onset (minutes)</td>
 </tr>
 <tr>
 <td><code>sol</code></td>
-<td>Sleep Onset Latency (epochs)</td>
+<td>Sleep Onset Latency (minutes)</td>
 </tr>
 <tr>
 <td><code>soi</code></td>
-<td>Sleep Offset Inertia (epochs)</td>
+<td>Sleep Offset Inertia (minutes)</td>
 </tr>
 <tr>
 <td><code>nw</code></td>
@@ -365,6 +377,11 @@
 <tr>
 <td><code>eff</code></td>
 <td>Sleep efficiency — TST / TBT</td>
+</tr>
+<tr>
+<td><code>sleep_type</code></td>
+<td>
+<code>"main"</code> or <code>"secondary"</code> (Vallim pipeline only)</td>
 </tr>
 </tbody>
 </table>
@@ -412,9 +429,15 @@
 <td>Cole &amp; Kripke (1992)</td>
 <td>ActTrust ✓</td>
 </tr>
+<tr>
+<td>Episode classification</td>
+<td>Vallim JRSV rule set (Fixes 25, 26a/b/c, 27, 29)</td>
+<td>Vallim (2024)</td>
+<td>ActTrust ✓</td>
+</tr>
 </tbody>
 </table>
-<p>All four stages have been validated epoch-for-epoch (<code>0 / 76196</code> mismatches) against the Condor circadiaBase Python reference pipeline on an ActTrust recording. Default parameters in <code><a href="reference/acttrust_params.html">acttrust_params()</a></code> reproduce this reference exactly.</p>
+<p>The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim’s Python reference notebook.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -422,32 +445,36 @@
 </h2>
 <pre><code>zeitR/
 ├── R/
-│   ├── zeitR-package.R       # package-level docs
+│   ├── zeitR-package.R       # package-level docs and Rcpp registration
 │   ├── read_acttrust.R       # ActTrust file parser
 │   ├── read_actigraphy.R     # device-agnostic wrapper, zeitr_study
-│   ├── prepare.R             # temperature clamping, state columns
+│   ├── prepare.R             # temperature clamping, state column init
 │   ├── consistency.R         # timestamp quality checks
 │   ├── offwrist.R            # detect_offwrist_bimodal()
 │   ├── offwrist_refiner.R    # three-stage BimodalOffwristRefiner port
 │   ├── sleep_periods.R       # detect_sleep_crespo(), detect_naps_crespo()
+│   ├── sleep_classify.R      # Vallim pipeline: extract + classify episodes
 │   ├── cole_kripke.R         # score_epochs_cole_kripke()
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
 │   ├── study_summary.R       # study_summary()
-│   ├── params.R              # acttrust_params() device preset
-│   ├── pipeline.R            # run_pipeline(), run_pipeline_batch()
-│   └── utils.R               # label_states() + internal helpers
+│   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
+│   ├── params.R              # acttrust_params()
+│   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()
+│   └── utils.R               # label_states() + Rcpp wrappers + helpers
+├── src/
+│   └── rolling_filters.cpp   # Rcpp: rolling filters, diff5, Cole-Kripke
 ├── man/figures/
-│   ├── logo.svg              # hex sticker
-│   └── favicon.svg           # favicon
+│   ├── logo.svg
+│   └── favicon.svg
 ├── vignettes/
 │   ├── getting-started.Rmd
 │   ├── npcra.Rmd
-│   └── study-analysis.Rmd
+│   ├── sleep-analysis.Rmd    # CSPD pipeline walkthrough
+│   ├── study-analysis.Rmd
+│   └── vallim-pipeline.Rmd   # Vallim pipeline walkthrough
 ├── tests/testthat/
-├── .github/workflows/
-│   ├── R-CMD-check.yaml
-│   └── pkgdown.yaml
+├── inst/extdata/             # validation fixtures
 ├── DESCRIPTION
 ├── NEWS.md
 └── zeitR.Rproj</code></pre>
@@ -472,6 +499,16 @@
 <td>lubridate</td>
 <td>≥ 1.9.0</td>
 <td>Date/time handling</td>
+</tr>
+<tr>
+<td>mclust</td>
+<td>any</td>
+<td>Bimodal GMM for off-wrist detection</td>
+</tr>
+<tr>
+<td>Rcpp</td>
+<td>≥ 1.0.0</td>
+<td>C++ rolling filters and epoch scoring</td>
 </tr>
 <tr>
 <td>tibble</td>
@@ -512,6 +549,11 @@
 <td>Mario Leocadio-Miguel</td>
 <td>Northumbria University, Circadia Lab</td>
 </tr>
+<tr>
+<td>Contributor</td>
+<td>Julia Ribeiro da Silva Vallim</td>
+<td>Universidade Federal de São Paulo</td>
+</tr>
 </tbody>
 </table>
 <hr>
@@ -520,8 +562,9 @@
 <h2 id="handshake-related-tools">🤝 Related Tools<a class="anchor" aria-label="anchor" href="#handshake-related-tools"></a>
 </h2>
 <ul>
-<li>🌙 <a href="https://github.com/circadia-bio/slumbR" class="external-link"><strong>slumbR</strong></a> — R companion for Sleep Diaries exports (sleep variables, questionnaire scoring)</li>
-<li>🧮 <a href="https://github.com/circadia-bio/tallieR" class="external-link"><strong>tallieR</strong></a> — R companion for ScoreMe questionnaire exports</li>
+<li>🌙 <a href="https://github.com/circadia-bio/slumbR" class="external-link"><strong>slumbR</strong></a> — sleep diary processing and circadian metrics</li>
+<li>🧮 <a href="https://github.com/circadia-bio/tallieR" class="external-link"><strong>tallieR</strong></a> — sociodemographic and questionnaire scoring</li>
+<li>🔄 <a href="https://github.com/circadia-bio/syncR" class="external-link"><strong>syncR</strong></a> — unified participant-indexed database for the Circadia ecosystem</li>
 <li>🔬 <a href="https://github.com/circadia-bio" class="external-link"><strong>circadia-bio</strong></a> — the Circadia Lab GitHub organisation</li>
 </ul>
 <hr>
@@ -529,7 +572,6 @@
 <div class="section level2">
 <h2 id="page_facing_up-licence">📄 Licence<a class="anchor" aria-label="anchor" href="#page_facing_up-licence"></a>
 </h2>
-<p><img src="inst/logo.png"></p>
 <p>Released under the <a href="./LICENSE">MIT License</a>.</p>
 <p>Copyright © Lucas França, Mario Leocadio-Miguel, 2026</p>
 </div>
@@ -566,6 +608,7 @@
 <a href="https://orcid.org/0000-0003-0853-1319" class="external-link">Lucas França</a> <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0000-0003-0853-1319" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li>
 <a href="https://orcid.org/0000-0002-7248-3529" class="external-link">Mario Leocadio-Miguel</a> <br><small class="roles"> Author </small> <a href="https://orcid.org/0000-0002-7248-3529" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
 
