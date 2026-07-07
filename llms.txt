@@ -365,8 +365,12 @@ Off-wrist, sleep period, and epoch-level scoring algorithms.
 
 Non-parametric circadian rhythm variables.
 
+- [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 - [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
   : Non-parametric circadian rhythm analysis (NPCRA)
+- [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  : Compute sleep metrics split by day type
 - [`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md)
   : Compute WASO and nightly sleep statistics
 
@@ -395,6 +399,16 @@ Run the full analysis pipeline on one file or a directory.
   : Extract sleep episodes from a CSPD-scored epoch table
 - [`classify_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.md)
   : Classify sleep episodes as main or secondary (native pipeline)
+
+## Sleep metrics
+
+Summarise sleep across nights and compute chronobiological phenotype
+metrics.
+
+- [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  : Compute sleep metrics split by day type
+- [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 
 ## Utilities
 

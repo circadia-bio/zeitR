@@ -16,7 +16,9 @@
 <url><loc>https://zeitr.circadia-lab.uk/reference/circ_mean_h.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/circ_sd_h.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_npcra.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_waso.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/detect_naps_crespo.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/detect_offwrist_bimodal.html</loc></url>

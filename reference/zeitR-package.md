@@ -29,7 +29,5 @@ Authors:
 - Mario Leocadio-Miguel <mario.miguel@northumbria.ac.uk>
   ([ORCID](https://orcid.org/0000-0002-7248-3529))
 
-Other contributors:
-
 - Julia Ribeiro da Silva Vallim
-  ([ORCID](https://orcid.org/0000-0001-8708-8479)) \[contributor\]
+  ([ORCID](https://orcid.org/0000-0001-8708-8479))
