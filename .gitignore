@@ -52,3 +52,6 @@ rsconnect/
 # notebooks
 notebooks/
 .DS_Store
+src/*.o
+src/*.so
+src/*.dll
