@@ -20,10 +20,8 @@
 }
 
 # Circular SD in hours (analogous to circ_sd_h but without the 2*pi scaling)
-.sd_circ_h <- function(h) {
-  s <- ifelse(h >= 12, h - 24, h)
-  sd(s, na.rm = TRUE)
-}
+# Kept for reference; sd() used directly in compute_sleep_metrics.
+# .sd_circ_h <- function(h) { s <- ifelse(h >= 12, h - 24, h); sd(s, na.rm = TRUE) }
 
 # Mirrors _midsleep
 .midsleep <- function(onset_h, offset_h) {
@@ -110,6 +108,7 @@
 #'
 #' @seealso [compute_cpd_metrics()], [run_pipeline_native()]
 #'
+#' @importFrom stats sd setNames
 #' @export
 #'
 #' @examples
@@ -137,7 +136,7 @@ compute_sleep_metrics <- function(nights,
   offset_h <- .to_h_plain(nd$get_up_time, tz) - nd$soi / 60
   mid_h    <- .midsleep(onset_h, offset_h)
 
-  .group_metrics <- function(sub, onset_sub, offset_sub, mid_sub, sfx) {
+.group_metrics <- function(sub, onset_sub, offset_sub, mid_sub, sfx) {
     pf <- function(nm) if (sfx == "") nm else paste0(nm, "_", sfx)
     if (nrow(sub) == 0L) {
       nms <- pf(c("sleep_onset_h", "sleep_offset_h", "fpr_tib_h", "fps_h",
@@ -162,11 +161,11 @@ compute_sleep_metrics <- function(nights,
       mean(sub$waso),                  # waso_min
       mean(sub$eff) * 100,             # sleep_eff_pct
       mean(sub$tst) / 60,              # tst_24h_h (same as tst_h for main-only)
-      .sd_circ_h(mid_sub) * 60,        # dp_midsleep_min
-      sd(sub$tst, na.rm = TRUE)        # dp_tst_min
+      stats::sd(mid_sub, na.rm = TRUE) * 60,        # dp_midsleep_min
+      stats::sd(sub$tst, na.rm = TRUE)        # dp_tst_min
     )
     n_sfx <- if (sfx == "") "n_overall" else paste0("n_", sfx)
-    setNames(vals, c(n_sfx, pf(c(
+    stats::setNames(vals, c(n_sfx, pf(c(
       "sleep_onset_h", "sleep_offset_h", "fpr_tib_h", "fps_h",
       "tst_h", "latencia_min", "inertia_min", "waso_min",
       "sleep_eff_pct", "tst_24h_h", "dp_midsleep_min", "dp_tst_min"
