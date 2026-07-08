@@ -12,6 +12,7 @@ run_pipeline_native(
   offwrist_args = list(),
   sleep_args = list(),
   classify_args = list(),
+  holidays = NULL,
   quiet = FALSE
 )
 }
@@ -30,6 +31,13 @@ Default \code{120}.}
 \item{sleep_args}{\code{list}. Additional arguments for \code{\link[=detect_sleep_crespo]{detect_sleep_crespo()}}.}
 
 \item{classify_args}{\code{list}. Additional arguments for \code{\link[=classify_sleep_episodes]{classify_sleep_episodes()}}.}
+
+\item{holidays}{A \code{Date} vector of public holidays to treat as free days
+in addition to Saturdays and Sundays. The Vallim classification rules
+(Fix 26a/26c, Rules 3--7) do not use day-of-week; this parameter is
+stored for convenience and should be forwarded to
+\code{\link[=compute_sleep_metrics]{compute_sleep_metrics()}} and \code{\link[=compute_cpd_metrics]{compute_cpd_metrics()}} for day-type
+metric splitting. Default \code{NULL} (weekends only).}
 
 \item{quiet}{\code{logical(1)}. Suppress timestamp warnings. Default \code{FALSE}.}
 }

@@ -216,6 +216,12 @@ print.zeitr_result <- function(x, ...) {
 #' @param offwrist_args `list`. Additional arguments for [detect_offwrist_bimodal()].
 #' @param sleep_args `list`. Additional arguments for [detect_sleep_crespo()].
 #' @param classify_args `list`. Additional arguments for [classify_sleep_episodes()].
+#' @param holidays A `Date` vector of public holidays to treat as free days
+#'   in addition to Saturdays and Sundays. The Vallim classification rules
+#'   (Fix 26a/26c, Rules 3--7) do not use day-of-week; this parameter is
+#'   stored for convenience and should be forwarded to
+#'   [compute_sleep_metrics()] and [compute_cpd_metrics()] for day-type
+#'   metric splitting. Default `NULL` (weekends only).
 #' @param quiet `logical(1)`. Suppress timestamp warnings. Default `FALSE`.
 #'
 #' @return A `zeitr_result` S3 object with the same structure as [run_pipeline()],
@@ -246,6 +252,7 @@ run_pipeline_native <- function(
     offwrist_args  = list(),
     sleep_args     = list(),
     classify_args  = list(),
+    holidays       = NULL,
     quiet          = FALSE
 ) {
   path       <- as.character(path)
@@ -325,10 +332,11 @@ run_pipeline_native <- function(
     list(
       subject_id  = subject_id,
       source_file = normalizePath(path, mustWork = FALSE),
-      data        = waso_result$data,   # CK-scored epoch state for consistency
+      data        = waso_result$data,
       nights      = nights_tbl,
       issues      = issues,
-      metadata    = attr(rec, "metadata")
+      metadata    = attr(rec, "metadata"),
+      holidays    = holidays
     ),
     class = "zeitr_result"
   )
