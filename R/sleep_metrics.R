@@ -2,6 +2,16 @@
 # R port of compute_sleep_metrics() and compute_cpd_metrics() from
 # pipeline_functions_fix27.py (Julia Ribeiro da Silva Vallim, 2024).
 # Column names and derived metrics mirror the Python output format exactly.
+#
+# Parity fixes applied in this file:
+#   fix-locale  : .is_free_day() uses format(d, "%u") (ISO 8601 weekday number)
+#                 instead of weekdays() to avoid locale-dependent day names
+#                 (e.g. "sabado" on pt_BR vs "Saturday" on en_US).
+#   fix-circular: MSF and MSW use .mean_circ_h() (circular mean) instead of
+#                 plain mean(), matching calculate_msf/msw in the fix29 notebook.
+#   fix-truncate: compute_cpd_metrics() drops episodes starting after noon on
+#                 the last recording day (truncated by end of file), matching
+#                 the nights_to_df() filter added in the fix29 notebook.
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -13,7 +23,9 @@
     as.numeric(format(x, "%S", tz = tz)) / 3600
 }
 
-# Mirrors _mean_circular_h: values >= 12 -> subtract 24 before averaging
+# Mirrors _mean_circular_h (fix27/fix29): values >= 12h shifted by -24 before
+# averaging, then wrapped to [0, 24).  Handles midnight wrap without
+# trigonometry; equivalent to fix29's sin/cos approach for typical sleep times.
 .mean_circ_h <- function(h) {
   s <- ifelse(h >= 12, h - 24, h)
   mean(s, na.rm = TRUE) %% 24
@@ -39,17 +51,34 @@
   sprintf("%02d:%02d", hh %% 24L, mm)
 }
 
-# is_free_day applied to get-up date
+# is_free_day applied to get-up date.
+# Uses ISO 8601 weekday number via format(d, "%u") instead of weekdays() to
+# avoid locale-dependent day names: weekdays() returns "Saturday" on en_US but
+# "sabado" on pt_BR, silently marking no day as a free day on non-English
+# systems.  ISO 8601: Mon=1, Tue=2, ..., Sat=6, Sun=7.
 .is_free_day <- function(dates, holidays) {
-  d <- as.Date(dates)
-  weekdays(d, abbreviate = FALSE) %in% c("Saturday", "Sunday") |
-    (!is.null(holidays) & d %in% as.Date(holidays))
+  d  <- as.Date(dates)
+  wd <- as.integer(format(d, "%u"))  # ISO 8601: Sat=6, Sun=7
+  wd %in% c(6L, 7L) | (!is.null(holidays) & d %in% as.Date(holidays))
 }
 
 # is_free_day_eve: the bed-time date + 1 day is a free day
 .is_free_day_eve <- function(bts, tz, holidays) {
   d_next <- as.Date(as.POSIXct(bts, tz = tz), tz = tz) + 1L
   .is_free_day(d_next, holidays)
+}
+
+# Emit a warning when no holidays are supplied.
+# Suppressed globally with options(zeitR.no_holidays_warn = FALSE).
+.warn_no_holidays <- function(fn) {
+  if (!isFALSE(getOption("zeitR.no_holidays_warn", TRUE))) {
+    zeitr_warn(c(
+      paste0(fn, ": no {.arg holidays} supplied."),
+      "i" = "Only Saturdays and Sundays are treated as free days.",
+      "i" = "If you ran {.fn run_pipeline_native} with holidays, pass {.code holidays = result$holidays}.",
+      "i" = "Suppress with {.code options(zeitR.no_holidays_warn = FALSE)}."
+    ))
+  }
 }
 
 
@@ -62,31 +91,42 @@
 #' `compute_sleep_metrics()` from Julia Ribeiro da Silva Vallim's
 #' `pipeline_functions_fix27.py`.
 #'
+#' Dispatches on the class of `x`:
+#' * **`data.frame` / `tibble`** -- treated as a nights table (same behaviour
+#'   as the original function signature).
+#' * **`zeitr_result`** -- extracts `x$nights` and inherits `x$holidays`
+#'   automatically; no need to forward holidays manually.
+#'
 #' @details
 #' A night is assigned to the **weekend** group when the get-up date falls on a
-#' Saturday, Sunday, or any date supplied in `holidays`. Weekday nights are all
-#' remaining nights.
+#' Saturday, Sunday, or any date supplied in `holidays`. Day-of-week is
+#' determined via the ISO 8601 weekday number (`format(date, "%u")`) rather than
+#' `weekdays()`, which is locale-dependent (returns `"sabado"` on `pt_BR`).
+#' Weekday nights are all remaining nights.
 #'
-#' `sleep_onset_h` uses a circular mean (values >= 12 h are shifted by −24 h
+#' `sleep_onset_h` uses a circular mean (values >= 12 h are shifted by -24 h
 #' before averaging, then wrapped to [0, 24)). `sleep_offset_h` uses a plain
 #' arithmetic mean.
 #'
-#' `fps_h` (free period sleep) equals `fpr_tib_h − (latencia_min + inertia_min)
-#' / 60` — TBT net of sleep onset latency and sleep inertia.
+#' `fps_h` (free period sleep) equals `fpr_tib_h - (latencia_min + inertia_min)
+#' / 60` -- TBT net of sleep onset latency and sleep inertia.
 #'
 #' `dp_midsleep_min` and `dp_tst_min` are standard deviations of per-night
 #' mid-sleep (minutes) and TST (minutes), respectively.
 #'
-#' @param nights A `tibble` of nightly sleep statistics as returned by
-#'   [run_pipeline_native()] or [run_pipeline()]. Must contain at minimum the
-#'   columns `is_nap`, `bed_time`, `get_up_time`, `tbt`, `tst`, `sol`, `soi`,
-#'   `waso`, `eff`.
+#' @param x A `zeitr_result` object **or** a `tibble` of nightly sleep
+#'   statistics as returned by [run_pipeline_native()] or [run_pipeline()].
+#'   Must contain at minimum the columns `is_nap`, `bed_time`, `get_up_time`,
+#'   `tbt`, `tst`, `sol`, `soi`, `waso`, `eff`.
 #' @param min_tib_h `numeric(1)`. Minimum total in-bed time (hours) for a night
 #'   to be included. Default is `5.0` (matching the Python reference).
 #' @param tz `character(1)`. Time zone for extracting clock hours from
 #'   timestamps. Default is `"UTC"`.
 #' @param holidays A `Date` vector of public holidays to treat as free days in
-#'   addition to Saturdays and Sundays. Default is `NULL` (weekends only).
+#'   addition to Saturdays and Sundays. Default is `NULL` (weekends only). When
+#'   `x` is a `zeitr_result`, defaults to `x$holidays` automatically. A
+#'   warning is emitted when `NULL`; suppress with
+#'   `options(zeitR.no_holidays_warn = FALSE)`.
 #'
 #' @return A named list with metrics for three groups (`overall`, `wd` =
 #'   weekday, `fd` = free day):
@@ -95,11 +135,11 @@
 #'     \item{`sleep_onset_h`, `sleep_offset_h`}{Circular mean onset and
 #'       arithmetic mean offset in decimal hours.}
 #'     \item{`fpr_tib_h`}{Mean TBT in hours.}
-#'     \item{`fps_h`}{Mean free period sleep (TBT − SOL − SOI) in hours.}
+#'     \item{`fps_h`}{Mean free period sleep (TBT - SOL - SOI) in hours.}
 #'     \item{`tst_h`}{Mean TST in hours.}
 #'     \item{`latencia_min`, `inertia_min`}{Mean SOL and SOI in minutes.}
 #'     \item{`waso_min`}{Mean WASO in minutes.}
-#'     \item{`sleep_eff_pct`}{Mean sleep efficiency in percent (0–100).}
+#'     \item{`sleep_eff_pct`}{Mean sleep efficiency in percent (0-100).}
 #'     \item{`tst_24h_h`}{Same as `tst_h` (24-h TST for main sleep only).}
 #'     \item{`dp_midsleep_min`, `dp_tst_min`}{SD of mid-sleep and TST in
 #'       minutes.}
@@ -113,19 +153,48 @@
 #'
 #' @examples
 #' \dontrun{
+#' # From a zeitr_result: holidays forwarded automatically
 #' result <- run_pipeline_native("recordings/P001.txt",
-#'                               tz = "America/Sao_Paulo")
+#'                               tz       = "America/Sao_Paulo",
+#'                               holidays = my_holidays)
+#' sm <- compute_sleep_metrics(result, tz = "America/Sao_Paulo")
 #'
-#' sm <- compute_sleep_metrics(result$nights, tz = "America/Sao_Paulo")
+#' # From a nights tibble: pass holidays explicitly
+#' sm <- compute_sleep_metrics(result$nights,
+#'                             tz       = "America/Sao_Paulo",
+#'                             holidays = my_holidays)
 #' sm$tst_h            # mean TST in hours
 #' sm$sleep_onset_h    # mean sleep onset (circular, decimal hours)
 #' sm$dp_midsleep_min  # within-person SD of mid-sleep in minutes
 #' }
-compute_sleep_metrics <- function(nights,
-                                   min_tib_h = 5.0,
-                                   tz        = "UTC",
-                                   holidays  = NULL) {
-  nd <- nights[!nights$is_nap & nights$tbt / 60 >= min_tib_h, ]
+compute_sleep_metrics <- function(x, ...) UseMethod("compute_sleep_metrics")
+
+
+#' @rdname compute_sleep_metrics
+#' @export
+compute_sleep_metrics.zeitr_result <- function(x,
+                                                min_tib_h = 5.0,
+                                                tz        = "UTC",
+                                                holidays  = x$holidays,
+                                                ...) {
+  compute_sleep_metrics.default(x$nights,
+                                 min_tib_h = min_tib_h,
+                                 tz        = tz,
+                                 holidays  = holidays,
+                                 ...)
+}
+
+
+#' @rdname compute_sleep_metrics
+#' @export
+compute_sleep_metrics.default <- function(x,
+                                           min_tib_h = 5.0,
+                                           tz        = "UTC",
+                                           holidays  = NULL,
+                                           ...) {
+  if (is.null(holidays)) .warn_no_holidays("compute_sleep_metrics()")
+
+  nd <- x[!x$is_nap & x$tbt / 60 >= min_tib_h, ]
   if (nrow(nd) == 0L) {
     zeitr_warn("No nights remain after TIB filter (min_tib_h = {min_tib_h} h).")
     return(list())
@@ -161,8 +230,8 @@ compute_sleep_metrics <- function(nights,
       mean(sub$waso),                  # waso_min
       mean(sub$eff) * 100,             # sleep_eff_pct
       mean(sub$tst) / 60,              # tst_24h_h (same as tst_h for main-only)
-      stats::sd(mid_sub, na.rm = TRUE) * 60,        # dp_midsleep_min
-      stats::sd(sub$tst, na.rm = TRUE)        # dp_tst_min
+      stats::sd(mid_sub, na.rm = TRUE) * 60,   # dp_midsleep_min
+      stats::sd(sub$tst, na.rm = TRUE)         # dp_tst_min
     )
     n_sfx <- if (sfx == "") "n_overall" else paste0("n_", sfx)
     stats::setNames(vals, c(n_sfx, pf(c(
@@ -187,21 +256,34 @@ compute_sleep_metrics <- function(nights,
 #'
 #' Calculates chronobiological phenotyping metrics from classified nightly sleep
 #' data. Mirrors `compute_cpd_metrics()` and `nights_to_cpd_df()` from Julia
-#' Ribeiro da Silva Vallim's `pipeline_functions_fix27.py`.
+#' Ribeiro da Silva Vallim's `pipeline_functions_fix27.py`, with two updates
+#' to match the fix29 notebook:
+#' * **MSF and MSW** are computed with the circular mean to correctly handle
+#'   mid-sleep times that wrap midnight.
+#' * **Truncated episodes** starting after noon on the last recording day are
+#'   excluded before metric computation.
+#'
+#' Dispatches on the class of `x`:
+#' * **`data.frame` / `tibble`** -- treated as a nights table (same behaviour
+#'   as the original function signature).
+#' * **`zeitr_result`** -- extracts `x$nights` and inherits `x$holidays`
+#'   automatically; no need to forward holidays manually.
 #'
 #' @details
 #' Mid-sleep is computed per night as:
 #' \deqn{\text{MS} = \left(\text{SO} + \frac{\text{offset} - \text{onset}}{2}\right) \bmod 24}
-#' where onset = bts + SOL and offset = gts − SOI (both in decimal hours).
+#' where onset = bts + SOL and offset = gts - SOI (both in decimal hours).
 #'
-#' **MSW** and **MSF** use plain arithmetic means of per-night mid-sleep values.
+#' **MSW** and **MSF** use the circular mean of per-night mid-sleep values
+#' (values >= 12 h shifted by -24 before averaging, then wrapped to [0, 24)),
+#' matching `calculate_msf()` / `calculate_msw()` from the fix29 notebook.
 #' **MSFsc** adjusts MSF by the free-day-eve sleep onset and the weighted
 #' weekly mean sleep duration when free-day duration exceeds weekday duration.
 #' **CPD** is the RMS distance of each night's mid-sleep from MSFsc in the
-#' time × sequence plane.
+#' time x sequence plane.
 #'
-#' @param nights A `tibble` of nightly sleep statistics as returned by
-#'   [run_pipeline_native()] or [run_pipeline()].
+#' @param x A `zeitr_result` object **or** a `tibble` of nightly sleep
+#'   statistics as returned by [run_pipeline_native()] or [run_pipeline()].
 #' @param min_tib_h `numeric(1)`. Minimum TBT (hours) for inclusion. Default
 #'   is `3.0`.
 #' @param min_tib_eve_h `numeric(1)`. Minimum TBT (hours) for a night to
@@ -209,7 +291,9 @@ compute_sleep_metrics <- function(nights,
 #' @param tz `character(1)`. Time zone for extracting clock hours. Default is
 #'   `"UTC"`.
 #' @param holidays A `Date` vector of public holidays to treat as free days.
-#'   Default is `NULL` (weekends only).
+#'   Default is `NULL` (weekends only). When `x` is a `zeitr_result`, defaults
+#'   to `x$holidays` automatically. A warning is emitted when `NULL`; suppress
+#'   with `options(zeitR.no_holidays_warn = FALSE)`.
 #'
 #' @return A named list with `n_nights_cpd`, `n_free_days`, `n_workdays`,
 #'   `msw_h`, `msw_hms`, `msf_h`, `msf_hms`, `msfsc_h`, `msfsc_hms`,
@@ -221,22 +305,68 @@ compute_sleep_metrics <- function(nights,
 #'
 #' @examples
 #' \dontrun{
+#' # From a zeitr_result: holidays forwarded automatically
 #' result <- run_pipeline_native("recordings/P001.txt",
-#'                               tz = "America/Sao_Paulo")
+#'                               tz       = "America/Sao_Paulo",
+#'                               holidays = my_holidays)
+#' cpd <- compute_cpd_metrics(result, tz = "America/Sao_Paulo")
 #'
-#' cpd <- compute_cpd_metrics(result$nights, tz = "America/Sao_Paulo")
+#' # From a nights tibble: pass holidays explicitly
+#' cpd <- compute_cpd_metrics(result$nights,
+#'                            tz       = "America/Sao_Paulo",
+#'                            holidays = my_holidays)
 #' cpd$sjl_min    # social jet lag in minutes
 #' cpd$msf_hms    # mid-sleep on free days as HH:MM
 #' cpd$cpd_min    # CPD in minutes
 #' }
-compute_cpd_metrics <- function(nights,
-                                 min_tib_h     = 3.0,
-                                 min_tib_eve_h = 3.0,
-                                 tz            = "UTC",
-                                 holidays      = NULL) {
-  nd <- nights[!nights$is_nap & nights$tbt / 60 >= min_tib_h, ]
+compute_cpd_metrics <- function(x, ...) UseMethod("compute_cpd_metrics")
+
+
+#' @rdname compute_cpd_metrics
+#' @export
+compute_cpd_metrics.zeitr_result <- function(x,
+                                              min_tib_h     = 3.0,
+                                              min_tib_eve_h = 3.0,
+                                              tz            = "UTC",
+                                              holidays      = x$holidays,
+                                              ...) {
+  compute_cpd_metrics.default(x$nights,
+                               min_tib_h     = min_tib_h,
+                               min_tib_eve_h = min_tib_eve_h,
+                               tz            = tz,
+                               holidays      = holidays,
+                               ...)
+}
+
+
+#' @rdname compute_cpd_metrics
+#' @export
+compute_cpd_metrics.default <- function(x,
+                                         min_tib_h     = 3.0,
+                                         min_tib_eve_h = 3.0,
+                                         tz            = "UTC",
+                                         holidays      = NULL,
+                                         ...) {
+  if (is.null(holidays)) .warn_no_holidays("compute_cpd_metrics()")
+
+  nd <- x[!x$is_nap & x$tbt / 60 >= min_tib_h, ]
   if (nrow(nd) == 0L)
     zeitr_abort("No nocturnal episodes remain after TIB filter (min_tib_h = {min_tib_h} h).")
+
+  # fix29: exclude episodes starting after noon on the last recording day --
+  # these are truncated by end-of-file, not genuine complete nights.
+  last_day  <- as.Date(max(as.POSIXct(nd$get_up_time, tz = tz)), tz = tz)
+  truncated <- as.POSIXct(nd$bed_time, tz = tz) >=
+    as.POSIXct(last_day, tz = tz) + 12 * 3600
+  if (any(truncated)) {
+    n_trunc <- sum(truncated)
+    zeitr_warn(
+      "Excluded {n_trunc} truncated episode(s) starting after noon on the last recording day ({last_day})."
+    )
+    nd <- nd[!truncated, ]
+    if (nrow(nd) == 0L)
+      zeitr_abort("No episodes remain after truncated-episode filter.")
+  }
 
   onset_h  <- .to_h_plain(nd$bed_time,    tz) + nd$sol / 60
   offset_h <- .to_h_plain(nd$get_up_time, tz) - nd$soi / 60
@@ -259,8 +389,10 @@ compute_cpd_metrics <- function(nights,
   if (!any(wd))  zeitr_abort("No workdays found.")
   if (!any(eve)) zeitr_abort("No free-day-eve nights found.")
 
-  msf_h <- mean(df$mid_sleep[we])
-  msw_h <- mean(df$mid_sleep[wd])
+  # MSF and MSW: circular mean to handle midnight wrap correctly.
+  # Mirrors calculate_msf() / calculate_msw() from the fix29 notebook.
+  msf_h <- .mean_circ_h(df$mid_sleep[we])
+  msw_h <- .mean_circ_h(df$mid_sleep[wd])
 
   sd_f    <- mean((df$sleep_offset[we] - df$sleep_onset[we]) %% 24)
   sd_w    <- mean((df$sleep_offset[wd] - df$sleep_onset[wd]) %% 24)
