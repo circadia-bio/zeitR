@@ -40,6 +40,8 @@ zeitR is designed to complement [slumbR](https://github.com/circadia-bio/slumbR)
 - 📊 **`compute_waso()`** — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency
 - 📐 **`compute_npcra()`** — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)
 - 🗂️ **`study_summary()`** — participant-level NPCRA summary across a whole study
+- 📋 **`compute_sleep_metrics()`** — per-night sleep metrics split by day type (overall / workday / free day)
+- 📋 **`compute_cpd_metrics()`** — CPD, MSW, MSF, MSFsc, social jet lag (SJL, SJLa)
 - 🚀 **`run_pipeline()`** — full CSPD pipeline on a single file
 - 🗃️ **`run_pipeline_batch()`** — CSPD pipeline across a directory
 - 🌙 **`run_pipeline_native()`** — full Vallim pipeline on a single file
@@ -161,8 +163,10 @@ result <- run_pipeline("recordings/P001.txt", params = p)
 | Nap detection | Crespo zero-proportion filter | Crespo et al. (2012) | ActTrust ✓ |
 | Epoch scoring | Cole-Kripke weighted ZCM sum | Cole & Kripke (1992) | ActTrust ✓ |
 | Episode classification | Vallim JRSV rule set (Fixes 25, 26a/b/c, 27, 29) | Vallim (2024) | ActTrust ✓ |
+| Sleep summary | Day-type metric split (overall / workday / free day) | Vallim (2024) | ActTrust ✓ |
+| Chronotype | CPD, MSW, MSF, MSFsc, SJL | Roenneberg et al. | ActTrust ✓ |
 
-The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim's Python reference notebook.
+The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim's Python reference notebook. R is now the reference implementation for Fix 26c (fragment recovery), which correctly uses Cole-Kripke epoch scoring and proper temperature/light column names that were mismatched in the Python original.
 
 ---
 
@@ -180,6 +184,7 @@ zeitR/
 │   ├── offwrist_refiner.R    # three-stage BimodalOffwristRefiner port
 │   ├── sleep_periods.R       # detect_sleep_crespo(), detect_naps_crespo()
 │   ├── sleep_classify.R      # Vallim pipeline: extract + classify episodes
+│   ├── sleep_metrics.R       # compute_sleep_metrics(), compute_cpd_metrics()
 │   ├── cole_kripke.R         # score_epochs_cole_kripke()
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()

@@ -194,7 +194,8 @@ reference:
 - title: "Circadian analysis"
   desc: "Non-parametric circadian rhythm variables."
   contents:
-  - starts_with("compute_")
+  - compute_npcra
+  - compute_waso
 
 - title: "Study-level"
   desc: "Summarise results across multiple participants."
