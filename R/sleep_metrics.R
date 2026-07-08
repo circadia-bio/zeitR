@@ -56,10 +56,36 @@
 # avoid locale-dependent day names: weekdays() returns "Saturday" on en_US but
 # "sabado" on pt_BR, silently marking no day as a free day on non-English
 # systems.  ISO 8601: Mon=1, Tue=2, ..., Sat=6, Sun=7.
+#
+# holidays may contain:
+#   - Date objects or "YYYY-MM-DD" strings  -> exact year-specific match
+#   - "DD-MM" strings                       -> recurring annual match
+# Mixing the two forms in the same vector is supported.
 .is_free_day <- function(dates, holidays) {
   d  <- as.Date(dates)
   wd <- as.integer(format(d, "%u"))  # ISO 8601: Sat=6, Sun=7
-  wd %in% c(6L, 7L) | (!is.null(holidays) & d %in% as.Date(holidays))
+  is_weekend <- wd %in% c(6L, 7L)
+
+  if (is.null(holidays)) return(is_weekend)
+
+  h_chr        <- as.character(holidays)
+  is_recurring <- grepl("^\\d{2}-\\d{2}$", h_chr)  # matches "DD-MM" only
+
+  is_in_holiday <- rep(FALSE, length(d))
+
+  if (any(!is_recurring)) {
+    specific <- suppressWarnings(as.Date(h_chr[!is_recurring]))
+    specific <- specific[!is.na(specific)]
+    if (length(specific) > 0L)
+      is_in_holiday <- is_in_holiday | (d %in% specific)
+  }
+
+  if (any(is_recurring)) {
+    d_mmdd        <- format(d, "%d-%m")
+    is_in_holiday <- is_in_holiday | (d_mmdd %in% h_chr[is_recurring])
+  }
+
+  is_weekend | is_in_holiday
 }
 
 # is_free_day_eve: the bed-time date + 1 day is a free day
@@ -122,11 +148,15 @@
 #'   to be included. Default is `5.0` (matching the Python reference).
 #' @param tz `character(1)`. Time zone for extracting clock hours from
 #'   timestamps. Default is `"UTC"`.
-#' @param holidays A `Date` vector of public holidays to treat as free days in
-#'   addition to Saturdays and Sundays. Default is `NULL` (weekends only). When
-#'   `x` is a `zeitr_result`, defaults to `x$holidays` automatically. A
-#'   warning is emitted when `NULL`; suppress with
-#'   `options(zeitR.no_holidays_warn = FALSE)`.
+#' @param holidays Holidays to treat as free days in addition to Saturdays and
+#'   Sundays. Accepts three forms, which can be mixed in the same vector:
+#'   * `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates (e.g.
+#'     `as.Date("2019-03-04")` for one Carnival day).
+#'   * `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"` for
+#'     Christmas, `"01-01"` for New Year).
+#'   Default is `NULL` (weekends only). When `x` is a `zeitr_result`, defaults
+#'   to `x$holidays` automatically. A warning is emitted when `NULL`; suppress
+#'   with `options(zeitR.no_holidays_warn = FALSE)`.
 #'
 #' @return A named list with metrics for three groups (`overall`, `wd` =
 #'   weekday, `fd` = free day):
@@ -290,7 +320,12 @@ compute_sleep_metrics.default <- function(x,
 #'   qualify as a free-day-eve night. Default is `3.0`.
 #' @param tz `character(1)`. Time zone for extracting clock hours. Default is
 #'   `"UTC"`.
-#' @param holidays A `Date` vector of public holidays to treat as free days.
+#' @param holidays Holidays to treat as free days in addition to Saturdays and
+#'   Sundays. Accepts three forms, which can be mixed in the same vector:
+#'   * `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates (e.g.
+#'     `as.Date("2019-03-04")` for one Carnival day).
+#'   * `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"` for
+#'     Christmas, `"01-01"` for New Year).
 #'   Default is `NULL` (weekends only). When `x` is a `zeitr_result`, defaults
 #'   to `x$holidays` automatically. A warning is emitted when `NULL`; suppress
 #'   with `options(zeitR.no_holidays_warn = FALSE)`.

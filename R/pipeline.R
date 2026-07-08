@@ -216,12 +216,16 @@ print.zeitr_result <- function(x, ...) {
 #' @param offwrist_args `list`. Additional arguments for [detect_offwrist_bimodal()].
 #' @param sleep_args `list`. Additional arguments for [detect_sleep_crespo()].
 #' @param classify_args `list`. Additional arguments for [classify_sleep_episodes()].
-#' @param holidays A `Date` vector of public holidays to treat as free days
-#'   in addition to Saturdays and Sundays. The Vallim classification rules
-#'   (Fix 26a/26c, Rules 3--7) do not use day-of-week; this parameter is
-#'   stored for convenience and should be forwarded to
-#'   [compute_sleep_metrics()] and [compute_cpd_metrics()] for day-type
-#'   metric splitting. Default `NULL` (weekends only).
+#' @param holidays Holidays to treat as free days in addition to Saturdays and
+#'   Sundays. Accepts three forms, which can be mixed in the same vector:
+#'   * `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates (e.g.
+#'     `as.Date("2019-03-04")` for one Carnival day).
+#'   * `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"` for
+#'     Christmas, `"07-09"` for Brazilian Independence Day).
+#'   The Vallim classification rules (Fix 26a/26c, Rules 3--7) do not use
+#'   day-of-week; this parameter is stored and auto-forwarded when calling
+#'   [compute_sleep_metrics()] or [compute_cpd_metrics()] with the returned
+#'   `zeitr_result`. Default `NULL` (weekends only).
 #' @param quiet `logical(1)`. Suppress timestamp warnings. Default `FALSE`.
 #'
 #' @return A `zeitr_result` S3 object with the same structure as [run_pipeline()],

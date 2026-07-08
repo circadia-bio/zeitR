@@ -17,6 +17,10 @@
 * `compute_cpd_metrics()`: episodes starting after noon on the last recording
   day are excluded before metric computation, matching the `nights_to_df()`
   truncated-episode filter added in the fix29 notebook.
+* `holidays` parameter now accepts `"DD-MM"` strings for recurring annual
+  holidays (e.g. `"25-12"` for Christmas), in addition to `Date` objects and
+  `"YYYY-MM-DD"` strings for year-specific dates. All three forms can be
+  mixed in the same vector.
 
 ## zeitR 0.1.2  (2026-07)
 
