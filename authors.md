@@ -15,16 +15,16 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/circadia-bio/zeitR/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/circadia-bio/zeitR/blob/v0.1.2/DESCRIPTION)
 
 França L, Leocadio-Miguel M, Vallim J (2026). *zeitR: Actigraphy Data
-Parsing and Analysis for R*. R package version 0.1.1,
+Parsing and Analysis for R*. R package version 0.1.2,
 <https://zeitr.circadia-lab.uk>.
 
     @Manual{,
       title = {zeitR: Actigraphy Data Parsing and Analysis for R},
       author = {Lucas França and Mario Leocadio-Miguel and Julia Ribeiro da Silva Vallim},
       year = {2026},
-      note = {R package version 0.1.1},
+      note = {R package version 0.1.2},
       url = {https://zeitr.circadia-lab.uk},
     }
