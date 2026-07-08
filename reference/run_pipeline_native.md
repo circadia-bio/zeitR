@@ -19,6 +19,7 @@ run_pipeline_native(
   offwrist_args = list(),
   sleep_args = list(),
   classify_args = list(),
+  holidays = NULL,
   quiet = FALSE
 )
 ```
@@ -58,6 +59,17 @@ run_pipeline_native(
 
   `list`. Additional arguments for
   [`classify_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.md).
+
+- holidays:
+
+  A `Date` vector of public holidays to treat as free days in addition
+  to Saturdays and Sundays. The Vallim classification rules (Fix
+  26a/26c, Rules 3–7) do not use day-of-week; this parameter is stored
+  for convenience and should be forwarded to
+  [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  and
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  for day-type metric splitting. Default `NULL` (weekends only).
 
 - quiet:
 

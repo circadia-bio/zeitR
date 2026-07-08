@@ -137,7 +137,7 @@ Silva Vallim and ported from her condor pipeline (Fixes 25, 26a/b/c, 27, 29)."><
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Run the Vallim native actigraphy sleep analysis pipeline</h1>
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.2/R/pipeline.R" class="external-link"><code>R/pipeline.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/R/pipeline.R" class="external-link"><code>R/pipeline.R</code></a></small>
       <div class="d-none name"><code>run_pipeline_native.Rd</code></div>
     </div>
 
@@ -159,6 +159,7 @@ Silva Vallim and ported from her condor pipeline (Fixes 25, 26a/b/c, 27, 29).</p
 <span>  offwrist_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  sleep_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  classify_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  holidays <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  quiet <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -194,6 +195,15 @@ Default <code>120</code>.</p></dd>
 
 <dt id="arg-classify-args">classify_args<a class="anchor" aria-label="anchor" href="#arg-classify-args"></a></dt>
 <dd><p><code>list</code>. Additional arguments for <code><a href="classify_sleep_episodes.html">classify_sleep_episodes()</a></code>.</p></dd>
+
+
+<dt id="arg-holidays">holidays<a class="anchor" aria-label="anchor" href="#arg-holidays"></a></dt>
+<dd><p>A <code>Date</code> vector of public holidays to treat as free days
+in addition to Saturdays and Sundays. The Vallim classification rules
+(Fix 26a/26c, Rules 3–7) do not use day-of-week; this parameter is
+stored for convenience and should be forwarded to
+<code><a href="compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="compute_cpd_metrics.html">compute_cpd_metrics()</a></code> for day-type
+metric splitting. Default <code>NULL</code> (weekends only).</p></dd>
 
 
 <dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
@@ -248,7 +258,7 @@ except <code>nights</code> additionally contains:</p><dl><dt><code>sleep_type</c
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>
