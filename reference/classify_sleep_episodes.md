@@ -117,21 +117,37 @@ or `"secondary"`) and `is_nap` (logical, `TRUE` when
 1.  **Fix 25** – exclude truncated episodes at the recording end.
 
 2.  **Fix 26a** – infer adaptive nocturnal window from `int_temp` and
-    `light`.
+    `light`. Falls back to `nocturnal_onset_start`/`nocturnal_onset_end`
+    if fewer than 2 candidate episodes pass the temperature and light
+    filter.
 
-3.  **Fix 29** – split TBT 14-16 h episodes first; exclude TBT \> 16 h
-    directly without attempting a split.
+3.  **Fix 29 / Rule 1** – split TBT 14–16 h episodes at their activity
+    peak (recursive, up to `max_split_iterations`). Fragments still
+    exceeding `max_main_tib_h` after splitting are excluded.
 
-4.  **Fix 26c** – recover fragmented sleep nights missed by the scorer.
+4.  **Rule 2** – exclude episodes with TBT \> `max_tib_h` (16 h)
+    directly, without attempting a split.
 
-5.  **Rules 3-5** – classify as main or secondary using the nocturnal
-    window and `min_main_tib_h`.
+5.  **Fix 26c** – recover sleep nights missed by the scorer for dates
+    with no classified main episode. Sleep and wake within the candidate
+    window are determined by Cole-Kripke epoch scoring on ZCMn (not the
+    period-level CSPD state). Adjacent sleep runs are merged when the
+    intervening gap has wrist temperature \>= `temp_thresh` and ambient
+    light \<= `light_thresh_recovery`.
 
-6.  **Fix 26b** – resolve sleep-date collisions from the noon threshold.
+6.  **Rules 3–5** – classify each episode as `"main"` or `"secondary"`
+    using the nocturnal window and `min_main_tib_h`.
 
-7.  **Rule 6** – keep the longest main episode per sleep date.
+7.  **Fix 26b** – resolve sleep-date collisions: when two main episodes
+    share a noon-threshold sleep date and are separated by \>=
+    `collision_gap_h` hours, reassign the later one to the next calendar
+    date.
 
-8.  **Rule 7** – exclude all episodes on days with no main sleep.
+8.  **Rule 6** – keep the longest main episode per sleep date; demote
+    all others to `"secondary"`.
+
+9.  **Rule 7** – exclude all episodes (main and secondary) on dates that
+    have no valid main sleep after Rule 6.
 
 ## See also
 

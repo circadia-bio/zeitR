@@ -212,10 +212,13 @@
 <li>📊 <strong><code><a href="reference/compute_waso.html">compute_waso()</a></code></strong> — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency</li>
 <li>📐 <strong><code><a href="reference/compute_npcra.html">compute_npcra()</a></code></strong> — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)</li>
 <li>🗂️ <strong><code><a href="reference/study_summary.html">study_summary()</a></code></strong> — participant-level NPCRA summary across a whole study</li>
+<li>📋 <strong><code><a href="reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code></strong> — per-night sleep metrics split by day type (overall / workday / free day)</li>
+<li>📋 <strong><code><a href="reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code></strong> — CPD, MSW, MSF, MSFsc, social jet lag (SJL, SJLa)</li>
 <li>🚀 <strong><code><a href="reference/run_pipeline.html">run_pipeline()</a></code></strong> — full CSPD pipeline on a single file</li>
 <li>🗃️ <strong><code><a href="reference/run_pipeline_batch.html">run_pipeline_batch()</a></code></strong> — CSPD pipeline across a directory</li>
 <li>🌙 <strong><code><a href="reference/run_pipeline_native.html">run_pipeline_native()</a></code></strong> — full Vallim pipeline on a single file</li>
 <li>🌙 <strong><code><a href="reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code></strong> — Vallim pipeline across a directory</li>
+<li>📤 <strong><code><a href="reference/export_hypnogram.html">export_hypnogram()</a></code></strong> — export to <code>hypnoR</code> format (<code>W</code> / <code>Sleep</code> / <code>Quiet sleep</code>; <code>subject_id</code> auto-inferred)</li>
 <li>🔬 <strong><code><a href="reference/extract_sleep_episodes.html">extract_sleep_episodes()</a></code></strong> — extract per-episode statistics from a CSPD-scored table</li>
 <li>🔬 <strong><code><a href="reference/classify_sleep_episodes.html">classify_sleep_episodes()</a></code></strong> — apply the JRSV rule set to classify episodes</li>
 <li>📏 <strong><code><a href="reference/circ_mean_h.html">circ_mean_h()</a></code></strong> — circular mean for clock-time variables (handles midnight wrap)</li>
@@ -435,9 +438,21 @@
 <td>Vallim (2024)</td>
 <td>ActTrust ✓</td>
 </tr>
+<tr>
+<td>Sleep summary</td>
+<td>Day-type metric split (overall / workday / free day)</td>
+<td>Vallim (2024)</td>
+<td>ActTrust ✓</td>
+</tr>
+<tr>
+<td>Chronotype</td>
+<td>CPD, MSW, MSF, MSFsc, SJL</td>
+<td>Roenneberg et al.</td>
+<td>ActTrust ✓</td>
+</tr>
 </tbody>
 </table>
-<p>The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim’s Python reference notebook.</p>
+<p>The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim’s Python reference notebook. R is now the reference implementation for Fix 26c (fragment recovery), which correctly uses Cole-Kripke epoch scoring and proper temperature/light column names that were mismatched in the Python original.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -454,6 +469,7 @@
 │   ├── offwrist_refiner.R    # three-stage BimodalOffwristRefiner port
 │   ├── sleep_periods.R       # detect_sleep_crespo(), detect_naps_crespo()
 │   ├── sleep_classify.R      # Vallim pipeline: extract + classify episodes
+│   ├── sleep_metrics.R       # compute_sleep_metrics(), compute_cpd_metrics()
 │   ├── cole_kripke.R         # score_epochs_cole_kripke()
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
@@ -461,6 +477,7 @@
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
 │   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()
+│   ├── export.R              # export_hypnogram()
 │   └── utils.R               # label_states() + Rcpp wrappers + helpers
 ├── src/
 │   └── rolling_filters.cpp   # Rcpp: rolling filters, diff5, Cole-Kripke

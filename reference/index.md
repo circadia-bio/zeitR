@@ -41,12 +41,8 @@ Off-wrist, sleep period, and epoch-level scoring algorithms.
 
 Non-parametric circadian rhythm variables.
 
-- [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
-  : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 - [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
   : Non-parametric circadian rhythm analysis (NPCRA)
-- [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
-  : Compute sleep metrics split by day type
 - [`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md)
   : Compute WASO and nightly sleep statistics
 
@@ -92,6 +88,8 @@ Helper functions for working with pipeline output.
 
 - [`label_states()`](https://zeitr.circadia-lab.uk/reference/label_states.md)
   : Convert integer epoch states to a labelled factor
+- [`export_hypnogram()`](https://zeitr.circadia-lab.uk/reference/export_hypnogram.md)
+  : Export a zeitR pipeline result as a hypnoR-compatible hypnogram
 - [`circ_mean_h()`](https://zeitr.circadia-lab.uk/reference/circ_mean_h.md)
   : Circular mean of clock times in decimal hours
 - [`circ_sd_h()`](https://zeitr.circadia-lab.uk/reference/circ_sd_h.md)

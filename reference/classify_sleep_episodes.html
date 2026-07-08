@@ -257,15 +257,28 @@ Default <code>4</code>.</p></dd>
 
 <ol><li><p><strong>Fix 25</strong> – exclude truncated episodes at the recording end.</p></li>
 <li><p><strong>Fix 26a</strong> – infer adaptive nocturnal window from <code>int_temp</code>
-and <code>light</code>.</p></li>
-<li><p><strong>Fix 29</strong> – split TBT 14-16 h episodes first; exclude TBT &gt; 16 h
-directly without attempting a split.</p></li>
-<li><p><strong>Fix 26c</strong> – recover fragmented sleep nights missed by the scorer.</p></li>
-<li><p><strong>Rules 3-5</strong> – classify as main or secondary using the nocturnal
-window and <code>min_main_tib_h</code>.</p></li>
-<li><p><strong>Fix 26b</strong> – resolve sleep-date collisions from the noon threshold.</p></li>
-<li><p><strong>Rule 6</strong> – keep the longest main episode per sleep date.</p></li>
-<li><p><strong>Rule 7</strong> – exclude all episodes on days with no main sleep.</p></li>
+and <code>light</code>. Falls back to <code>nocturnal_onset_start</code>/<code>nocturnal_onset_end</code>
+if fewer than 2 candidate episodes pass the temperature and light filter.</p></li>
+<li><p><strong>Fix 29 / Rule 1</strong> – split TBT 14–16 h episodes at their
+activity peak (recursive, up to <code>max_split_iterations</code>). Fragments still
+exceeding <code>max_main_tib_h</code> after splitting are excluded.</p></li>
+<li><p><strong>Rule 2</strong> – exclude episodes with TBT &gt; <code>max_tib_h</code> (16 h)
+directly, without attempting a split.</p></li>
+<li><p><strong>Fix 26c</strong> – recover sleep nights missed by the scorer for dates
+with no classified main episode. Sleep and wake within the candidate
+window are determined by Cole-Kripke epoch scoring on ZCMn (not the
+period-level CSPD state). Adjacent sleep runs are merged when the
+intervening gap has wrist temperature &gt;= <code>temp_thresh</code> and ambient
+light &lt;= <code>light_thresh_recovery</code>.</p></li>
+<li><p><strong>Rules 3–5</strong> – classify each episode as <code>"main"</code> or
+<code>"secondary"</code> using the nocturnal window and <code>min_main_tib_h</code>.</p></li>
+<li><p><strong>Fix 26b</strong> – resolve sleep-date collisions: when two main
+episodes share a noon-threshold sleep date and are separated by
+&gt;= <code>collision_gap_h</code> hours, reassign the later one to the next calendar date.</p></li>
+<li><p><strong>Rule 6</strong> – keep the longest main episode per sleep date;
+demote all others to <code>"secondary"</code>.</p></li>
+<li><p><strong>Rule 7</strong> – exclude all episodes (main and secondary) on dates
+that have no valid main sleep after Rule 6.</p></li>
 </ol></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

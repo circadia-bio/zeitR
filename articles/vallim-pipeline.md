@@ -252,6 +252,11 @@ main_all <- bind_rows(
 
 - [`vignette("sleep-analysis")`](https://zeitr.circadia-lab.uk/articles/sleep-analysis.md)
   — CSPD pipeline walkthrough with actogram
+- [`?export_hypnogram`](https://zeitr.circadia-lab.uk/reference/export_hypnogram.md)
+  — export results to `hypnoR` for sleep architecture metrics
+- [`?compute_sleep_metrics`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md),
+  [`?compute_cpd_metrics`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  — day-type sleep summary and chronotype
 - [`?classify_sleep_episodes`](https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.md)
   — full parameter reference for the rule set
 - [`?circ_mean_h`](https://zeitr.circadia-lab.uk/reference/circ_mean_h.md),
