@@ -291,6 +291,60 @@ require no changes.
 
 ---
 
+## Non-standard schedules with `free_days`
+
+Not every participant works Monday-to-Friday. The `free_days` parameter
+lets you specify which days of the week are unconditionally treated as free
+days, replacing the default Saturday + Sunday.
+
+Accepted inputs are English day names (case-insensitive) or ISO integers
+(1 = Monday, ..., 6 = Saturday, 7 = Sunday).
+
+```{r free-days-formats, eval = FALSE}
+# Compressed work week: Monday off, works Saturday
+compute_cpd_metrics(result$nights,
+                    tz        = TZ,
+                    holidays  = sp_holidays,
+                    free_days = c("Sunday", "Monday"))
+
+# Middle-East schedule: Friday + Saturday as weekend
+compute_cpd_metrics(result$nights,
+                    tz        = TZ,
+                    free_days = c("Friday", "Saturday"))
+
+# ISO integers work too (5 = Friday, 6 = Saturday)
+compute_cpd_metrics(result$nights,
+                    tz        = TZ,
+                    free_days = c(5L, 6L))
+```
+
+Passing `free_days` to `run_pipeline_native()` stores it in
+`result$free_days` so the S3 dispatch picks it up automatically:
+
+```{r free-days-pipeline}
+result_mon <- run_pipeline_native(
+  FILE,
+  tz        = TZ,
+  holidays  = sp_holidays,
+  free_days = c("Saturday", "Sunday", "Monday"),
+  quiet     = TRUE
+)
+
+# S3 dispatch forwards both holidays and free_days
+cpd_mon <- compute_cpd_metrics(result_mon, tz = TZ)
+
+cat(sprintf("Free days (Sat+Sun):        %d\n", cpd_all$n_free_days))
+cat(sprintf("Free days (Sat+Sun+Mon):    %d\n", cpd_mon$n_free_days))
+cat(sprintf("SJL (Sat+Sun):        %.1f min\n", cpd_all$sjl_min))
+cat(sprintf("SJL (Sat+Sun+Mon):    %.1f min\n", cpd_mon$sjl_min))
+```
+
+`free_days` and `holidays` are additive: a night is a free-day night if the
+get-up date falls on any day in `free_days` **or** matches any entry in
+`holidays`.
+
+---
+
 ## Summary
 
 | Format | Example | When to use |
@@ -298,6 +352,11 @@ require no changes.
 | `Date` / `"YYYY-MM-DD"` | `as.Date("2019-03-04")` | Holidays whose date changes year to year |
 | `"DD-MM"` | `"25-12"` | Fixed-date holidays that repeat annually |
 | Mixed | `c("25-12", "2019-03-04")` | Typical national calendar (most common) |
+
+| Parameter | Default | Purpose |
+|---|---|---|
+| `free_days` | `c("Saturday", "Sunday")` | Days of the week that are always free |
+| `holidays` | `NULL` | Specific or recurring dates that are also free |
 
 Passing `holidays` to `run_pipeline_native()` stores them on the result
 object; calling `compute_cpd_metrics(result, tz = ...)` or

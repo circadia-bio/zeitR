@@ -21,6 +21,11 @@
   holidays (e.g. `"25-12"` for Christmas), in addition to `Date` objects and
   `"YYYY-MM-DD"` strings for year-specific dates. All three forms can be
   mixed in the same vector.
+* New `free_days` parameter on `run_pipeline_native()`, `compute_sleep_metrics()`,
+  and `compute_cpd_metrics()`. Accepts English day names or ISO integers
+  (1 = Monday ... 7 = Sunday). Defaults to `c("Saturday", "Sunday")`. Stored
+  in `result$free_days` and auto-forwarded by the `zeitr_result` S3 methods,
+  enabling non-standard schedules (e.g. Friday--Saturday, compressed work week).
 
 ## zeitR 0.1.2  (2026-07)
 

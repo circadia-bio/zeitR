@@ -216,16 +216,21 @@ print.zeitr_result <- function(x, ...) {
 #' @param offwrist_args `list`. Additional arguments for [detect_offwrist_bimodal()].
 #' @param sleep_args `list`. Additional arguments for [detect_sleep_crespo()].
 #' @param classify_args `list`. Additional arguments for [classify_sleep_episodes()].
-#' @param holidays Holidays to treat as free days in addition to Saturdays and
-#'   Sundays. Accepts three forms, which can be mixed in the same vector:
+#' @param holidays Holidays to treat as free days in addition to the days in
+#'   `free_days`. Accepts three forms, which can be mixed in the same vector:
 #'   * `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates (e.g.
 #'     `as.Date("2019-03-04")` for one Carnival day).
 #'   * `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"` for
 #'     Christmas, `"07-09"` for Brazilian Independence Day).
-#'   The Vallim classification rules (Fix 26a/26c, Rules 3--7) do not use
-#'   day-of-week; this parameter is stored and auto-forwarded when calling
-#'   [compute_sleep_metrics()] or [compute_cpd_metrics()] with the returned
-#'   `zeitr_result`. Default `NULL` (weekends only).
+#'   Stored in `result$holidays` and auto-forwarded by the `zeitr_result` S3
+#'   methods of [compute_sleep_metrics()] and [compute_cpd_metrics()].
+#'   Default `NULL`.
+#' @param free_days A character vector of day names (`"Monday"` through
+#'   `"Sunday"`, case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+#'   identifying which days of the week are unconditionally treated as free
+#'   days. Stored in `result$free_days` and auto-forwarded by the `zeitr_result`
+#'   S3 methods of [compute_sleep_metrics()] and [compute_cpd_metrics()].
+#'   Default `c("Saturday", "Sunday")`.
 #' @param quiet `logical(1)`. Suppress timestamp warnings. Default `FALSE`.
 #'
 #' @return A `zeitr_result` S3 object with the same structure as [run_pipeline()],
@@ -257,6 +262,7 @@ run_pipeline_native <- function(
     sleep_args     = list(),
     classify_args  = list(),
     holidays       = NULL,
+    free_days      = c("Saturday", "Sunday"),
     quiet          = FALSE
 ) {
   path       <- as.character(path)
@@ -340,7 +346,8 @@ run_pipeline_native <- function(
       nights      = nights_tbl,
       issues      = issues,
       metadata    = attr(rec, "metadata"),
-      holidays    = holidays
+      holidays    = holidays,
+      free_days   = free_days
     ),
     class = "zeitr_result"
   )

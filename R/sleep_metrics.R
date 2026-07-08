@@ -51,22 +51,53 @@
   sprintf("%02d:%02d", hh %% 24L, mm)
 }
 
+# Parse free_days to a vector of ISO 8601 weekday integers (Mon=1 ... Sun=7).
+# Accepts English day names (case-insensitive) or integers 1-7.
+.parse_free_days <- function(free_days) {
+  if (is.null(free_days) || length(free_days) == 0L)
+    return(c(6L, 7L))  # default: Saturday + Sunday
+
+  day_map <- c(
+    monday = 1L, tuesday = 2L, wednesday = 3L, thursday = 4L,
+    friday = 5L, saturday = 6L, sunday = 7L
+  )
+
+  if (is.numeric(free_days) || is.integer(free_days)) {
+    wdays <- as.integer(free_days)
+    bad   <- wdays[wdays < 1L | wdays > 7L]
+    if (length(bad) > 0L)
+      zeitr_abort("Day numbers must be between 1 (Monday) and 7 (Sunday); got: {bad}.")
+    return(wdays)
+  }
+
+  wdays <- day_map[tolower(trimws(as.character(free_days)))]
+  bad   <- free_days[is.na(wdays)]
+  if (length(bad) > 0L)
+    zeitr_abort(c(
+      "Unrecognised day name(s): {.val {bad}}.",
+      "i" = 'Use English day names (e.g. {.val Saturday}) or ISO integers 1-7 (Mon=1 ... Sun=7).'
+    ))
+  unname(wdays)
+}
+
 # is_free_day applied to get-up date.
 # Uses ISO 8601 weekday number via format(d, "%u") instead of weekdays() to
 # avoid locale-dependent day names: weekdays() returns "Saturday" on en_US but
 # "sabado" on pt_BR, silently marking no day as a free day on non-English
 # systems.  ISO 8601: Mon=1, Tue=2, ..., Sat=6, Sun=7.
 #
+# free_wdays: pre-parsed integer vector from .parse_free_days().
+#
 # holidays may contain:
 #   - Date objects or "YYYY-MM-DD" strings  -> exact year-specific match
 #   - "DD-MM" strings                       -> recurring annual match
 # Mixing the two forms in the same vector is supported.
-.is_free_day <- function(dates, holidays) {
-  d  <- as.Date(dates)
-  wd <- as.integer(format(d, "%u"))  # ISO 8601: Sat=6, Sun=7
-  is_weekend <- wd %in% c(6L, 7L)
+.is_free_day <- function(dates, holidays, free_wdays) {
+  d           <- as.Date(dates)
+  wd          <- as.integer(format(d, "%u"))  # ISO 8601: Mon=1 ... Sat=6, Sun=7
+  is_free_wday <- wd %in% free_wdays
 
-  if (is.null(holidays)) return(is_weekend)
+  if (is.null(holidays)) return(is_free_wday)
 
   h_chr        <- as.character(holidays)
   is_recurring <- grepl("^\\d{2}-\\d{2}$", h_chr)  # matches "DD-MM" only
@@ -85,13 +116,13 @@
     is_in_holiday <- is_in_holiday | (d_mmdd %in% h_chr[is_recurring])
   }
 
-  is_weekend | is_in_holiday
+  is_free_wday | is_in_holiday
 }
 
 # is_free_day_eve: the bed-time date + 1 day is a free day
-.is_free_day_eve <- function(bts, tz, holidays) {
+.is_free_day_eve <- function(bts, tz, holidays, free_wdays) {
   d_next <- as.Date(as.POSIXct(bts, tz = tz), tz = tz) + 1L
-  .is_free_day(d_next, holidays)
+  .is_free_day(d_next, holidays, free_wdays)
 }
 
 # Emit a warning when no holidays are supplied.
@@ -100,7 +131,7 @@
   if (!isFALSE(getOption("zeitR.no_holidays_warn", TRUE))) {
     zeitr_warn(c(
       paste0(fn, ": no {.arg holidays} supplied."),
-      "i" = "Only Saturdays and Sundays are treated as free days.",
+      "i" = "Only the days in {.arg free_days} are treated as free days.",
       "i" = "If you ran {.fn run_pipeline_native} with holidays, pass {.code holidays = result$holidays}.",
       "i" = "Suppress with {.code options(zeitR.no_holidays_warn = FALSE)}."
     ))
@@ -120,15 +151,15 @@
 #' Dispatches on the class of `x`:
 #' * **`data.frame` / `tibble`** -- treated as a nights table (same behaviour
 #'   as the original function signature).
-#' * **`zeitr_result`** -- extracts `x$nights` and inherits `x$holidays`
-#'   automatically; no need to forward holidays manually.
+#' * **`zeitr_result`** -- extracts `x$nights` and inherits `x$holidays` and
+#'   `x$free_days` automatically.
 #'
 #' @details
-#' A night is assigned to the **weekend** group when the get-up date falls on a
-#' Saturday, Sunday, or any date supplied in `holidays`. Day-of-week is
-#' determined via the ISO 8601 weekday number (`format(date, "%u")`) rather than
-#' `weekdays()`, which is locale-dependent (returns `"sabado"` on `pt_BR`).
-#' Weekday nights are all remaining nights.
+#' A night is assigned to the **free-day** group when the get-up date falls on
+#' one of the days in `free_days` or matches an entry in `holidays`. Day-of-week
+#' is determined via the ISO 8601 weekday number (`format(date, "%u")`) rather
+#' than `weekdays()`, which is locale-dependent. All remaining nights are
+#' **workday** nights.
 #'
 #' `sleep_onset_h` uses a circular mean (values >= 12 h are shifted by -24 h
 #' before averaging, then wrapped to [0, 24)). `sleep_offset_h` uses a plain
@@ -148,18 +179,23 @@
 #'   to be included. Default is `5.0` (matching the Python reference).
 #' @param tz `character(1)`. Time zone for extracting clock hours from
 #'   timestamps. Default is `"UTC"`.
-#' @param holidays Holidays to treat as free days in addition to Saturdays and
-#'   Sundays. Accepts three forms, which can be mixed in the same vector:
+#' @param holidays Holidays to treat as free days in addition to the days in
+#'   `free_days`. Accepts three forms, which can be mixed in the same vector:
 #'   * `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates (e.g.
 #'     `as.Date("2019-03-04")` for one Carnival day).
 #'   * `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"` for
 #'     Christmas, `"01-01"` for New Year).
-#'   Default is `NULL` (weekends only). When `x` is a `zeitr_result`, defaults
-#'   to `x$holidays` automatically. A warning is emitted when `NULL`; suppress
+#'   Default is `NULL`. When `x` is a `zeitr_result`, defaults to
+#'   `x$holidays` automatically. A warning is emitted when `NULL`; suppress
 #'   with `options(zeitR.no_holidays_warn = FALSE)`.
+#' @param free_days A character vector of day names (`"Monday"` through
+#'   `"Sunday"`, case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+#'   identifying which days of the week are unconditionally treated as free
+#'   days. Default is `c("Saturday", "Sunday")`. When `x` is a `zeitr_result`,
+#'   defaults to `x$free_days` automatically.
 #'
 #' @return A named list with metrics for three groups (`overall`, `wd` =
-#'   weekday, `fd` = free day):
+#'   workday, `fd` = free day):
 #'   \describe{
 #'     \item{`n_overall`, `n_wd`, `n_fd`}{Night counts.}
 #'     \item{`sleep_onset_h`, `sleep_offset_h`}{Circular mean onset and
@@ -183,16 +219,19 @@
 #'
 #' @examples
 #' \dontrun{
-#' # From a zeitr_result: holidays forwarded automatically
+#' # From a zeitr_result: holidays and free_days forwarded automatically
 #' result <- run_pipeline_native("recordings/P001.txt",
-#'                               tz       = "America/Sao_Paulo",
-#'                               holidays = my_holidays)
+#'                               tz        = "America/Sao_Paulo",
+#'                               holidays  = my_holidays,
+#'                               free_days = c("Saturday", "Sunday"))
 #' sm <- compute_sleep_metrics(result, tz = "America/Sao_Paulo")
 #'
-#' # From a nights tibble: pass holidays explicitly
+#' # Non-standard schedule: Friday + Saturday as free days
 #' sm <- compute_sleep_metrics(result$nights,
-#'                             tz       = "America/Sao_Paulo",
-#'                             holidays = my_holidays)
+#'                             tz        = "America/Sao_Paulo",
+#'                             holidays  = my_holidays,
+#'                             free_days = c("Friday", "Saturday"))
+#'
 #' sm$tst_h            # mean TST in hours
 #' sm$sleep_onset_h    # mean sleep onset (circular, decimal hours)
 #' sm$dp_midsleep_min  # within-person SD of mid-sleep in minutes
@@ -206,11 +245,14 @@ compute_sleep_metrics.zeitr_result <- function(x,
                                                 min_tib_h = 5.0,
                                                 tz        = "UTC",
                                                 holidays  = x$holidays,
+                                                free_days = x$free_days,
                                                 ...) {
+  if (is.null(free_days)) free_days <- c("Saturday", "Sunday")
   compute_sleep_metrics.default(x$nights,
                                  min_tib_h = min_tib_h,
                                  tz        = tz,
                                  holidays  = holidays,
+                                 free_days = free_days,
                                  ...)
 }
 
@@ -221,8 +263,10 @@ compute_sleep_metrics.default <- function(x,
                                            min_tib_h = 5.0,
                                            tz        = "UTC",
                                            holidays  = NULL,
+                                           free_days = c("Saturday", "Sunday"),
                                            ...) {
   if (is.null(holidays)) .warn_no_holidays("compute_sleep_metrics()")
+  free_wdays <- .parse_free_days(free_days)
 
   nd <- x[!x$is_nap & x$tbt / 60 >= min_tib_h, ]
   if (nrow(nd) == 0L) {
@@ -230,7 +274,7 @@ compute_sleep_metrics.default <- function(x,
     return(list())
   }
 
-  nd$is_free_day <- .is_free_day(as.Date(nd$get_up_time, tz = tz), holidays)
+  nd$is_free_day <- .is_free_day(as.Date(nd$get_up_time, tz = tz), holidays, free_wdays)
   onset_h  <- .to_h_plain(nd$bed_time,    tz) + nd$sol / 60
   offset_h <- .to_h_plain(nd$get_up_time, tz) - nd$soi / 60
   mid_h    <- .midsleep(onset_h, offset_h)
@@ -296,8 +340,8 @@ compute_sleep_metrics.default <- function(x,
 #' Dispatches on the class of `x`:
 #' * **`data.frame` / `tibble`** -- treated as a nights table (same behaviour
 #'   as the original function signature).
-#' * **`zeitr_result`** -- extracts `x$nights` and inherits `x$holidays`
-#'   automatically; no need to forward holidays manually.
+#' * **`zeitr_result`** -- extracts `x$nights` and inherits `x$holidays` and
+#'   `x$free_days` automatically.
 #'
 #' @details
 #' Mid-sleep is computed per night as:
@@ -320,15 +364,20 @@ compute_sleep_metrics.default <- function(x,
 #'   qualify as a free-day-eve night. Default is `3.0`.
 #' @param tz `character(1)`. Time zone for extracting clock hours. Default is
 #'   `"UTC"`.
-#' @param holidays Holidays to treat as free days in addition to Saturdays and
-#'   Sundays. Accepts three forms, which can be mixed in the same vector:
+#' @param holidays Holidays to treat as free days in addition to the days in
+#'   `free_days`. Accepts three forms, which can be mixed in the same vector:
 #'   * `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates (e.g.
 #'     `as.Date("2019-03-04")` for one Carnival day).
 #'   * `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"` for
 #'     Christmas, `"01-01"` for New Year).
-#'   Default is `NULL` (weekends only). When `x` is a `zeitr_result`, defaults
-#'   to `x$holidays` automatically. A warning is emitted when `NULL`; suppress
+#'   Default is `NULL`. When `x` is a `zeitr_result`, defaults to
+#'   `x$holidays` automatically. A warning is emitted when `NULL`; suppress
 #'   with `options(zeitR.no_holidays_warn = FALSE)`.
+#' @param free_days A character vector of day names (`"Monday"` through
+#'   `"Sunday"`, case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+#'   identifying which days of the week are unconditionally treated as free
+#'   days. Default is `c("Saturday", "Sunday")`. When `x` is a `zeitr_result`,
+#'   defaults to `x$free_days` automatically.
 #'
 #' @return A named list with `n_nights_cpd`, `n_free_days`, `n_workdays`,
 #'   `msw_h`, `msw_hms`, `msf_h`, `msf_hms`, `msfsc_h`, `msfsc_hms`,
@@ -340,16 +389,19 @@ compute_sleep_metrics.default <- function(x,
 #'
 #' @examples
 #' \dontrun{
-#' # From a zeitr_result: holidays forwarded automatically
+#' # From a zeitr_result: holidays and free_days forwarded automatically
 #' result <- run_pipeline_native("recordings/P001.txt",
-#'                               tz       = "America/Sao_Paulo",
-#'                               holidays = my_holidays)
+#'                               tz        = "America/Sao_Paulo",
+#'                               holidays  = my_holidays,
+#'                               free_days = c("Saturday", "Sunday"))
 #' cpd <- compute_cpd_metrics(result, tz = "America/Sao_Paulo")
 #'
-#' # From a nights tibble: pass holidays explicitly
+#' # Non-standard schedule: Friday + Saturday as free days
 #' cpd <- compute_cpd_metrics(result$nights,
-#'                            tz       = "America/Sao_Paulo",
-#'                            holidays = my_holidays)
+#'                            tz        = "America/Sao_Paulo",
+#'                            holidays  = my_holidays,
+#'                            free_days = c("Friday", "Saturday"))
+#'
 #' cpd$sjl_min    # social jet lag in minutes
 #' cpd$msf_hms    # mid-sleep on free days as HH:MM
 #' cpd$cpd_min    # CPD in minutes
@@ -364,12 +416,15 @@ compute_cpd_metrics.zeitr_result <- function(x,
                                               min_tib_eve_h = 3.0,
                                               tz            = "UTC",
                                               holidays      = x$holidays,
+                                              free_days     = x$free_days,
                                               ...) {
+  if (is.null(free_days)) free_days <- c("Saturday", "Sunday")
   compute_cpd_metrics.default(x$nights,
                                min_tib_h     = min_tib_h,
                                min_tib_eve_h = min_tib_eve_h,
                                tz            = tz,
                                holidays      = holidays,
+                               free_days     = free_days,
                                ...)
 }
 
@@ -381,8 +436,10 @@ compute_cpd_metrics.default <- function(x,
                                          min_tib_eve_h = 3.0,
                                          tz            = "UTC",
                                          holidays      = NULL,
+                                         free_days     = c("Saturday", "Sunday"),
                                          ...) {
   if (is.null(holidays)) .warn_no_holidays("compute_cpd_metrics()")
+  free_wdays <- .parse_free_days(free_days)
 
   nd <- x[!x$is_nap & x$tbt / 60 >= min_tib_h, ]
   if (nrow(nd) == 0L)
@@ -411,8 +468,8 @@ compute_cpd_metrics.default <- function(x,
     sleep_offset    = offset_h,
     time_in_bed     = nd$tbt / 60,
     mid_sleep       = .midsleep(onset_h, offset_h),
-    is_free_day     = .is_free_day(as.Date(nd$get_up_time, tz = tz), holidays),
-    is_free_day_eve = .is_free_day_eve(nd$bed_time, tz, holidays)
+    is_free_day     = .is_free_day(as.Date(nd$get_up_time, tz = tz), holidays, free_wdays),
+    is_free_day_eve = .is_free_day_eve(nd$bed_time, tz, holidays, free_wdays)
   )
   df$is_free_day_eve[df$time_in_bed < min_tib_eve_h] <- FALSE
 
