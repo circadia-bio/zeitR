@@ -223,6 +223,7 @@ reference:
   desc: "Helper functions for working with pipeline output."
   contents:
   - label_states
+  - export_hypnogram
   - circ_mean_h
   - circ_sd_h
 

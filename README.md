@@ -46,6 +46,7 @@ zeitR is designed to complement [slumbR](https://github.com/circadia-bio/slumbR)
 - 🗃️ **`run_pipeline_batch()`** — CSPD pipeline across a directory
 - 🌙 **`run_pipeline_native()`** — full Vallim pipeline on a single file
 - 🌙 **`run_pipeline_native_batch()`** — Vallim pipeline across a directory
+- 📤 **`export_hypnogram()`** — export to `hypnoR` format (`W` / `Sleep` / `Quiet sleep`; `subject_id` auto-inferred)
 - 🔬 **`extract_sleep_episodes()`** — extract per-episode statistics from a CSPD-scored table
 - 🔬 **`classify_sleep_episodes()`** — apply the JRSV rule set to classify episodes
 - 📏 **`circ_mean_h()`** — circular mean for clock-time variables (handles midnight wrap)
@@ -192,6 +193,7 @@ zeitR/
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
 │   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()
+│   ├── export.R              # export_hypnogram()
 │   └── utils.R               # label_states() + Rcpp wrappers + helpers
 ├── src/
 │   └── rolling_filters.cpp   # Rcpp: rolling filters, diff5, Cole-Kripke

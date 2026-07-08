@@ -217,6 +217,8 @@ main_all <- bind_rows(
 ## Next steps
 
 - `vignette("sleep-analysis")` — CSPD pipeline walkthrough with actogram
+- `?export_hypnogram` — export results to `hypnoR` for sleep architecture metrics
+- `?compute_sleep_metrics`, `?compute_cpd_metrics` — day-type sleep summary and chronotype
 - `?classify_sleep_episodes` — full parameter reference for the rule set
 - `?circ_mean_h`, `?circ_sd_h` — circular statistics for clock-time variables
 - `?acttrust_params` — device parameter defaults
