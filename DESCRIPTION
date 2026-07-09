@@ -42,6 +42,8 @@ LinkingTo:
 Suggests:
     dplyr (>= 1.1.0),
     forcats (>= 1.0.0),
+    future (>= 1.33.0),
+    future.apply (>= 1.11.0),
     ggplot2 (>= 3.4.0),
     rlang (>= 1.1.0),
     knitr,

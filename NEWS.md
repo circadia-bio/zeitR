@@ -1,3 +1,18 @@
+## zeitR (development version)
+
+### Performance
+
+* Removed `.adaptive_median_filter()`, a dead pure-R fallback in
+  `sleep_periods.R` that was superseded by `adaptive_median_filter_cpp()` and
+  never called. No behaviour change.
+* `run_pipeline_batch()` and `run_pipeline_native_batch()` gain a `parallel`
+  argument. When `TRUE`, files are processed concurrently via
+  `future.apply::future_lapply()` under whatever `future::plan()` the caller
+  has set (e.g. `future::plan(future::multisession(workers = 4))`). Falls
+  back to sequential processing with a warning if `future.apply` is not
+  installed. Default remains `FALSE` (sequential), so existing code is
+  unaffected. `future` and `future.apply` added to `Suggests`.
+
 ## zeitR 0.1.3  (2026-07)
 
 ### Visualisation

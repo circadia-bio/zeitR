@@ -120,6 +120,58 @@ run_pipeline <- function(
   result
 }
 
+# ── Batch processing helper ───────────────────────────────────────────────────
+
+#' Run a single-file pipeline function over a list of files
+#'
+#' Shared implementation behind [run_pipeline_batch()] and
+#' [run_pipeline_native_batch()]. Runs `run_fn` once per file, catching and
+#' warning on individual failures rather than aborting the whole batch.
+#' When `parallel = TRUE` and `future.apply` is installed, dispatches via
+#' `future.apply::future_lapply()` under whatever `future::plan()` the caller
+#' has set; otherwise (or if `future.apply` is unavailable) falls back to a
+#' plain sequential `lapply()`.
+#'
+#' @param files `character` vector of file paths.
+#' @param run_fn The single-file pipeline function (`run_pipeline` or
+#'   `run_pipeline_native`).
+#' @param parallel `logical(1)`.
+#' @param ... Forwarded to `run_fn`.
+#' @noRd
+.run_pipeline_over_files <- function(files, run_fn, parallel, ...) {
+  run_one <- function(f) {
+    tryCatch(
+      run_fn(f, ...),
+      error = function(e) {
+        cli::cli_warn(
+          "Failed to process {.path {basename(f)}}: {conditionMessage(e)}"
+        )
+        NULL
+      }
+    )
+  }
+
+  if (isTRUE(parallel)) {
+    if (!requireNamespace("future.apply", quietly = TRUE)) {
+      zeitr_warn(
+        "{.pkg future.apply} is not installed; falling back to sequential
+         processing. Install it with {.code install.packages(\"future.apply\")}
+         and set a parallel plan with
+         {.code future::plan(future::multisession())} to enable
+         {.code parallel = TRUE}."
+      )
+      results <- lapply(files, run_one)
+    } else {
+      results <- future.apply::future_lapply(files, run_one, future.seed = TRUE)
+    }
+  } else {
+    results <- lapply(files, run_one)
+  }
+
+  names(results) <- tools::file_path_sans_ext(basename(files))
+  results[!vapply(results, is.null, logical(1))]
+}
+
 #' Run the pipeline on all files in a directory
 #'
 #' Applies [run_pipeline()] to every file matching `pattern` in `folder`,
@@ -129,6 +181,12 @@ run_pipeline <- function(
 #' @param folder `character(1)`. Path to a directory containing ActTrust files.
 #' @param pattern `character(1)`. Glob pattern for file discovery. Default is
 #'   `"*.txt"`.
+#' @param parallel `logical(1)`. If `TRUE`, processes files in parallel using
+#'   `future.apply::future_lapply()` (a `Suggests`-only dependency). Requires
+#'   a `future::plan()` to be set beforehand, e.g.
+#'   `future::plan(future::multisession(workers = 4))`; falls back to
+#'   sequential processing with a warning if `future.apply` is not installed.
+#'   Default `FALSE`.
 #' @param ... Additional arguments forwarded to [run_pipeline()].
 #'
 #' @return A named list of `zeitr_result` objects, one per successfully
@@ -140,8 +198,13 @@ run_pipeline <- function(
 #' \dontrun{
 #' results <- run_pipeline_batch("recordings/", tz = "America/Sao_Paulo")
 #' lapply(results, function(r) r$nights)
+#'
+#' # Parallel: process a large cohort across 4 workers
+#' future::plan(future::multisession(workers = 4))
+#' results <- run_pipeline_batch("recordings/", tz = "America/Sao_Paulo",
+#'                                parallel = TRUE)
 #' }
-run_pipeline_batch <- function(folder, pattern = "*.txt", ...) {
+run_pipeline_batch <- function(folder, pattern = "*.txt", parallel = FALSE, ...) {
   folder <- as.character(folder)
   files  <- Sys.glob(file.path(folder, pattern))
 
@@ -150,25 +213,7 @@ run_pipeline_batch <- function(folder, pattern = "*.txt", ...) {
     return(list())
   }
 
-  results <- list()
-
-  for (f in files) {
-    subject_id <- tools::file_path_sans_ext(basename(f))
-    tryCatch(
-      {
-        res <- run_pipeline(f, ...)
-        results[[subject_id]] <- res
-      },
-      error = function(e) {
-        cli::cli_warn(
-          "Failed to process {.path {basename(f)}}: {conditionMessage(e)}",
-          .envir = parent.env(environment())
-        )
-      }
-    )
-  }
-
-  results
+  .run_pipeline_over_files(files, run_pipeline, parallel, ...)
 }
 
 # ── S3 methods ───────────────────────────────────────────────────────────────
@@ -363,6 +408,12 @@ run_pipeline_native <- function(
 #'
 #' @param folder `character(1)`. Path to a directory of ActTrust files.
 #' @param pattern `character(1)`. Glob pattern. Default `"*.txt"`.
+#' @param parallel `logical(1)`. If `TRUE`, processes files in parallel using
+#'   `future.apply::future_lapply()` (a `Suggests`-only dependency). Requires
+#'   a `future::plan()` to be set beforehand, e.g.
+#'   `future::plan(future::multisession(workers = 4))`; falls back to
+#'   sequential processing with a warning if `future.apply` is not installed.
+#'   Default `FALSE`.
 #' @param ... Additional arguments forwarded to [run_pipeline_native()].
 #'
 #' @return A named list of `zeitr_result` objects.
@@ -372,8 +423,13 @@ run_pipeline_native <- function(
 #' \dontrun{
 #' results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo")
 #' lapply(results, function(r) r$nights)
+#'
+#' # Parallel: process a large cohort across 4 workers
+#' future::plan(future::multisession(workers = 4))
+#' results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo",
+#'                                      parallel = TRUE)
 #' }
-run_pipeline_native_batch <- function(folder, pattern = "*.txt", ...) {
+run_pipeline_native_batch <- function(folder, pattern = "*.txt", parallel = FALSE, ...) {
   folder <- as.character(folder)
   files  <- Sys.glob(file.path(folder, pattern))
 
@@ -382,20 +438,5 @@ run_pipeline_native_batch <- function(folder, pattern = "*.txt", ...) {
     return(list())
   }
 
-  results <- list()
-  for (f in files) {
-    subject_id <- tools::file_path_sans_ext(basename(f))
-    tryCatch(
-      {
-        results[[subject_id]] <- run_pipeline_native(f, ...)
-      },
-      error = function(e) {
-        cli::cli_warn(
-          "Failed to process {.path {basename(f)}}: {conditionMessage(e)}",
-          .envir = parent.env(environment())
-        )
-      }
-    )
-  }
-  results
+  .run_pipeline_over_files(files, run_pipeline_native, parallel, ...)
 }
