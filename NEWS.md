@@ -106,17 +106,19 @@
 
 ### Bug fixes
 
-* **Fix 26c (fragment recovery)**: the Python reference pipeline silently
-  disabled temperature- and light-based gap merging due to column name
-  mismatches (`'TEMPERATURE'` / `'LIGHT'` vs the actual `'int_temp'` /
-  `'light'` columns in ActTrust data). R used the correct column names
-  throughout, so R correctly merges sleep fragments while Python did not.
-  Additionally, R's Fix 26c was using the period-level CSPD `state` column
-  to detect sleep runs within the recovery window, which incorrectly treated
-  entire 19+ h CSPD periods as a single sleep run. Fix 26c now uses
-  Cole-Kripke epoch scoring on ZCMn to determine sleep/wake within the
-  candidate window, matching the intended behaviour. Both fixes reported to
-  Julia Vallim; R is now the reference implementation for Fix 26c.
+* **Fix 26c (fragment recovery)**: two bugs closed.
+  (1) The Python reference pipeline silently disabled temperature- and
+  light-based gap merging due to column name mismatches (`'TEMPERATURE'` /
+  `'LIGHT'` vs the actual `'int_temp'` / `'light'` columns in ActTrust
+  data). `pipeline_functions_fix27.py` patched; `inst/extdata/vallim_nights.csv`
+  regenerated against the corrected Python output and re-verified: 52/52
+  main nights, all sleep dates and classifications match R.
+  (2) R's Fix 26c was using the period-level CSPD `state` column to detect
+  sleep runs within the recovery window, which incorrectly treated entire
+  19+ h CSPD periods as a single sleep run. Fix 26c now uses Cole-Kripke
+  epoch scoring on `ZCMn` to determine sleep/wake within the candidate
+  window, matching the intended behaviour. R is the reference implementation
+  for Fix 26c.
 * **`offwrist_refiner.R`**: fixed scalar `FALSE` assignment to a 0-row data
   frame (`$valley_peak <- rep(FALSE, nrow(...))`) that caused a crash on
   recordings with no valid off-wrist candidates.
@@ -143,6 +145,12 @@
   `rolling_min_cpp`, `zero_mitigation_cpp`, `mark_invalid_zeros_cpp`,
   `adaptive_median_filter_cpp`, morphological close/open pair, and
   end-to-end epoch count lock on `input1.txt`.
+* Fix 26c regression test (`test-fix26c.R`): synthetic 1-min epoch recording
+  with a bloated 19 h CSPD `state = 1` period containing two Cole-Kripke
+  sleep runs (3 h + 5.5 h) separated by a warm/dark wake gap. Asserts that
+  `.recover_fragmented_episodes()` merges the CK-derived runs (TBT ~ 9 h)
+  rather than the CSPD state period (TBT ~ 19 h). Runs on CI; no external
+  data required.
 
 ---
 
