@@ -394,6 +394,42 @@ NumericVector adaptive_median_filter_cpp(
   return result;
 }
 
+// ── rolling_median_prepadded_cpp ─────────────────────────────────────────────
+// Sliding-window median on a pre-padded vector; adds NO additional boundary
+// padding of its own. For i = 0..n_out-1: result[i] = median(x[i .. i+2*hws]).
+//
+// Used in .estimate_sleep_padded() to replace the RcppRoll/zoo/vapply chain.
+// Call pattern (R side):
+//   padded    <- c(rep(pad_val, 2L*hws), valid_activity, rep(pad_val, 2L*hws))
+//   n_windows <- n_valid + 2L * hws
+//   all_win   <- rolling_median_prepadded_cpp(padded, hws, n_windows)
+//   filtered  <- all_win[(hws + 1L):(hws + n_valid)]
+//
+// The pre-padded input has length n_valid + 4*hws; n_windows = n_valid + 2*hws.
+// nth_element gives O(win) per window; for the large windows used here
+// (hws = 120, win = 241) this is a significant speedup over any R fallback.
+
+// [[Rcpp::export]]
+NumericVector rolling_median_prepadded_cpp(
+    NumericVector x, int hws, int n_out
+) {
+  int N   = x.size();
+  int win = 2 * hws + 1;
+  if (n_out < 0 || n_out + win - 1 > N)
+    Rcpp::stop("rolling_median_prepadded_cpp: n_out=%d requires length(x) >= %d, got %d",
+               n_out, n_out + win - 1, N);
+
+  NumericVector result(n_out);
+  std::vector<double> w(win);
+
+  for (int i = 0; i < n_out; i++) {
+    for (int j = 0; j < win; j++) w[j] = x[i + j];
+    std::nth_element(w.begin(), w.begin() + hws, w.end());
+    result[i] = w[hws];
+  }
+  return result;
+}
+
 // ── score_epochs_cole_kripke_cpp ──────────────────────────────────────────────
 // Single-pass Cole-Kripke scorer. For each epoch i, accumulates:
 //   before: weights_before[nb - lag] * zcm[i - lag]  for lag = 1..nb

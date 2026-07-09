@@ -45,6 +45,10 @@ adaptive_median_filter_cpp <- function(padded_activity, n, pad_size, max_hws) {
     .Call(`_zeitR_adaptive_median_filter_cpp`, padded_activity, n, pad_size, max_hws)
 }
 
+rolling_median_prepadded_cpp <- function(x, hws, n_out) {
+    .Call(`_zeitR_rolling_median_prepadded_cpp`, x, hws, n_out)
+}
+
 score_epochs_cole_kripke_cpp <- function(zcm, P = 0.000464, weights_before = as.numeric( c(         34.5, 133.0, 529.0, 375.0, 408.0, 400.5, 1074.0, 2048.5, 2424.5)), weights_after = as.numeric( c(         1920.0, 149.5, 257.5, 125.0, 111.5, 120.0, 69.0, 40.5))) {
     .Call(`_zeitR_score_epochs_cole_kripke_cpp`, zcm, P, weights_before, weights_after)
 }

@@ -161,6 +161,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// rolling_median_prepadded_cpp
+NumericVector rolling_median_prepadded_cpp(NumericVector x, int hws, int n_out);
+RcppExport SEXP _zeitR_rolling_median_prepadded_cpp(SEXP xSEXP, SEXP hwsSEXP, SEXP n_outSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type hws(hwsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_out(n_outSEXP);
+    rcpp_result_gen = Rcpp::wrap(rolling_median_prepadded_cpp(x, hws, n_out));
+    return rcpp_result_gen;
+END_RCPP
+}
 // score_epochs_cole_kripke_cpp
 IntegerVector score_epochs_cole_kripke_cpp(NumericVector zcm, double P, NumericVector weights_before, NumericVector weights_after);
 RcppExport SEXP _zeitR_score_epochs_cole_kripke_cpp(SEXP zcmSEXP, SEXP PSEXP, SEXP weights_beforeSEXP, SEXP weights_afterSEXP) {
@@ -188,6 +201,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_zeitR_zero_mitigation_cpp", (DL_FUNC) &_zeitR_zero_mitigation_cpp, 3},
     {"_zeitR_mark_invalid_zeros_cpp", (DL_FUNC) &_zeitR_mark_invalid_zeros_cpp, 4},
     {"_zeitR_adaptive_median_filter_cpp", (DL_FUNC) &_zeitR_adaptive_median_filter_cpp, 4},
+    {"_zeitR_rolling_median_prepadded_cpp", (DL_FUNC) &_zeitR_rolling_median_prepadded_cpp, 3},
     {"_zeitR_score_epochs_cole_kripke_cpp", (DL_FUNC) &_zeitR_score_epochs_cole_kripke_cpp, 4},
     {NULL, NULL, 0}
 };

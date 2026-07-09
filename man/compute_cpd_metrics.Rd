@@ -2,19 +2,37 @@
 % Please edit documentation in R/sleep_metrics.R
 \name{compute_cpd_metrics}
 \alias{compute_cpd_metrics}
+\alias{compute_cpd_metrics.zeitr_result}
+\alias{compute_cpd_metrics.default}
 \title{Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa}
 \usage{
-compute_cpd_metrics(
-  nights,
+compute_cpd_metrics(x, ...)
+
+\method{compute_cpd_metrics}{zeitr_result}(
+  x,
   min_tib_h = 3,
   min_tib_eve_h = 3,
   tz = "UTC",
-  holidays = NULL
+  holidays = x$holidays,
+  free_days = x$free_days,
+  ...
+)
+
+\method{compute_cpd_metrics}{default}(
+  x,
+  min_tib_h = 3,
+  min_tib_eve_h = 3,
+  tz = "UTC",
+  holidays = NULL,
+  free_days = c("Saturday", "Sunday"),
+  ...
 )
 }
 \arguments{
-\item{nights}{A \code{tibble} of nightly sleep statistics as returned by
-\code{\link[=run_pipeline_native]{run_pipeline_native()}} or \code{\link[=run_pipeline]{run_pipeline()}}.}
+\item{x}{A \code{zeitr_result} object \strong{or} a \code{tibble} of nightly sleep
+statistics as returned by \code{\link[=run_pipeline_native]{run_pipeline_native()}} or \code{\link[=run_pipeline]{run_pipeline()}}.}
+
+\item{...}{Not used; reserved for forward compatibility with future methods.}
 
 \item{min_tib_h}{\code{numeric(1)}. Minimum TBT (hours) for inclusion. Default
 is \code{3.0}.}
@@ -25,8 +43,23 @@ qualify as a free-day-eve night. Default is \code{3.0}.}
 \item{tz}{\code{character(1)}. Time zone for extracting clock hours. Default is
 \code{"UTC"}.}
 
-\item{holidays}{A \code{Date} vector of public holidays to treat as free days.
-Default is \code{NULL} (weekends only).}
+\item{holidays}{Holidays to treat as free days in addition to the days in
+\code{free_days}. Accepts three forms, which can be mixed in the same vector:
+\itemize{
+\item \code{Date} objects or \code{"YYYY-MM-DD"} strings for year-specific dates (e.g.
+\code{as.Date("2019-03-04")} for one Carnival day).
+\item \code{"DD-MM"} strings for dates that recur every year (e.g. \code{"25-12"} for
+Christmas, \code{"01-01"} for New Year).
+Default is \code{NULL}. When \code{x} is a \code{zeitr_result}, defaults to
+\code{x$holidays} automatically. A warning is emitted when \code{NULL}; suppress
+with \code{options(zeitR.no_holidays_warn = FALSE)}.
+}}
+
+\item{free_days}{A character vector of day names (\code{"Monday"} through
+\code{"Sunday"}, case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+identifying which days of the week are unconditionally treated as free
+days. Default is \code{c("Saturday", "Sunday")}. When \code{x} is a \code{zeitr_result},
+defaults to \code{x$free_days} automatically.}
 }
 \value{
 A named list with \code{n_nights_cpd}, \code{n_free_days}, \code{n_workdays},
@@ -36,29 +69,35 @@ A named list with \code{n_nights_cpd}, \code{n_free_days}, \code{n_workdays},
 \description{
 Calculates chronobiological phenotyping metrics from classified nightly sleep
 data. Mirrors \code{compute_cpd_metrics()} and \code{nights_to_cpd_df()} from Julia
-Ribeiro da Silva Vallim's \code{pipeline_functions_fix27.py}.
+Ribeiro da Silva Vallim's \code{pipeline_functions_fix27.py}, with two updates
+to match the fix29 notebook:
+\itemize{
+\item \strong{MSF and MSW} are computed with the circular mean to correctly handle
+mid-sleep times that wrap midnight.
+\item \strong{Truncated episodes} starting after noon on the last recording day are
+excluded before metric computation.
+}
 }
 \details{
+Dispatches on the class of \code{x}:
+\itemize{
+\item \strong{\code{data.frame} / \code{tibble}} -- treated as a nights table (same behaviour
+as the original function signature).
+\item \strong{\code{zeitr_result}} -- extracts \code{x$nights} and inherits \code{x$holidays} and
+\code{x$free_days} automatically.
+}
+
 Mid-sleep is computed per night as:
 \deqn{\text{MS} = \left(\text{SO} + \frac{\text{offset} - \text{onset}}{2}\right) \bmod 24}
-where onset = bts + SOL and offset = gts − SOI (both in decimal hours).
+where onset = bts + SOL and offset = gts - SOI (both in decimal hours).
 
-\strong{MSW} and \strong{MSF} use plain arithmetic means of per-night mid-sleep values.
+\strong{MSW} and \strong{MSF} use the circular mean of per-night mid-sleep values
+(values >= 12 h shifted by -24 before averaging, then wrapped to [0, 24)),
+matching \code{calculate_msf()} / \code{calculate_msw()} from the fix29 notebook.
 \strong{MSFsc} adjusts MSF by the free-day-eve sleep onset and the weighted
 weekly mean sleep duration when free-day duration exceeds weekday duration.
 \strong{CPD} is the RMS distance of each night's mid-sleep from MSFsc in the
-time × sequence plane.
-}
-\examples{
-\dontrun{
-result <- run_pipeline_native("recordings/P001.txt",
-                              tz = "America/Sao_Paulo")
-
-cpd <- compute_cpd_metrics(result$nights, tz = "America/Sao_Paulo")
-cpd$sjl_min    # social jet lag in minutes
-cpd$msf_hms    # mid-sleep on free days as HH:MM
-cpd$cpd_min    # CPD in minutes
-}
+time x sequence plane.
 }
 \seealso{
 \code{\link[=compute_sleep_metrics]{compute_sleep_metrics()}}, \code{\link[=run_pipeline_native]{run_pipeline_native()}}

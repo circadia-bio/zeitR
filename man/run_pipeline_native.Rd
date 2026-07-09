@@ -13,6 +13,7 @@ run_pipeline_native(
   sleep_args = list(),
   classify_args = list(),
   holidays = NULL,
+  free_days = c("Saturday", "Sunday"),
   quiet = FALSE
 )
 }
@@ -32,12 +33,24 @@ Default \code{120}.}
 
 \item{classify_args}{\code{list}. Additional arguments for \code{\link[=classify_sleep_episodes]{classify_sleep_episodes()}}.}
 
-\item{holidays}{A \code{Date} vector of public holidays to treat as free days
-in addition to Saturdays and Sundays. The Vallim classification rules
-(Fix 26a/26c, Rules 3--7) do not use day-of-week; this parameter is
-stored for convenience and should be forwarded to
-\code{\link[=compute_sleep_metrics]{compute_sleep_metrics()}} and \code{\link[=compute_cpd_metrics]{compute_cpd_metrics()}} for day-type
-metric splitting. Default \code{NULL} (weekends only).}
+\item{holidays}{Holidays to treat as free days in addition to the days in
+\code{free_days}. Accepts three forms, which can be mixed in the same vector:
+\itemize{
+\item \code{Date} objects or \code{"YYYY-MM-DD"} strings for year-specific dates (e.g.
+\code{as.Date("2019-03-04")} for one Carnival day).
+\item \code{"DD-MM"} strings for dates that recur every year (e.g. \code{"25-12"} for
+Christmas, \code{"07-09"} for Brazilian Independence Day).
+Stored in \code{result$holidays} and auto-forwarded by the \code{zeitr_result} S3
+methods of \code{\link[=compute_sleep_metrics]{compute_sleep_metrics()}} and \code{\link[=compute_cpd_metrics]{compute_cpd_metrics()}}.
+Default \code{NULL}.
+}}
+
+\item{free_days}{A character vector of day names (\code{"Monday"} through
+\code{"Sunday"}, case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+identifying which days of the week are unconditionally treated as free
+days. Stored in \code{result$free_days} and auto-forwarded by the \code{zeitr_result}
+S3 methods of \code{\link[=compute_sleep_metrics]{compute_sleep_metrics()}} and \code{\link[=compute_cpd_metrics]{compute_cpd_metrics()}}.
+Default \code{c("Saturday", "Sunday")}.}
 
 \item{quiet}{\code{logical(1)}. Suppress timestamp warnings. Default \code{FALSE}.}
 }

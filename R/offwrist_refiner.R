@@ -747,25 +747,13 @@ below_prop <- function(x, thr) {
   # True sliding window median matching Python's rolling_window + median extraction exactly.
   # rolling_window(padded, win) produces (n_padded - win + 1) = n_valid + 2*hws windows.
   # We need windows [hws+1 .. hws+n_valid] (1-indexed) = Python's [hws : n+hws].
-  # runmed() does NOT do this: it applies its own boundary rules (Tukey's running median)
-  # that differ from a plain sliding window at the edges. Use RcppRoll if available,
-  # otherwise zoo::rollmedian, otherwise a pure-R fallback.
-  # Python rolling_window(padded, 2*hws+1) + median(axis=-1)[hws : n_valid+hws]
-  # Window i (0-indexed) covers padded[i : i+2*hws+1].
-  # Output i (1-indexed, i in 1..n_valid) = median(padded[(hws+i):(3*hws+i)])
-  # = rollmedian with align="right" at position (3*hws + i) in padded.
-  # Equivalently: the pure-R reference formula is median(padded[(hws+i):(3*hws+i)]).
-  if (requireNamespace("RcppRoll", quietly = TRUE)) {
-    all_windows <- RcppRoll::roll_median(padded, n = win, fill = NA_real_, align = "right")
-    filtered_valid <- as.double(all_windows[(3L * hws + 1L):(3L * hws + n_valid)])
-  } else if (requireNamespace("zoo", quietly = TRUE)) {
-    all_windows <- zoo::rollmedian(padded, k = win, fill = NA_real_, align = "right")
-    filtered_valid <- as.double(all_windows[(3L * hws + 1L):(3L * hws + n_valid)])
-  } else {
-    filtered_valid <- vapply(seq_len(n_valid), function(i) {
-      stats::median(padded[(hws + i):(3L * hws + i)])
-    }, numeric(1))
-  }
+  # rolling_median_prepadded_cpp takes the already-padded vector and returns
+  # n_windows = n_valid + 2*hws medians: result[i] = median(padded[i .. i+2*hws]).
+  # Extracting [(hws+1L):(hws+n_valid)] gives exactly the n_valid central values.
+  n_windows      <- n_valid + 2L * hws
+  all_windows    <- rolling_median_prepadded_cpp(as.double(padded), as.integer(hws),
+                                                 as.integer(n_windows))
+  filtered_valid <- as.double(all_windows[(hws + 1L):(hws + n_valid)])
 
   # Compute sleep threshold ("both" configuration)
   if (act_zero_prop < sleep_all_q) {

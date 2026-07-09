@@ -43,51 +43,45 @@ check_consistency <- function(x, gap_s = 120, datetime_col = "datetime") {
   }
 
   times  <- as.POSIXct(x[[datetime_col]])
-  n      <- length(times)
-  issues <- vector("list", n)
-  k      <- 0L
-
   deltas <- as.numeric(diff(times), units = "secs")
+  years  <- as.integer(format(times, "%Y"))
 
-  for (i in seq_len(n - 1L)) {
-    d <- deltas[i]
+  # Gaps
+  gap_idx <- which(!is.na(deltas) & deltas > gap_s) + 1L
+  gap_rows <- if (length(gap_idx) > 0L)
+    tibble::tibble(
+      row      = gap_idx,
+      datetime = times[gap_idx],
+      issue    = "gap",
+      detail   = sprintf("%.0f s gap before this epoch", deltas[gap_idx - 1L])
+    )
+  else NULL
 
-    if (!is.na(d) && d > gap_s) {
-      k <- k + 1L
-      issues[[k]] <- list(
-        row      = i + 1L,
-        datetime = times[i + 1L],
-        issue    = "gap",
-        detail   = sprintf("%.0f s gap before this epoch", d)
-      )
-    }
-
-    if (!is.na(d) && d < 0) {
-      k <- k + 1L
-      issues[[k]] <- list(
-        row      = i + 1L,
-        datetime = times[i + 1L],
-        issue    = "backward_jump",
-        detail   = sprintf("timestamp went back %.0f s", abs(d))
-      )
-    }
-  }
+  # Backward jumps
+  bj_idx <- which(!is.na(deltas) & deltas < 0) + 1L
+  bj_rows <- if (length(bj_idx) > 0L)
+    tibble::tibble(
+      row      = bj_idx,
+      datetime = times[bj_idx],
+      issue    = "backward_jump",
+      detail   = sprintf("timestamp went back %.0f s", abs(deltas[bj_idx - 1L]))
+    )
+  else NULL
 
   # Year artefacts
-  years <- as.integer(format(times, "%Y"))
-  for (i in seq_len(n)) {
-    if (!is.na(years[i]) && years[i] %in% c(1970L, 2000L)) {
-      k <- k + 1L
-      issues[[k]] <- list(
-        row      = i,
-        datetime = times[i],
-        issue    = "year_artefact",
-        detail   = sprintf("suspicious year %d (likely firmware bug)", years[i])
-      )
-    }
-  }
+  ya_idx <- which(!is.na(years) & years %in% c(1970L, 2000L))
+  ya_rows <- if (length(ya_idx) > 0L)
+    tibble::tibble(
+      row      = ya_idx,
+      datetime = times[ya_idx],
+      issue    = "year_artefact",
+      detail   = sprintf("suspicious year %d (likely firmware bug)", years[ya_idx])
+    )
+  else NULL
 
-  if (k == 0L) {
+  out <- do.call(rbind, Filter(Negate(is.null), list(gap_rows, bj_rows, ya_rows)))
+
+  if (is.null(out)) {
     return(tibble::tibble(
       row      = integer(),
       datetime = as.POSIXct(character()),
@@ -95,14 +89,6 @@ check_consistency <- function(x, gap_s = 120, datetime_col = "datetime") {
       detail   = character()
     ))
   }
-
-  issues <- issues[seq_len(k)]
-  out    <- tibble::tibble(
-    row      = vapply(issues, `[[`, integer(1),  "row"),
-    datetime = do.call(c, lapply(issues, `[[`, "datetime")),
-    issue    = vapply(issues, `[[`, character(1), "issue"),
-    detail   = vapply(issues, `[[`, character(1), "detail")
-  )
 
   out[order(out$row), ]
 }

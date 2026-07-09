@@ -10,6 +10,10 @@
 #   - Small vector (n=9, hws=2) -- exercises all boundary cases
 #   - Constant vector -- trivial case; verifies no division/NaN issues
 #   - Zeros vector  -- important for zero_prop
+#
+# rolling_median_prepadded_cpp is tested against a reference that explicitly
+# builds the padded vector and extracts n_valid central windows -- identical
+# to the pre/post Rcpp extraction logic in .estimate_sleep_padded().
 
 ref_border <- function(x, hws, FUN) {
   vapply(seq_along(x), function(i) {
@@ -211,4 +215,56 @@ test_that("score_epochs_cole_kripke_cpp respects custom weights and P", {
     score_epochs_cole_kripke_cpp(zcm, P = 0.001, wb, wa),
     ref_cole_kripke(zcm, P = 0.001, wb, wa)
   )
+})
+
+# ── rolling_median_prepadded_cpp ─────────────────────────────────────────────
+# Reference: explicitly pad the input with 2*hws constant values on each side,
+# then for each i in 1..n_valid extract median(padded[(hws+i):(3*hws+i)]).
+# This is exactly what .estimate_sleep_padded() needs.
+ref_prepadded <- function(valid, hws, pad_val) {
+  n_valid <- length(valid)
+  padded  <- c(rep(pad_val, 2L * hws), valid, rep(pad_val, 2L * hws))
+  vapply(seq_len(n_valid), function(i) {
+    stats::median(padded[(hws + i):(3L * hws + i)])
+  }, numeric(1L))
+}
+
+test_that("rolling_median_prepadded_cpp matches reference for small hws", {
+  set.seed(42)
+  valid   <- as.double(sample(1:50, 30, replace = TRUE))
+  hws     <- 3L
+  pad_val <- max(valid)
+  padded  <- c(rep(pad_val, 2L * hws), valid, rep(pad_val, 2L * hws))
+  n_win   <- length(valid) + 2L * hws
+  cpp_all <- rolling_median_prepadded_cpp(padded, hws, n_win)
+  cpp_out <- cpp_all[(hws + 1L):(hws + length(valid))]
+  expect_equal(cpp_out, ref_prepadded(valid, hws, pad_val))
+})
+
+test_that("rolling_median_prepadded_cpp matches reference for large hws (sleep estimation use case)", {
+  # Mirrors the actual .estimate_sleep_padded() call: hws = 120, n_valid = 500
+  set.seed(99)
+  valid   <- as.double(rpois(500L, lambda = 200))
+  hws     <- 120L
+  pad_val <- max(valid)
+  padded  <- c(rep(pad_val, 2L * hws), valid, rep(pad_val, 2L * hws))
+  n_win   <- length(valid) + 2L * hws
+  cpp_all <- rolling_median_prepadded_cpp(padded, hws, n_win)
+  cpp_out <- cpp_all[(hws + 1L):(hws + length(valid))]
+  expect_equal(cpp_out, ref_prepadded(valid, hws, pad_val))
+})
+
+test_that("rolling_median_prepadded_cpp returns single value when n_valid == 1", {
+  valid   <- 5.0
+  hws     <- 2L
+  pad_val <- 10.0
+  padded  <- c(rep(pad_val, 2L * hws), valid, rep(pad_val, 2L * hws))
+  n_win   <- 1L + 2L * hws
+  cpp_all <- rolling_median_prepadded_cpp(padded, hws, n_win)
+  cpp_out <- cpp_all[(hws + 1L):(hws + 1L)]
+  expect_equal(cpp_out, ref_prepadded(valid, hws, pad_val))
+})
+
+test_that("rolling_median_prepadded_cpp errors when n_out is out of bounds", {
+  expect_error(rolling_median_prepadded_cpp(1:10, 2L, 20L))
 })
