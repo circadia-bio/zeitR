@@ -85,8 +85,7 @@ export_hypnogram <- function(result,
   data <- if (is.list(result) && !is.data.frame(result)) {
     if (is.null(result$data))
       zeitr_abort(
-        "{.arg result} must be a `zeitr_result` list with a `$data` element, ",
-        "or a tibble with `datetime` and `state` columns."
+        "{.arg result} must be a `zeitr_result` list with a `$data` element, or a tibble with `datetime` and `state` columns."
       )
     result$data
   } else {
@@ -143,8 +142,7 @@ export_hypnogram <- function(result,
       mode_gap <- as.numeric(names(sort(table(gaps), decreasing = TRUE))[1L])
       if (abs(mode_gap - epoch_sec) > 1)
         zeitr_warn(
-          "Epoch duration in data ({round(mode_gap)} s) differs from ",
-          "`epoch_sec` ({epoch_sec} s)."
+          "Epoch duration in data ({round(mode_gap)} s) differs from `epoch_sec` ({epoch_sec} s)."
         )
     }
   }

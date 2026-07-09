@@ -13,6 +13,35 @@
   installed. Default remains `FALSE` (sequential), so existing code is
   unaffected. `future` and `future.apply` added to `Suggests`.
 
+### Bug fixes
+
+* `zeitr_abort()`, `zeitr_warn()`, and `zeitr_inform()` (internal message
+  wrappers around `cli::cli_abort()`/`cli_warn()`/`cli_inform()`) did not
+  forward `.envir`, so `{glue}`-style interpolation of a variable local to
+  the *calling* function (e.g. `{.val {missing_cols}}`) silently failed with
+  "object not found" instead of producing the intended message. Fixed by
+  defaulting `.envir = parent.frame()` in all three wrappers; no call sites
+  needed to change.
+* Five call sites (three in `plot_actogram.R`, two in `export.R`) passed
+  their error/warning message as multiple separate comma-delimited string
+  arguments instead of one string. R does not auto-concatenate adjacent
+  string literals, so the extra arguments were passed through to
+  `cli::cli_abort()`/`cli_warn()` as unnamed condition data, which `rlang`
+  rejects ("Conditions must have named data fields"). Fixed by merging each
+  into a single message string. None of the five affected error paths had
+  previously been exercised by a test.
+* `plot_actogram()` and `plot_actogram_double()`: the epoch at
+  `mins_since_midnight = 0` (midnight, i.e. the first epoch of every
+  calendar day) had its left half clipped by `geom_tile()`'s centred tile
+  extending outside a hard `scale_x_continuous()` limit of exactly `0`,
+  producing a silently dropped/incomplete tile at the start of every row
+  (and a `ggplot2` "missing values" warning once actually rendered under
+  test). Fixed by widening the x-axis limits by half an epoch on each side
+  in both `plot_actogram()` and the shared `.scale_x_double()` helper (also
+  used by `plot_actogram_activity()`, which was not affected by the
+  clipping itself since it uses `geom_rect()` with explicit epoch
+  boundaries rather than a centred tile).
+
 ### Tests
 
 * `test-batch-helper.R`: `.run_pipeline_over_files()` -- sequential success,
@@ -21,6 +50,14 @@
   installed), sequential fallback when `future.apply` is unavailable
   (skipped if it is installed), and a regression guard confirming both
   exported batch wrappers still default to `parallel = FALSE`.
+* `test-actogram-snapshots.R`: visual regression snapshots (`vdiffr`, skipped
+  if not installed) for `plot_actogram()`, `plot_actogram_double()`,
+  `plot_actogram_activity()`, and `plot_actogram_activity()` with a custom
+  `activity_cap_quantile`, using a deterministic synthetic 2-day fixture.
+  Also covers (independently of `vdiffr`) missing-column errors for all
+  three functions, the missing-`activity_col` error, and acceptance of a
+  `zeitr_result` list as well as a bare tibble. `vdiffr` added to
+  `Suggests`.
 
 ## zeitR 0.1.3  (2026-07)
 

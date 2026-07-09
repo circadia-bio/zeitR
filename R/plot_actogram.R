@@ -22,8 +22,7 @@ utils::globalVariables(c(
 .check_ggplot2 <- function() {
   if (!requireNamespace("ggplot2", quietly = TRUE))
     zeitr_abort(
-      "Package {.pkg ggplot2} is required for actogram plots. ",
-      "Install with: {.code install.packages(\"ggplot2\")}."
+      "Package {.pkg ggplot2} is required for actogram plots. Install with: {.code install.packages(\"ggplot2\")}."
     )
 }
 
@@ -58,8 +57,7 @@ actogram_colours <- function() {
   data <- if (is.list(result) && !is.data.frame(result)) {
     if (is.null(result[["data"]]))
       zeitr_abort(
-        "{.arg result} must be a `zeitr_result` list with a {.code $data} ",
-        "element, or a tibble with {.code datetime} and {.code state} columns."
+        "{.arg result} must be a `zeitr_result` list with a {.code $data} element, or a tibble with {.code datetime} and {.code state} columns."
       )
     result[["data"]]
   } else {
@@ -137,12 +135,17 @@ actogram_colours <- function() {
 }
 
 # Shared x-axis scale for the double-plot variants (48 h window).
+# Limits are widened by half an epoch on each side: geom_tile() centers each
+# tile on its x value, so the epoch at x = 0 (midnight) would otherwise have
+# its left half clipped by a hard limit of exactly 0 (and ggplot2 drops the
+# whole tile with a "missing values" warning). Symmetric padding on the right
+# guards against the same issue at the 48 h boundary.
 #' @noRd
 .scale_x_double <- function(epoch_min) {
   ggplot2::scale_x_continuous(
     breaks = seq(0L, 42L * 60L, 6L * 60L),
     labels = function(x) sprintf("%02d:00", (x %/% 60L) %% 24L),
-    limits = c(0L, 48L * 60L),
+    limits = c(-epoch_min / 2, 48L * 60L + epoch_min / 2),
     expand = c(0, 0)
   )
 }
@@ -227,7 +230,10 @@ plot_actogram <- function(result,
       breaks = seq(0L, 23L * 60L, 4L * 60L),
       labels = function(x) sprintf("%02d:00", x %/% 60L),
       expand = c(0, 0),
-      limits = c(0L, 24L * 60L)
+      # Widened by half an epoch on each side: geom_tile() centers each tile
+      # on its x value, so the midnight epoch (x = 0) would otherwise have
+      # its left half clipped by a hard limit of exactly 0.
+      limits = c(-epoch_min / 2, 24L * 60L + epoch_min / 2)
     ) +
     ggplot2::scale_y_discrete(
       breaks = function(x) x[seq(1L, length(x), by = as.integer(date_label_every))],
@@ -373,9 +379,7 @@ plot_actogram_activity <- function(result,
 
   if (!activity_col %in% names(d))
     zeitr_abort(
-      "Activity column {.val {activity_col}} not found in the data. ",
-      "Check that the pipeline was run on a device that provides this signal, ",
-      "or supply a different {.arg activity_col}."
+      "Activity column {.val {activity_col}} not found in the data. Check that the pipeline was run on a device that provides this signal, or supply a different {.arg activity_col}."
     )
 
   col_use   <- if (is.null(colours)) actogram_colours() else colours

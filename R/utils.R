@@ -7,13 +7,19 @@
 # ── Messages ──────────────────────────────────────────────────────────────────
 
 #' @noRd
-zeitr_abort <- function(msg, ...) cli::cli_abort(msg, ...)
+zeitr_abort <- function(msg, ..., .envir = parent.frame()) {
+  cli::cli_abort(msg, ..., .envir = .envir)
+}
 
 #' @noRd
-zeitr_warn <- function(msg, ...) cli::cli_warn(msg, ...)
+zeitr_warn <- function(msg, ..., .envir = parent.frame()) {
+  cli::cli_warn(msg, ..., .envir = .envir)
+}
 
 #' @noRd
-zeitr_inform <- function(msg, ...) cli::cli_inform(msg, ...)
+zeitr_inform <- function(msg, ..., .envir = parent.frame()) {
+  cli::cli_inform(msg, ..., .envir = .envir)
+}
 
 # ── Scaling ───────────────────────────────────────────────────────────────────
 
