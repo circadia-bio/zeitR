@@ -31,7 +31,8 @@
 #'   }
 #'
 #' @seealso [compute_npcra()] for single-recording NPCRA, [read_actigraphy_dir()]
-#'   to create a `zeitr_study`.
+#'   to create a `zeitr_study`, [study_sleep_metrics()] for the sleep-timing/
+#'   chronotype analogue (CPD, MSF/MSW, social jetlag).
 #'
 #' @export
 #'

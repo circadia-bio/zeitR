@@ -1,5 +1,33 @@
 ## zeitR (development version)
 
+### New features
+
+* New `study_sleep_metrics()` -- batch wrapper computing
+  `compute_sleep_metrics()` and `compute_cpd_metrics()` across every
+  participant in a `run_pipeline_batch()`/`run_pipeline_native_batch()`
+  result, stacked into one tibble with a `participant_id` column -- the
+  sleep-timing/chronotype (CPD, MSF/MSW, social jetlag) counterpart to
+  `study_summary()` (NPCRA/activity-rhythm variables). Closes a gap found
+  while checking `syncR::sync()` compatibility: `compute_sleep_metrics()`
+  and `compute_cpd_metrics()` each return a single named list per
+  participant with no participant identifier and no batch equivalent,
+  unlike `study_summary()`, so there was previously no way to get these
+  metrics into the one-row-per-participant shape `sync()` expects without
+  writing manual glue code per study.
+
+### Tests
+
+* `test-study-sleep-metrics.R`: synthetic multi-participant coverage for
+  `study_sleep_metrics()` -- both metric sets present with correct
+  `n_overall`/`n_wd`/`n_fd` counts, holiday forwarding shifting a night
+  between the workday/free-day groups, per-participant `holidays`/`free_days`
+  fallback vs a study-level override, a participant whose
+  `compute_cpd_metrics()` call fails (no free days) while
+  `compute_sleep_metrics()` still succeeds for the same participant (only
+  the failing metric set is `NA`-filled), skipping non-`zeitr_result`
+  entries, the empty/all-invalid-batch paths, and the `subject_id`-missing
+  fallback to the list name.
+
 ### Visualisation
 
 * `actogram_colours()`: swapped the default `"wake"` and `"off-wrist"`
