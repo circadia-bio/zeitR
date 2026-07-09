@@ -13,6 +13,15 @@
   installed. Default remains `FALSE` (sequential), so existing code is
   unaffected. `future` and `future.apply` added to `Suggests`.
 
+### Tests
+
+* `test-batch-helper.R`: `.run_pipeline_over_files()` -- sequential success,
+  partial-failure skip-with-warning, all-failing batch returns empty list,
+  parallel dispatch via `future_lapply()` (skipped if `future.apply` is not
+  installed), sequential fallback when `future.apply` is unavailable
+  (skipped if it is installed), and a regression guard confirming both
+  exported batch wrappers still default to `parallel = FALSE`.
+
 ## zeitR 0.1.3  (2026-07)
 
 ### Visualisation
