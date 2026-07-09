@@ -1,5 +1,41 @@
 ## zeitR 0.1.3  (2026-07)
 
+### Visualisation
+
+* `plot_actogram()` -- single-column raster actogram. One row per calendar day,
+  time-of-day on the x-axis, filled by sleep/wake state. Oldest day at the
+  top, following standard chronobiology convention. Equivalent to the ad-hoc
+  ggplot2 code in the single-recording vignette but packaged as a reusable
+  function with consistent defaults.
+* `plot_actogram_double()` -- classic double-plotted actogram. Each recording
+  day appears twice: in the left column of its own row (x = 00:00 to 24:00)
+  and in the right column of the row above (x = 24:00 to 48:00). Circadian
+  phase drift is visible as a diagonal band across consecutive rows. A dashed
+  vertical line marks the 24 h column boundary.
+* `plot_actogram_activity()` -- double-plotted actogram with activity bars.
+  Same row structure as `plot_actogram_double()` but each epoch is drawn as a
+  vertical bar whose height is proportional to the raw ZCMn activity count.
+  Bars are coloured by sleep/wake state so activity intensity and state
+  classification are read simultaneously. A 99th-percentile cap on bar heights
+  prevents outlier bursts from compressing the rest of the range; a thin
+  baseline stub keeps zero-activity epochs (sleep, off-wrist) faintly visible.
+* `actogram_colours()` -- exported helper returning the named hex colour vector
+  used as the default palette across all three actogram functions. Pass the
+  result to any `colours` argument to inspect or partially override defaults.
+* All three functions accept a `zeitr_result` list or a bare tibble with
+  `datetime` and `state` columns. `ggplot2` remains in `Suggests`; a clear
+  error is thrown if it is not installed.
+
+### Performance
+
+* `rolling_median_prepadded_cpp()` added to `src/rolling_filters.cpp`. Replaces
+  the `RcppRoll` / `zoo` / `vapply` fallback chain in `.estimate_sleep_padded()`
+  with a single direct Rcpp call. Off-wrist sleep estimation is now
+  unconditionally fast (O(n * win) in C++) regardless of which optional packages
+  are installed. `zoo` removed from Imports; `RcppRoll` removed from Suggests.
+* `check_consistency()` vectorised. Two O(n) R `for` loops replaced with `which()`
+  calls. No behaviour change.
+
 ### Free-day classification
 
 * New `free_days` parameter on `run_pipeline_native()`, `compute_sleep_metrics()`,

@@ -219,6 +219,14 @@ reference:
   - compute_sleep_metrics
   - compute_cpd_metrics
 
+- title: "Visualisation"
+  desc: "Actogram and raster display of actigraphy recordings."
+  contents:
+  - plot_actogram
+  - plot_actogram_double
+  - plot_actogram_activity
+  - actogram_colours
+
 - title: "Utilities"
   desc: "Helper functions for working with pipeline output."
   contents:

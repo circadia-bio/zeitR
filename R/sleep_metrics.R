@@ -212,6 +212,8 @@
 #'   }
 #'   Workday and free-day metrics carry the suffix `_wd` and `_fd`.
 #'
+#' @param ... Not used; reserved for forward compatibility with future methods.
+#'
 #' @seealso [compute_cpd_metrics()], [run_pipeline_native()]
 #'
 #' @importFrom stats sd setNames
@@ -383,29 +385,11 @@ compute_sleep_metrics.default <- function(x,
 #'   `msw_h`, `msw_hms`, `msf_h`, `msf_hms`, `msfsc_h`, `msfsc_hms`,
 #'   `sjl_h`, `sjl_min`, `sjla_h`, `sjla_min`, `cpd_s`, `cpd_min`, `cpd_h`.
 #'
+#' @param ... Not used; reserved for forward compatibility with future methods.
+#'
 #' @seealso [compute_sleep_metrics()], [run_pipeline_native()]
 #'
 #' @export
-#'
-#' @examples
-#' \dontrun{
-#' # From a zeitr_result: holidays and free_days forwarded automatically
-#' result <- run_pipeline_native("recordings/P001.txt",
-#'                               tz        = "America/Sao_Paulo",
-#'                               holidays  = my_holidays,
-#'                               free_days = c("Saturday", "Sunday"))
-#' cpd <- compute_cpd_metrics(result, tz = "America/Sao_Paulo")
-#'
-#' # Non-standard schedule: Friday + Saturday as free days
-#' cpd <- compute_cpd_metrics(result$nights,
-#'                            tz        = "America/Sao_Paulo",
-#'                            holidays  = my_holidays,
-#'                            free_days = c("Friday", "Saturday"))
-#'
-#' cpd$sjl_min    # social jet lag in minutes
-#' cpd$msf_hms    # mid-sleep on free days as HH:MM
-#' cpd$cpd_min    # CPD in minutes
-#' }
 compute_cpd_metrics <- function(x, ...) UseMethod("compute_cpd_metrics")
 
 
