@@ -62,6 +62,18 @@
 * `compute_cpd_metrics()` now drops episodes starting after noon on the last
   recording day (truncated by end of file), matching fix29's filter.
 
+### Tests
+
+* Free-day classification tests (`test-free-days.R`): `.parse_free_days()`
+  input validation (English names, ISO integers, case insensitivity, range
+  errors), `.is_free_day()` locale-independent weekday detection (vectorised
+  over a full week, default and custom schedules), all three holiday input
+  forms (`Date`, `"YYYY-MM-DD"`, `"DD-MM"`) including mixed-form vectors,
+  year-specificity of `"YYYY-MM-DD"` vs recurrence of `"DD-MM"`, the
+  `zeitR.no_holidays_warn` option, and `zeitr_result` S3 dispatch forwarding
+  `free_days` and `holidays` to both `compute_sleep_metrics()` and
+  `compute_cpd_metrics()`.
+
 ## zeitR 0.1.2  (2026-07)
 
 ### Vallim native pipeline
