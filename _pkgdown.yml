@@ -248,6 +248,11 @@ articles:
   - npcra
   - study-analysis
 
+- title: "Visualisation"
+  navbar: "Visualisation"
+  contents:
+  - actogram
+
 - title: "Example analyses"
   navbar: "Examples"
   contents:

@@ -74,6 +74,14 @@
   `free_days` and `holidays` to both `compute_sleep_metrics()` and
   `compute_cpd_metrics()`.
 
+### Documentation
+
+* New vignette `vignette("actogram")` -- covers all three plot functions and
+  `actogram_colours()`: single-column vs double-plotted vs activity-bar
+  formats, colour customisation, `date_label_every`, extending the returned
+  `ggplot` object with additional layers, and working with bare tibbles
+  instead of a `zeitr_result`.
+
 ## zeitR 0.1.2  (2026-07)
 
 ### Vallim native pipeline
