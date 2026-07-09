@@ -2,13 +2,14 @@ pandoc: 3.8.3
 pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
+  actogram: actogram.html
   getting-started: getting-started.html
   holidays: holidays.html
   npcra: npcra.html
   sleep-analysis: sleep-analysis.html
   study-analysis: study-analysis.html
   vallim-pipeline: vallim-pipeline.html
-last_built: 2026-07-09T01:01Z
+last_built: 2026-07-09T01:14Z
 urls:
   reference: https://zeitr.circadia-lab.uk/reference
   article: https://zeitr.circadia-lab.uk/articles

@@ -9,6 +9,11 @@
 - [Study-level
   analysis](https://zeitr.circadia-lab.uk/articles/study-analysis.md):
 
+### Visualisation
+
+- [Actogram
+  visualisation](https://zeitr.circadia-lab.uk/articles/actogram.md):
+
 ### Example analyses
 
 - [Single-recording sleep

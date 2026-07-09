@@ -107,6 +107,9 @@
     <li><a class="dropdown-item" href="../articles/npcra.html">Non-parametric circadian rhythm analysis</a></li>
     <li><a class="dropdown-item" href="../articles/study-analysis.html">Study-level analysis</a></li>
     <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Visualisation</h6></li>
+    <li><a class="dropdown-item" href="../articles/actogram.html">Actogram visualisation</a></li>
+    <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Examples</h6></li>
     <li><a class="dropdown-item" href="../articles/sleep-analysis.html">Single-recording sleep analysis</a></li>
     <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
@@ -173,6 +176,10 @@
 <div class="section level3">
 <h3 id="tests-0-1-3">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-3"></a></h3>
 <ul><li>Free-day classification tests (<code>test-free-days.R</code>): <code>.parse_free_days()</code> input validation (English names, ISO integers, case insensitivity, range errors), <code>.is_free_day()</code> locale-independent weekday detection (vectorised over a full week, default and custom schedules), all three holiday input forms (<code>Date</code>, <code>"YYYY-MM-DD"</code>, <code>"DD-MM"</code>) including mixed-form vectors, year-specificity of <code>"YYYY-MM-DD"</code> vs recurrence of <code>"DD-MM"</code>, the <code>zeitR.no_holidays_warn</code> option, and <code>zeitr_result</code> S3 dispatch forwarding <code>free_days</code> and <code>holidays</code> to both <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="documentation-0-1-3">Documentation<a class="anchor" aria-label="anchor" href="#documentation-0-1-3"></a></h3>
+<ul><li>New vignette <code><a href="../articles/actogram.html">vignette("actogram")</a></code> – covers all three plot functions and <code><a href="../reference/actogram_colours.html">actogram_colours()</a></code>: single-column vs double-plotted vs activity-bar formats, colour customisation, <code>date_label_every</code>, extending the returned <code>ggplot</code> object with additional layers, and working with bare tibbles instead of a <code>zeitr_result</code>.</li>
 </ul></div>
 </div>
     <div class="section level2">

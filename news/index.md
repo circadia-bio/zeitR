@@ -97,6 +97,17 @@
   and
   [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md).
 
+### Documentation
+
+- New vignette
+  [`vignette("actogram")`](https://zeitr.circadia-lab.uk/articles/actogram.md)
+  – covers all three plot functions and
+  [`actogram_colours()`](https://zeitr.circadia-lab.uk/reference/actogram_colours.md):
+  single-column vs double-plotted vs activity-bar formats, colour
+  customisation, `date_label_every`, extending the returned `ggplot`
+  object with additional layers, and working with bare tibbles instead
+  of a `zeitr_result`.
+
 ## zeitR 0.1.2 (2026-07)
 
 ### Vallim native pipeline
