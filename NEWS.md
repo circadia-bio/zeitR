@@ -1,5 +1,19 @@
 ## zeitR (development version)
 
+### Visualisation
+
+* `actogram_colours()`: swapped the default `"wake"` and `"off-wrist"`
+  colours (wake is now the warm terracotta `#C25E2A`; off-wrist is now the
+  neutral sand `#D9C8A0`). Affects the default palette used by
+  `plot_actogram()`, `plot_actogram_double()`, and `plot_actogram_activity()`
+  whenever `colours` is not supplied explicitly.
+* `plot_actogram_activity()` gains a `log_scale` argument. When `TRUE`,
+  applies a `log1p()` transform to the activity signal before capping and
+  normalising bar heights, compressing the dynamic range so structure among
+  low-to-moderate activity epochs is easier to see against a right-skewed
+  raw signal (occasional high bursts no longer dominate the visible range).
+  Default `FALSE` preserves the existing linear-scale behaviour exactly.
+
 ### Performance
 
 * Removed `.adaptive_median_filter()`, a dead pure-R fallback in

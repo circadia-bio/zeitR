@@ -84,6 +84,18 @@ test_that("plot_actogram_activity() with a custom activity_cap_quantile renders 
   )
 })
 
+test_that("plot_actogram_activity() with log_scale = TRUE renders consistently", {
+  skip_if_not_installed("vdiffr")
+  skip_if_not_installed("ggplot2")
+
+  d <- make_actogram_fixture()
+  vdiffr::expect_doppelganger(
+    "actogram-activity-log",
+    plot_actogram_activity(d, tz = "UTC", title = "Activity actogram (log scale)",
+                           log_scale = TRUE)
+  )
+})
+
 # ---- Non-visual regression checks (run regardless of vdiffr) ---------------
 # These don't need vdiffr: they check the error paths and don't depend on
 # comparing rendered pixels, so they run whenever ggplot2 is available.
@@ -116,4 +128,29 @@ test_that("all three actogram functions accept a zeitr_result list, not just a b
   expect_s3_class(plot_actogram(result, tz = "UTC"), "ggplot")
   expect_s3_class(plot_actogram_double(result, tz = "UTC"), "ggplot")
   expect_s3_class(plot_actogram_activity(result, tz = "UTC"), "ggplot")
+})
+
+test_that("log_scale = FALSE (default) is unchanged from pre-log_scale behaviour", {
+  skip_if_not_installed("ggplot2")
+
+  d <- make_actogram_fixture()
+  p_default        <- plot_actogram_activity(d, tz = "UTC")
+  p_explicit_false <- plot_actogram_activity(d, tz = "UTC", log_scale = FALSE)
+
+  expect_identical(p_default$data$act_norm, p_explicit_false$data$act_norm)
+})
+
+test_that("log_scale = TRUE changes bar heights relative to the linear scale", {
+  skip_if_not_installed("ggplot2")
+
+  d <- make_actogram_fixture()
+  p_linear <- plot_actogram_activity(d, tz = "UTC")
+  p_log    <- plot_actogram_activity(d, tz = "UTC", log_scale = TRUE)
+
+  # Different normalised heights overall...
+  expect_false(isTRUE(all.equal(p_linear$data$act_norm, p_log$data$act_norm)))
+
+  # ...but zero-activity epochs (sleep, off-wrist) never become non-finite --
+  # log1p(0) = 0, not -Inf.
+  expect_true(all(is.finite(p_log$data$act_norm)))
 })

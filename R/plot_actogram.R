@@ -40,13 +40,13 @@ utils::globalVariables(c(
 #' @examples
 #' actogram_colours()
 #' # wake        sleep        nap    off-wrist
-#' # "#D9C8A0" "#3B2F6B" "#F0A500" "#C25E2A"
+#' # "#C25E2A" "#3B2F6B" "#F0A500" "#D9C8A0"
 actogram_colours <- function() {
   c(
-    "wake"      = "#D9C8A0",
+    "wake"      = "#C25E2A",
     "sleep"     = "#3B2F6B",
     "nap"       = "#F0A500",
-    "off-wrist" = "#C25E2A"
+    "off-wrist" = "#D9C8A0"
   )
 }
 
@@ -336,17 +336,30 @@ plot_actogram_double <- function(result,
 #' @details
 #' Bar heights are capped at the `activity_cap_quantile` quantile of
 #' non-zero epochs to prevent outlier activity bursts from compressing the
-#' visible range for the rest of the recording.  A thin baseline stub
+#' visible range for the rest of the recording. A thin baseline stub
 #' (2 % of row height) is drawn for zero-activity epochs so that sleep periods
 #' and off-wrist blocks remain faintly visible.
 #'
+#' Actigraphy activity counts are typically right-skewed, with occasional
+#' bursts far above the typical waking level. On the default linear scale
+#' this compresses most of the meaningful variation among low-to-moderate
+#' activity epochs into a thin sliver near the baseline. Set `log_scale =
+#' TRUE` to apply a `log1p()` transform (`log(1 + x)`, so zero-activity
+#' epochs map to `0` rather than `-Inf`) before capping and normalising --
+#' this expands the low-activity range at the cost of visually compressing
+#' the difference between already-high activity bursts.
+#'
 #' @inheritParams plot_actogram
 #' @param activity_col `character(1)`. Name of the column in `result$data` to
-#'   use as the activity signal.  Default `"ZCMn"` (zero-crossing mean;
+#'   use as the activity signal. Default `"ZCMn"` (zero-crossing mean;
 #'   present in all ActTrust recordings processed by `zeitR`).
 #' @param activity_cap_quantile `numeric(1)` in (0, 1]. Quantile of non-zero
-#'   activity values used to cap bar heights before normalising.  Default
+#'   activity values used to cap bar heights before normalising. Default
 #'   `0.99` (top 1 % of active epochs are clipped to full bar height).
+#' @param log_scale `logical(1)`. If `TRUE`, applies a `log1p()` transform to
+#'   the activity signal before capping and normalising, compressing the
+#'   dynamic range so lower-activity variation is easier to see. Default
+#'   `FALSE` (linear scale).
 #'
 #' @return A `ggplot` object.
 #'
@@ -362,6 +375,10 @@ plot_actogram_double <- function(result,
 #'
 #' # Cap at 95th percentile to highlight moderate activity
 #' plot_actogram_activity(result, activity_cap_quantile = 0.95)
+#'
+#' # Log scale: reveals structure among low-activity epochs that a linear
+#' # scale would otherwise compress near the baseline
+#' plot_actogram_activity(result, log_scale = TRUE)
 #' }
 plot_actogram_activity <- function(result,
                                    tz                    = NULL,
@@ -369,6 +386,7 @@ plot_actogram_activity <- function(result,
                                    colours               = NULL,
                                    activity_col          = "ZCMn",
                                    activity_cap_quantile = 0.99,
+                                   log_scale             = FALSE,
                                    date_label_every      = 7L,
                                    epoch_min             = 1,
                                    base_size             = 13) {
@@ -396,7 +414,12 @@ plot_actogram_activity <- function(result,
   d_double[["y_row"]] <- match(d_double[["row_date"]], row_dates)
 
   # ── Normalise activity ────────────────────────────────────────────────────
-  act_raw <- d[[activity_col]]
+  # log_scale applies log1p() (never -Inf at zero activity) before capping
+  # and normalising, so low-activity structure is easier to see against a
+  # right-skewed raw signal.
+  act_transform <- if (isTRUE(log_scale)) function(x) log1p(pmax(x, 0)) else identity
+
+  act_raw <- act_transform(d[[activity_col]])
   pos_act <- act_raw[is.finite(act_raw) & act_raw > 0]
   cap     <- if (length(pos_act) > 0L) {
     quantile(pos_act, activity_cap_quantile, na.rm = TRUE)
@@ -407,7 +430,7 @@ plot_actogram_activity <- function(result,
   if (!is.finite(cap) || cap <= 0) cap <- 1
 
   d_double[["act_norm"]] <- pmin(
-    d_double[[activity_col]] / cap,
+    act_transform(d_double[[activity_col]]) / cap,
     1.0
   )
   d_double[["act_norm"]][is.na(d_double[["act_norm"]])] <- 0
