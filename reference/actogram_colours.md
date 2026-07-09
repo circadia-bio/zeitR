@@ -22,7 +22,7 @@ Named character vector with elements `"wake"`, `"sleep"`, `"nap"`, and
 ``` r
 actogram_colours()
 #>      wake     sleep       nap off-wrist 
-#> "#D9C8A0" "#3B2F6B" "#F0A500" "#C25E2A" 
+#> "#C25E2A" "#3B2F6B" "#F0A500" "#D9C8A0" 
 # wake        sleep        nap    off-wrist
-# "#D9C8A0" "#3B2F6B" "#F0A500" "#C25E2A"
+# "#C25E2A" "#3B2F6B" "#F0A500" "#D9C8A0"
 ```

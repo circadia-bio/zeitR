@@ -7,6 +7,7 @@ MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://zeitr.circadi
 [![R](https://img.shields.io/badge/R-%3E%3D4.1-276DC3)](https://www.r-project.org/)
 [![R CMD
 CHECK](https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/circadia-bio/zeitR/gh-pages/badges/coverage.json)](https://github.com/circadia-bio/zeitR/actions/workflows/pkgdown.yaml)
 [![Status](https://img.shields.io/badge/status-early%20development-orange)](https://github.com/circadia-bio/zeitR)
 [![pkgdown](https://img.shields.io/badge/docs-zeitr.circadia--lab.uk-F0A500)](https://zeitr.circadia-lab.uk)
 
@@ -83,6 +84,10 @@ handles the actigraphy side of a study.
 - 🗂️
   **[`study_summary()`](https://zeitr.circadia-lab.uk/reference/study_summary.md)**
   — participant-level NPCRA summary across a whole study
+- 🗂️
+  **[`study_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/study_sleep_metrics.md)**
+  — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW,
+  SJL) across a whole study
 - 📋
   **[`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)**
   — per-night sleep metrics split by day type (overall / workday / free
@@ -274,6 +279,7 @@ were mismatched in the Python original.
     │   ├── waso.R                # compute_waso()
     │   ├── npcra.R               # compute_npcra()
     │   ├── study_summary.R       # study_summary()
+    │   ├── study_sleep_metrics.R # study_sleep_metrics()
     │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
     │   ├── params.R              # acttrust_params()
     │   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()

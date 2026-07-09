@@ -121,7 +121,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -178,7 +178,7 @@
       <img src="../logo.svg" class="logo" alt=""><h1>Actogram visualisation</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.3/vignettes/actogram.Rmd" class="external-link"><code>vignettes/actogram.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/vignettes/actogram.Rmd" class="external-link"><code>vignettes/actogram.Rmd</code></a></small>
       <div class="d-none name"><code>actogram.Rmd</code></div>
     </div>
 
@@ -244,9 +244,7 @@ of day (00:00 to 24:00) on the x-axis. The oldest day is at the top,
 following standard chronobiology convention. Rows are labelled every
 seven days by default.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 53 rows containing missing values or values outside the scale range</span></span>
-<span><span class="co">#&gt; (`geom_tile()`).</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span><span class="op">)</span></span></code></pre></div>
 <p><img src="actogram_files/figure-html/single-1.png" class="r-plt" alt="" width="100%"></p>
 <p>The dark purple band running through the centre of each row is the
 main sleep period. The amber gaps are naps; the terracotta blocks are
@@ -266,9 +264,7 @@ reflects day-to-day changes in circadian phase. A stable schedule
 appears as a straight vertical band; a free-running rhythm traces a
 slanted line.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_actogram_double.html">plot_actogram_double</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 53 rows containing missing values or values outside the scale range</span></span>
-<span><span class="co">#&gt; (`geom_tile()`).</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_actogram_double.html">plot_actogram_double</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span><span class="op">)</span></span></code></pre></div>
 <p><img src="actogram_files/figure-html/double-1.png" class="r-plt" alt="" width="100%"></p>
 <hr>
 </div>
@@ -302,7 +298,7 @@ quickest way to see the current defaults before overriding them.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/actogram_colours.html">actogram_colours</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt;      wake     sleep       nap off-wrist </span></span>
-<span><span class="co">#&gt; "#D9C8A0" "#3B2F6B" "#F0A500" "#C25E2A"</span></span></code></pre></div>
+<span><span class="co">#&gt; "#C25E2A" "#3B2F6B" "#F0A500" "#D9C8A0"</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="overriding-individual-colours">Overriding individual colours<a class="anchor" aria-label="anchor" href="#overriding-individual-colours"></a>
@@ -315,9 +311,7 @@ keep the default.</p>
 <span><span class="va">my_cols</span><span class="op">[</span><span class="st">"sleep"</span><span class="op">]</span>     <span class="op">&lt;-</span> <span class="st">"#1C1A2E"</span>   <span class="co"># darker midnight</span></span>
 <span><span class="va">my_cols</span><span class="op">[</span><span class="st">"off-wrist"</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"#8B4513"</span>   <span class="co"># saddle brown</span></span>
 <span></span>
-<span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span>, colours <span class="op">=</span> <span class="va">my_cols</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 53 rows containing missing values or values outside the scale range</span></span>
-<span><span class="co">#&gt; (`geom_tile()`).</span></span></code></pre></div>
+<span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span>, colours <span class="op">=</span> <span class="va">my_cols</span><span class="op">)</span></span></code></pre></div>
 <p><img src="actogram_files/figure-html/custom-colours-1.png" class="r-plt" alt="" width="100%"></p>
 </div>
 <div class="section level3">
@@ -340,9 +334,7 @@ y-axis tick. The default is <code>7</code> (one tick per week). Reduce
 it for shorter recordings or increase it for very long ones.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Label every 14 days</span></span>
-<span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span>, date_label_every <span class="op">=</span> <span class="fl">14L</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 53 rows containing missing values or values outside the scale range</span></span>
-<span><span class="co">#&gt; (`geom_tile()`).</span></span></code></pre></div>
+<span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span>, date_label_every <span class="op">=</span> <span class="fl">14L</span><span class="op">)</span></span></code></pre></div>
 <p><img src="actogram_files/figure-html/labels-1.png" class="r-plt" alt="" width="100%"></p>
 <p><code>base_size</code> sets the base font size passed to
 <code>theme_minimal()</code>:</p>
@@ -358,9 +350,7 @@ it for shorter recordings or increase it for very long ones.</p>
 you can extend them with any ggplot2 layer or theme override:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_actogram_double.html">plot_actogram_double</a></span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="va">TZ</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme</span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"right"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 53 rows containing missing values or values outside the scale range</span></span>
-<span><span class="co">#&gt; (`geom_tile()`).</span></span></code></pre></div>
+<span>  <span class="fu">theme</span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">"right"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="actogram_files/figure-html/extend-1.png" class="r-plt" alt="" width="100%"></p>
 <hr>
 </div>
@@ -374,9 +364,7 @@ useful if you have data in a format other than a
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Subset a few weeks from result$data and plot directly</span></span>
 <span><span class="va">sub</span> <span class="op">&lt;-</span> <span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5040</span>, <span class="op">]</span>   <span class="co"># first 3.5 days for illustration</span></span>
-<span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">sub</span>, tz <span class="op">=</span> <span class="va">TZ</span>, title <span class="op">=</span> <span class="st">"First 3.5 days"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 3 rows containing missing values or values outside the scale range</span></span>
-<span><span class="co">#&gt; (`geom_tile()`).</span></span></code></pre></div>
+<span><span class="fu"><a href="../reference/plot_actogram.html">plot_actogram</a></span><span class="op">(</span><span class="va">sub</span>, tz <span class="op">=</span> <span class="va">TZ</span>, title <span class="op">=</span> <span class="st">"First 3.5 days"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="actogram_files/figure-html/bare-1.png" class="r-plt" alt="" width="100%"></p>
 <p>The <code>state</code> column should use zeitR’s integer coding:
 <code>0 = wake, 1 = sleep, 4 = off-wrist, 7 = nap</code>.</p>

@@ -44,8 +44,6 @@ convention. Rows are labelled every seven days by default.
 ``` r
 
 plot_actogram(result, tz = TZ)
-#> Warning: Removed 53 rows containing missing values or values outside the scale range
-#> (`geom_tile()`).
 ```
 
 ![](actogram_files/figure-html/single-1.png)
@@ -71,8 +69,6 @@ straight vertical band; a free-running rhythm traces a slanted line.
 ``` r
 
 plot_actogram_double(result, tz = TZ)
-#> Warning: Removed 53 rows containing missing values or values outside the scale range
-#> (`geom_tile()`).
 ```
 
 ![](actogram_files/figure-html/double-1.png)
@@ -115,7 +111,7 @@ defaults before overriding them.
 
 actogram_colours()
 #>      wake     sleep       nap off-wrist 
-#> "#D9C8A0" "#3B2F6B" "#F0A500" "#C25E2A"
+#> "#C25E2A" "#3B2F6B" "#F0A500" "#D9C8A0"
 ```
 
 ### Overriding individual colours
@@ -131,8 +127,6 @@ my_cols["sleep"]     <- "#1C1A2E"   # darker midnight
 my_cols["off-wrist"] <- "#8B4513"   # saddle brown
 
 plot_actogram(result, tz = TZ, colours = my_cols)
-#> Warning: Removed 53 rows containing missing values or values outside the scale range
-#> (`geom_tile()`).
 ```
 
 ![](actogram_files/figure-html/custom-colours-1.png)
@@ -161,8 +155,6 @@ or increase it for very long ones.
 
 # Label every 14 days
 plot_actogram(result, tz = TZ, date_label_every = 14L)
-#> Warning: Removed 53 rows containing missing values or values outside the scale range
-#> (`geom_tile()`).
 ```
 
 ![](actogram_files/figure-html/labels-1.png)
@@ -186,8 +178,6 @@ them with any ggplot2 layer or theme override:
 
 plot_actogram_double(result, tz = TZ) +
   theme(legend.position = "right")
-#> Warning: Removed 53 rows containing missing values or values outside the scale range
-#> (`geom_tile()`).
 ```
 
 ![](actogram_files/figure-html/extend-1.png)
@@ -205,8 +195,6 @@ data in a format other than a `zeitr_result`.
 # Subset a few weeks from result$data and plot directly
 sub <- result$data[1:5040, ]   # first 3.5 days for illustration
 plot_actogram(sub, tz = TZ, title = "First 3.5 days")
-#> Warning: Removed 3 rows containing missing values or values outside the scale range
-#> (`geom_tile()`).
 ```
 
 ![](actogram_files/figure-html/bare-1.png)

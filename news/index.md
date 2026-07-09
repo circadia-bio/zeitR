@@ -1,5 +1,186 @@
 # Changelog
 
+## zeitR 0.1.4 (2026-07)
+
+### New features
+
+- New
+  [`study_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/study_sleep_metrics.md)
+  – batch wrapper computing
+  [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  and
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  across every participant in a
+  [`run_pipeline_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_batch.md)/[`run_pipeline_native_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native_batch.md)
+  result, stacked into one tibble with a `participant_id` column – the
+  sleep-timing/chronotype (CPD, MSF/MSW, social jetlag) counterpart to
+  [`study_summary()`](https://zeitr.circadia-lab.uk/reference/study_summary.md)
+  (NPCRA/activity-rhythm variables). Closes a gap found while checking
+  `syncR::sync()` compatibility:
+  [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  and
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  each return a single named list per participant with no participant
+  identifier and no batch equivalent, unlike
+  [`study_summary()`](https://zeitr.circadia-lab.uk/reference/study_summary.md),
+  so there was previously no way to get these metrics into the
+  one-row-per-participant shape `sync()` expects without writing manual
+  glue code per study.
+
+### Visualisation
+
+- [`actogram_colours()`](https://zeitr.circadia-lab.uk/reference/actogram_colours.md):
+  swapped the default `"wake"` and `"off-wrist"` colours (wake is now
+  the warm terracotta `#C25E2A`; off-wrist is now the neutral sand
+  `#D9C8A0`). Affects the default palette used by
+  [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md),
+  [`plot_actogram_double()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_double.md),
+  and
+  [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md)
+  whenever `colours` is not supplied explicitly.
+- [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md)
+  gains a `log_scale` argument. When `TRUE`, applies a
+  [`log1p()`](https://rdrr.io/r/base/Log.html) transform to the activity
+  signal before capping and normalising bar heights, compressing the
+  dynamic range so structure among low-to-moderate activity epochs is
+  easier to see against a right-skewed raw signal (occasional high
+  bursts no longer dominate the visible range). Default `FALSE`
+  preserves the existing linear-scale behaviour exactly.
+
+### Performance
+
+- Removed `.adaptive_median_filter()`, a dead pure-R fallback in
+  `sleep_periods.R` that was superseded by
+  `adaptive_median_filter_cpp()` and never called. No behaviour change.
+- Removed four further dead internal helpers from `utils.R` –
+  `zero_sequences()`, `quantile_filter()`, `max_filter()`,
+  `min_filter()` – confirmed unreferenced anywhere in `R/`, `dev/`, or
+  the test suite; all superseded by direct calls to the corresponding
+  Rcpp functions. No behaviour change. (`rolling_apply()` was initially
+  removed too, but is kept – it’s the R reference implementation used by
+  the `rolling_max_cpp()`/`rolling_min_cpp()` parity tests in
+  `test-crespo-cpp-parity.R`.)
+- [`run_pipeline_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_batch.md)
+  and
+  [`run_pipeline_native_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native_batch.md)
+  gain a `parallel` argument. When `TRUE`, files are processed
+  concurrently via
+  [`future.apply::future_lapply()`](https://future.apply.futureverse.org/reference/future_lapply.html)
+  under whatever
+  [`future::plan()`](https://future.futureverse.org/reference/plan.html)
+  the caller has set
+  (e.g. `future::plan(future::multisession(workers = 4))`). Falls back
+  to sequential processing with a warning if `future.apply` is not
+  installed. Default remains `FALSE` (sequential), so existing code is
+  unaffected. `future` and `future.apply` added to `Suggests`.
+
+### Bug fixes
+
+- `zeitr_abort()`, `zeitr_warn()`, and `zeitr_inform()` (internal
+  message wrappers around
+  [`cli::cli_abort()`](https://cli.r-lib.org/reference/cli_abort.html)/`cli_warn()`/`cli_inform()`)
+  did not forward `.envir`, so [glue](https://glue.tidyverse.org/)-style
+  interpolation of a variable local to the *calling* function
+  (e.g. `{.val {missing_cols}}`) silently failed with “object not found”
+  instead of producing the intended message. Fixed by defaulting
+  `.envir = parent.frame()` in all three wrappers; no call sites needed
+  to change.
+- Five call sites (three in `plot_actogram.R`, two in `export.R`) passed
+  their error/warning message as multiple separate comma-delimited
+  string arguments instead of one string. R does not auto-concatenate
+  adjacent string literals, so the extra arguments were passed through
+  to
+  [`cli::cli_abort()`](https://cli.r-lib.org/reference/cli_abort.html)/`cli_warn()`
+  as unnamed condition data, which `rlang` rejects (“Conditions must
+  have named data fields”). Fixed by merging each into a single message
+  string. None of the five affected error paths had previously been
+  exercised by a test.
+- [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md)
+  and
+  [`plot_actogram_double()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_double.md):
+  the epoch at `mins_since_midnight = 0` (midnight, i.e. the first epoch
+  of every calendar day) had its left half clipped by `geom_tile()`’s
+  centred tile extending outside a hard `scale_x_continuous()` limit of
+  exactly `0`, producing a silently dropped/incomplete tile at the start
+  of every row (and a `ggplot2` “missing values” warning once actually
+  rendered under test). Fixed by widening the x-axis limits by half an
+  epoch on each side in both
+  [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md)
+  and the shared `.scale_x_double()` helper (also used by
+  [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md),
+  which was not affected by the clipping itself since it uses
+  `geom_rect()` with explicit epoch boundaries rather than a centred
+  tile).
+- [`export_hypnogram()`](https://zeitr.circadia-lab.uk/reference/export_hypnogram.md):
+  `is.list(result)` doesn’t exclude a bare tibble (tibbles are lists
+  too), so `result$subject_id` on a bare tibble without that column
+  triggered a spurious “Unknown or uninitialised column” warning. Fixed
+  by adding the missing `!is.data.frame(result)` guard, matching the
+  pattern already used two lines above it in the same function.
+- [`export_hypnogram()`](https://zeitr.circadia-lab.uk/reference/export_hypnogram.md):
+  when `ZCMn` is absent (a documented, valid use case), `zcm` is `NULL`
+  and `zcm == 0` evaluates to `logical(0)`, which
+  [`dplyr::case_when()`](https://dplyr.tidyverse.org/reference/case-and-replace-when.html)
+  cannot recycle against the other length-n conditions – a hard error,
+  not just a warning. Fixed by precomputing a proper full-length
+  `zcm_is_zero` vector before the
+  [`case_when()`](https://dplyr.tidyverse.org/reference/case-and-replace-when.html)
+  call.
+- [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md):
+  the same `is.null(x$col)`-on-a-tibble pattern for the optional `state`
+  column triggered a spurious “Unknown or uninitialised column” warning
+  whenever `state` was absent (also a documented, valid use case). Fixed
+  with `"state" %in% names(epochs)`.
+- `plot_actogram.R`’s internal `.actogram_title()` had the same
+  [`is.list()`](https://rdrr.io/r/base/list.html)/bare-tibble gap as
+  [`export_hypnogram()`](https://zeitr.circadia-lab.uk/reference/export_hypnogram.md),
+  not yet triggered by any existing test but the same latent risk. Fixed
+  proactively for consistency with the pattern used elsewhere.
+
+### Tests
+
+- `test-batch-helper.R`: `.run_pipeline_over_files()` – sequential
+  success, partial-failure skip-with-warning, all-failing batch returns
+  empty list, parallel dispatch via `future_lapply()` (skipped if
+  `future.apply` is not installed), sequential fallback when
+  `future.apply` is unavailable (skipped if it is installed), and a
+  regression guard confirming both exported batch wrappers still default
+  to `parallel = FALSE`.
+- `test-actogram-snapshots.R`: visual regression snapshots (`vdiffr`,
+  skipped if not installed) for
+  [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md),
+  [`plot_actogram_double()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_double.md),
+  [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md),
+  and
+  [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md)
+  with a custom `activity_cap_quantile` and with `log_scale = TRUE`,
+  using a deterministic synthetic 2-day fixture. Also covers
+  (independently of `vdiffr`) missing-column errors for all three
+  functions, the missing-`activity_col` error, acceptance of a
+  `zeitr_result` list as well as a bare tibble, and that
+  `log_scale = FALSE` is byte-identical to the pre-`log_scale`
+  behaviour. `vdiffr` added to `Suggests`.
+- New test files bringing five previously 0%-covered files up to full or
+  near-full coverage: `test-circ-utils.R`, `test-export-hypnogram.R`,
+  `test-npcra.R`, `test-study-summary.R`, `test-read-actigraphy.R`. Also
+  `test-utils.R`, covering edge-case branches in `norm_01()`,
+  `zero_prop()`, `ashman_d()`, and `%||%` not guaranteed to be hit by
+  ordinary pipeline data. Overall coverage moved from 81.1% to 87.9%.
+  `covr` added to `Suggests`.
+- `test-study-sleep-metrics.R`: synthetic multi-participant coverage for
+  [`study_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/study_sleep_metrics.md)
+  – both metric sets present with correct `n_overall`/`n_wd`/`n_fd`
+  counts, holiday forwarding shifting a night between the
+  workday/free-day groups, per-participant `holidays`/`free_days`
+  fallback vs a study-level override, a participant whose
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  call fails (no free days) while
+  [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  still succeeds for the same participant (only the failing metric set
+  is `NA`-filled), skipping non-`zeitr_result` entries, the
+  empty/all-invalid-batch paths, and the `subject_id`-missing fallback
+  to the list name.
+
 ## zeitR 0.1.3 (2026-07)
 
 ### Visualisation

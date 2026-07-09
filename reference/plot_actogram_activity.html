@@ -101,7 +101,7 @@ and state classification."><meta property="og:image" content="https://zeitr.circ
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -143,7 +143,7 @@ and state classification."><meta property="og:image" content="https://zeitr.circ
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Plot a double-plotted actogram with activity bars</h1>
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.3/R/plot_actogram.R" class="external-link"><code>R/plot_actogram.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/R/plot_actogram.R" class="external-link"><code>R/plot_actogram.R</code></a></small>
       <div class="d-none name"><code>plot_actogram_activity.Rd</code></div>
     </div>
 
@@ -165,6 +165,7 @@ and state classification.</p>
 <span>  colours <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  activity_col <span class="op">=</span> <span class="st">"ZCMn"</span>,</span>
 <span>  activity_cap_quantile <span class="op">=</span> <span class="fl">0.99</span>,</span>
+<span>  log_scale <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  date_label_every <span class="op">=</span> <span class="fl">7L</span>,</span>
 <span>  epoch_min <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  base_size <span class="op">=</span> <span class="fl">13</span></span>
@@ -201,14 +202,21 @@ absent.</p></dd>
 
 <dt id="arg-activity-col">activity_col<a class="anchor" aria-label="anchor" href="#arg-activity-col"></a></dt>
 <dd><p><code>character(1)</code>. Name of the column in <code>result$data</code> to
-use as the activity signal.  Default <code>"ZCMn"</code> (zero-crossing mean;
+use as the activity signal. Default <code>"ZCMn"</code> (zero-crossing mean;
 present in all ActTrust recordings processed by <code>zeitR</code>).</p></dd>
 
 
 <dt id="arg-activity-cap-quantile">activity_cap_quantile<a class="anchor" aria-label="anchor" href="#arg-activity-cap-quantile"></a></dt>
 <dd><p><code>numeric(1)</code> in (0, 1]. Quantile of non-zero
-activity values used to cap bar heights before normalising.  Default
+activity values used to cap bar heights before normalising. Default
 <code>0.99</code> (top 1 % of active epochs are clipped to full bar height).</p></dd>
+
+
+<dt id="arg-log-scale">log_scale<a class="anchor" aria-label="anchor" href="#arg-log-scale"></a></dt>
+<dd><p><code>logical(1)</code>. If <code>TRUE</code>, applies a <code><a href="https://rdrr.io/r/base/Log.html" class="external-link">log1p()</a></code> transform to
+the activity signal before capping and normalising, compressing the
+dynamic range so lower-activity variation is easier to see. Default
+<code>FALSE</code> (linear scale).</p></dd>
 
 
 <dt id="arg-date-label-every">date_label_every<a class="anchor" aria-label="anchor" href="#arg-date-label-every"></a></dt>
@@ -234,9 +242,16 @@ width in <code><a href="https://ggplot2.tidyverse.org/reference/geom_tile.html" 
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Bar heights are capped at the <code>activity_cap_quantile</code> quantile of
 non-zero epochs to prevent outlier activity bursts from compressing the
-visible range for the rest of the recording.  A thin baseline stub
+visible range for the rest of the recording. A thin baseline stub
 (2 % of row height) is drawn for zero-activity epochs so that sleep periods
 and off-wrist blocks remain faintly visible.</p>
+<p>Actigraphy activity counts are typically right-skewed, with occasional
+bursts far above the typical waking level. On the default linear scale
+this compresses most of the meaningful variation among low-to-moderate
+activity epochs into a thin sliver near the baseline. Set <code>log_scale = TRUE</code> to apply a <code><a href="https://rdrr.io/r/base/Log.html" class="external-link">log1p()</a></code> transform (<code>log(1 + x)</code>, so zero-activity
+epochs map to <code>0</code> rather than <code>-Inf</code>) before capping and normalising –
+this expands the low-activity range at the cost of visually compressing
+the difference between already-high activity bursts.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -251,6 +266,10 @@ and off-wrist blocks remain faintly visible.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Cap at 95th percentile to highlight moderate activity</span></span></span>
 <span class="r-in"><span><span class="fu">plot_actogram_activity</span><span class="op">(</span><span class="va">result</span>, activity_cap_quantile <span class="op">=</span> <span class="fl">0.95</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Log scale: reveals structure among low-activity epochs that a linear</span></span></span>
+<span class="r-in"><span><span class="co"># scale would otherwise compress near the baseline</span></span></span>
+<span class="r-in"><span><span class="fu">plot_actogram_activity</span><span class="op">(</span><span class="va">result</span>, log_scale <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

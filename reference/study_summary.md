@@ -90,7 +90,9 @@ A tibble with one row per participant and columns:
 [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
 for single-recording NPCRA,
 [`read_actigraphy_dir()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy_dir.md)
-to create a `zeitr_study`.
+to create a `zeitr_study`,
+[`study_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/study_sleep_metrics.md)
+for the sleep-timing/ chronotype analogue (CPD, MSF/MSW, social jetlag).
 
 ## Examples
 

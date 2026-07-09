@@ -126,7 +126,7 @@
 
     <a class="navbar-brand me-2" href="index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -181,7 +181,7 @@
 </h1>
 </div>
 <p><strong>Actigraphy data parsing and analysis for R.</strong></p>
-<p><a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a> <a href="https://www.r-project.org/" class="external-link"><img src="https://img.shields.io/badge/R-%3E%3D4.1-276DC3" alt="R"></a> <a href="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R CMD CHECK"></a> <a href="https://github.com/circadia-bio/zeitR" class="external-link"><img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status"></a> <a href="https://zeitr.circadia-lab.uk"><img src="https://img.shields.io/badge/docs-zeitr.circadia--lab.uk-F0A500" alt="pkgdown"></a></p>
+<p><a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a> <a href="https://www.r-project.org/" class="external-link"><img src="https://img.shields.io/badge/R-%3E%3D4.1-276DC3" alt="R"></a> <a href="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/circadia-bio/zeitR/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R CMD CHECK"></a> <a href="https://github.com/circadia-bio/zeitR/actions/workflows/pkgdown.yaml" class="external-link"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/circadia-bio/zeitR/gh-pages/badges/coverage.json" alt="Coverage"></a> <a href="https://github.com/circadia-bio/zeitR" class="external-link"><img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status"></a> <a href="https://zeitr.circadia-lab.uk"><img src="https://img.shields.io/badge/docs-zeitr.circadia--lab.uk-F0A500" alt="pkgdown"></a></p>
 <hr>
 <blockquote>
 <p>[!WARNING] <strong>zeitR is in early development and has not been formally validated.</strong> The CSPD pipeline has been validated epoch-for-epoch against the Condor circadiaBase Python reference on an ActTrust recording. The Vallim pipeline has been validated at the classification level against Julia Vallim’s Python reference notebook. Neither pipeline has undergone formal peer review. Verify outputs independently before using in any research context.</p>
@@ -216,6 +216,7 @@
 <li>📊 <strong><code><a href="reference/compute_waso.html">compute_waso()</a></code></strong> — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency</li>
 <li>📐 <strong><code><a href="reference/compute_npcra.html">compute_npcra()</a></code></strong> — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)</li>
 <li>🗂️ <strong><code><a href="reference/study_summary.html">study_summary()</a></code></strong> — participant-level NPCRA summary across a whole study</li>
+<li>🗂️ <strong><code><a href="reference/study_sleep_metrics.html">study_sleep_metrics()</a></code></strong> — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW, SJL) across a whole study</li>
 <li>📋 <strong><code><a href="reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code></strong> — per-night sleep metrics split by day type (overall / workday / free day)</li>
 <li>📋 <strong><code><a href="reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code></strong> — CPD, MSW, MSF, MSFsc, social jet lag (SJL, SJLa)</li>
 <li>🚀 <strong><code><a href="reference/run_pipeline.html">run_pipeline()</a></code></strong> — full CSPD pipeline on a single file</li>
@@ -478,6 +479,7 @@
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
 │   ├── study_summary.R       # study_summary()
+│   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
 │   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()

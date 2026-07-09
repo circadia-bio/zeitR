@@ -52,6 +52,8 @@ Summarise results across multiple participants.
 
 - [`study_summary()`](https://zeitr.circadia-lab.uk/reference/study_summary.md)
   : Summarise a zeitr_study across participants
+- [`study_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/study_sleep_metrics.md)
+  : Batch sleep-timing and chronotype metrics across a study
 
 ## Pipeline
 

@@ -19,6 +19,7 @@ plot_actogram_activity(
   colours = NULL,
   activity_col = "ZCMn",
   activity_cap_quantile = 0.99,
+  log_scale = FALSE,
   date_label_every = 7L,
   epoch_min = 1,
   base_size = 13
@@ -66,6 +67,14 @@ plot_actogram_activity(
   cap bar heights before normalising. Default `0.99` (top 1 % of active
   epochs are clipped to full bar height).
 
+- log_scale:
+
+  `logical(1)`. If `TRUE`, applies a
+  [`log1p()`](https://rdrr.io/r/base/Log.html) transform to the activity
+  signal before capping and normalising, compressing the dynamic range
+  so lower-activity variation is easier to see. Default `FALSE` (linear
+  scale).
+
 - date_label_every:
 
   `integer(1)`. Label every Nth row on the y-axis. Default `7` (weekly
@@ -95,6 +104,17 @@ visible range for the rest of the recording. A thin baseline stub (2 %
 of row height) is drawn for zero-activity epochs so that sleep periods
 and off-wrist blocks remain faintly visible.
 
+Actigraphy activity counts are typically right-skewed, with occasional
+bursts far above the typical waking level. On the default linear scale
+this compresses most of the meaningful variation among low-to-moderate
+activity epochs into a thin sliver near the baseline. Set
+`log_scale = TRUE` to apply a
+[`log1p()`](https://rdrr.io/r/base/Log.html) transform (`log(1 + x)`, so
+zero-activity epochs map to `0` rather than `-Inf`) before capping and
+normalising – this expands the low-activity range at the cost of
+visually compressing the difference between already-high activity
+bursts.
+
 ## See also
 
 [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md),
@@ -110,5 +130,9 @@ plot_actogram_activity(result)
 
 # Cap at 95th percentile to highlight moderate activity
 plot_actogram_activity(result, activity_cap_quantile = 0.95)
+
+# Log scale: reveals structure among low-activity epochs that a linear
+# scale would otherwise compress near the baseline
+plot_actogram_activity(result, log_scale = TRUE)
 } # }
 ```
