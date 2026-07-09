@@ -1,31 +1,30 @@
 ## zeitR 0.1.3  (2026-07)
 
-### Holiday input consistency fixes
+### Free-day classification
 
-* `compute_sleep_metrics()` and `compute_cpd_metrics()` are now S3 generics.
-  Passing a `zeitr_result` directly auto-forwards `result$holidays` -- no
-  need to repeat the argument manually.
-* A warning is emitted when `holidays = NULL` (only weekends treated as free
-  days). Suppressed with `options(zeitR.no_holidays_warn = FALSE)`.
-* `.is_free_day()`: replaced `weekdays()` with `format(d, "%u")` (ISO 8601
-  weekday number) to avoid locale-dependent day names (`weekdays()` returns
-  `"sabado"` on `pt_BR`, silently marking no day as a free day).
-* `compute_cpd_metrics()`: MSF and MSW now use the circular mean
-  (`.mean_circ_h()`) instead of `mean()`, matching `calculate_msf()`/
-  `calculate_msw()` from the fix29 notebook. Plain mean gives wrong results
-  for participants whose mid-sleep wraps midnight.
-* `compute_cpd_metrics()`: episodes starting after noon on the last recording
-  day are excluded before metric computation, matching the `nights_to_df()`
-  truncated-episode filter added in the fix29 notebook.
-* `holidays` parameter now accepts `"DD-MM"` strings for recurring annual
-  holidays (e.g. `"25-12"` for Christmas), in addition to `Date` objects and
-  `"YYYY-MM-DD"` strings for year-specific dates. All three forms can be
-  mixed in the same vector.
 * New `free_days` parameter on `run_pipeline_native()`, `compute_sleep_metrics()`,
-  and `compute_cpd_metrics()`. Accepts English day names or ISO integers
-  (1 = Monday ... 7 = Sunday). Defaults to `c("Saturday", "Sunday")`. Stored
-  in `result$free_days` and auto-forwarded by the `zeitr_result` S3 methods,
-  enabling non-standard schedules (e.g. Friday--Saturday, compressed work week).
+  and `compute_cpd_metrics()`. Replaces the hardcoded Saturday + Sunday with
+  any combination of days (English names or ISO integers 1--7). Default is
+  `c("Saturday", "Sunday")`. Enables non-standard schedules such as
+  Friday--Saturday weekends or compressed work weeks.
+* `holidays` now accepts `"DD-MM"` strings for fixed-date annual holidays
+  (e.g. `"25-12"` for Christmas) in addition to `Date` objects and
+  `"YYYY-MM-DD"` strings. All three forms can be mixed in the same vector.
+* `compute_sleep_metrics()` and `compute_cpd_metrics()` are now S3 generics.
+  Passing a `zeitr_result` directly auto-forwards `result$holidays` and
+  `result$free_days` — no need to repeat them manually.
+* A warning is emitted when `holidays = NULL`; suppress with
+  `options(zeitR.no_holidays_warn = FALSE)`.
+
+### Bug fixes
+
+* Free-day detection was broken on non-English locales (`weekdays()` returns
+  `"sabado"` on `pt_BR`). Fixed by using the locale-independent ISO 8601
+  weekday number.
+* MSF and MSW now use the circular mean, matching the fix29 notebook.
+  Plain mean gives wrong results when mid-sleep wraps midnight.
+* `compute_cpd_metrics()` now drops episodes starting after noon on the last
+  recording day (truncated by end of file), matching fix29's filter.
 
 ## zeitR 0.1.2  (2026-07)
 
