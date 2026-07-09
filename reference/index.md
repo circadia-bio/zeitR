@@ -82,6 +82,19 @@ metrics.
 - [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
   : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 
+## Visualisation
+
+Actogram and raster display of actigraphy recordings.
+
+- [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md)
+  : Plot a single-column actogram
+- [`plot_actogram_double()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_double.md)
+  : Plot a double-plotted actogram
+- [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md)
+  : Plot a double-plotted actogram with activity bars
+- [`actogram_colours()`](https://zeitr.circadia-lab.uk/reference/actogram_colours.md)
+  : Default state colour palette for actogram plots
+
 ## Utilities
 
 Helper functions for working with pipeline output.

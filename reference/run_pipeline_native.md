@@ -20,6 +20,7 @@ run_pipeline_native(
   sleep_args = list(),
   classify_args = list(),
   holidays = NULL,
+  free_days = c("Saturday", "Sunday"),
   quiet = FALSE
 )
 ```
@@ -62,14 +63,32 @@ run_pipeline_native(
 
 - holidays:
 
-  A `Date` vector of public holidays to treat as free days in addition
-  to Saturdays and Sundays. The Vallim classification rules (Fix
-  26a/26c, Rules 3–7) do not use day-of-week; this parameter is stored
-  for convenience and should be forwarded to
+  Holidays to treat as free days in addition to the days in `free_days`.
+  Accepts three forms, which can be mixed in the same vector:
+
+  - `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates
+    (e.g. `as.Date("2019-03-04")` for one Carnival day).
+
+  - `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"`
+    for Christmas, `"07-09"` for Brazilian Independence Day). Stored in
+    `result$holidays` and auto-forwarded by the `zeitr_result` S3
+    methods of
+    [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+    and
+    [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md).
+    Default `NULL`.
+
+- free_days:
+
+  A character vector of day names (`"Monday"` through `"Sunday"`,
+  case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+  identifying which days of the week are unconditionally treated as free
+  days. Stored in `result$free_days` and auto-forwarded by the
+  `zeitr_result` S3 methods of
   [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
   and
-  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
-  for day-type metric splitting. Default `NULL` (weekends only).
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md).
+  Default `c("Saturday", "Sunday")`.
 
 - quiet:
 

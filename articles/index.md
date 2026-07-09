@@ -15,3 +15,5 @@
   analysis](https://zeitr.circadia-lab.uk/articles/sleep-analysis.md):
 - [The Vallim pipeline: native sleep
   classification](https://zeitr.circadia-lab.uk/articles/vallim-pipeline.md):
+- [Classifying free days: weekends and public
+  holidays](https://zeitr.circadia-lab.uk/articles/holidays.md):

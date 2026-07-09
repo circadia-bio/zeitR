@@ -3,6 +3,7 @@
 <url><loc>https://zeitr.circadia-lab.uk/LICENSE-text.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/LICENSE.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/getting-started.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/articles/holidays.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/index.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/npcra.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/sleep-analysis.html</loc></url>
@@ -11,6 +12,7 @@
 <url><loc>https://zeitr.circadia-lab.uk/authors.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/index.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/news/index.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/actogram_colours.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/acttrust_params.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/check_consistency.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/circ_mean_h.html</loc></url>
@@ -27,6 +29,9 @@
 <url><loc>https://zeitr.circadia-lab.uk/reference/extract_sleep_episodes.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/index.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/label_states.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/plot_actogram.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/plot_actogram_double.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/prepare_actigraphy.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/read_actigraphy.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/read_actigraphy_dir.html</loc></url>

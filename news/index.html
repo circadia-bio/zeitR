@@ -91,7 +91,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -110,6 +110,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Examples</h6></li>
     <li><a class="dropdown-item" href="../articles/sleep-analysis.html">Single-recording sleep analysis</a></li>
     <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
+    <li><a class="dropdown-item" href="../articles/holidays.html">Classifying free days: weekends and public holidays</a></li>
   </ul></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
@@ -132,6 +133,48 @@
       <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.3" id="zeitr-013-2026-07">zeitR 0.1.3 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-013-2026-07"></a></h2>
+<div class="section level3">
+<h3 id="visualisation-0-1-3">Visualisation<a class="anchor" aria-label="anchor" href="#visualisation-0-1-3"></a></h3>
+<ul><li>
+<code><a href="../reference/plot_actogram.html">plot_actogram()</a></code> – single-column raster actogram. One row per calendar day, time-of-day on the x-axis, filled by sleep/wake state. Oldest day at the top, following standard chronobiology convention. Equivalent to the ad-hoc ggplot2 code in the single-recording vignette but packaged as a reusable function with consistent defaults.</li>
+<li>
+<code><a href="../reference/plot_actogram_double.html">plot_actogram_double()</a></code> – classic double-plotted actogram. Each recording day appears twice: in the left column of its own row (x = 00:00 to 24:00) and in the right column of the row above (x = 24:00 to 48:00). Circadian phase drift is visible as a diagonal band across consecutive rows. A dashed vertical line marks the 24 h column boundary.</li>
+<li>
+<code><a href="../reference/plot_actogram_activity.html">plot_actogram_activity()</a></code> – double-plotted actogram with activity bars. Same row structure as <code><a href="../reference/plot_actogram_double.html">plot_actogram_double()</a></code> but each epoch is drawn as a vertical bar whose height is proportional to the raw ZCMn activity count. Bars are coloured by sleep/wake state so activity intensity and state classification are read simultaneously. A 99th-percentile cap on bar heights prevents outlier bursts from compressing the rest of the range; a thin baseline stub keeps zero-activity epochs (sleep, off-wrist) faintly visible.</li>
+<li>
+<code><a href="../reference/actogram_colours.html">actogram_colours()</a></code> – exported helper returning the named hex colour vector used as the default palette across all three actogram functions. Pass the result to any <code>colours</code> argument to inspect or partially override defaults.</li>
+<li>All three functions accept a <code>zeitr_result</code> list or a bare tibble with <code>datetime</code> and <code>state</code> columns. <code>ggplot2</code> remains in <code>Suggests</code>; a clear error is thrown if it is not installed.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="performance-0-1-3">Performance<a class="anchor" aria-label="anchor" href="#performance-0-1-3"></a></h3>
+<ul><li>
+<code>rolling_median_prepadded_cpp()</code> added to <code>src/rolling_filters.cpp</code>. Replaces the <code>RcppRoll</code> / <code>zoo</code> / <code>vapply</code> fallback chain in <code>.estimate_sleep_padded()</code> with a single direct Rcpp call. Off-wrist sleep estimation is now unconditionally fast (O(n * win) in C++) regardless of which optional packages are installed. <code>zoo</code> removed from Imports; <code>RcppRoll</code> removed from Suggests.</li>
+<li>
+<code><a href="../reference/check_consistency.html">check_consistency()</a></code> vectorised. Two O(n) R <code>for</code> loops replaced with <code><a href="https://rdrr.io/r/base/which.html" class="external-link">which()</a></code> calls. No behaviour change.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="free-day-classification-0-1-3">Free-day classification<a class="anchor" aria-label="anchor" href="#free-day-classification-0-1-3"></a></h3>
+<ul><li>New <code>free_days</code> parameter on <code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code>, <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code>, and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code>. Replaces the hardcoded Saturday + Sunday with any combination of days (English names or ISO integers 1–7). Default is <code>c("Saturday", "Sunday")</code>. Enables non-standard schedules such as Friday–Saturday weekends or compressed work weeks.</li>
+<li>
+<code>holidays</code> now accepts <code>"DD-MM"</code> strings for fixed-date annual holidays (e.g. <code>"25-12"</code> for Christmas) in addition to <code>Date</code> objects and <code>"YYYY-MM-DD"</code> strings. All three forms can be mixed in the same vector.</li>
+<li>
+<code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> are now S3 generics. Passing a <code>zeitr_result</code> directly auto-forwards <code>result$holidays</code> and <code>result$free_days</code> — no need to repeat them manually.</li>
+<li>A warning is emitted when <code>holidays = NULL</code>; suppress with <code>options(zeitR.no_holidays_warn = FALSE)</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-0-1-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-3"></a></h3>
+<ul><li>Free-day detection was broken on non-English locales (<code><a href="https://rdrr.io/r/base/weekday.POSIXt.html" class="external-link">weekdays()</a></code> returns <code>"sabado"</code> on <code>pt_BR</code>). Fixed by using the locale-independent ISO 8601 weekday number.</li>
+<li>MSF and MSW now use the circular mean, matching the fix29 notebook. Plain mean gives wrong results when mid-sleep wraps midnight.</li>
+<li>
+<code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> now drops episodes starting after noon on the last recording day (truncated by end of file), matching fix29’s filter.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="tests-0-1-3">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-3"></a></h3>
+<ul><li>Free-day classification tests (<code>test-free-days.R</code>): <code>.parse_free_days()</code> input validation (English names, ISO integers, case insensitivity, range errors), <code>.is_free_day()</code> locale-independent weekday detection (vectorised over a full week, default and custom schedules), all three holiday input forms (<code>Date</code>, <code>"YYYY-MM-DD"</code>, <code>"DD-MM"</code>) including mixed-form vectors, year-specificity of <code>"YYYY-MM-DD"</code> vs recurrence of <code>"DD-MM"</code>, the <code>zeitR.no_holidays_warn</code> option, and <code>zeitr_result</code> S3 dispatch forwarding <code>free_days</code> and <code>holidays</code> to both <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code>.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.2" id="zeitr-012-2026-07">zeitR 0.1.2 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-012-2026-07"></a></h2>
 <div class="section level3">
@@ -187,7 +230,10 @@
 <div class="section level3">
 <h3 id="bug-fixes-0-1-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-2"></a></h3>
 <ul><li>
-<strong>Fix 26c (fragment recovery)</strong>: the Python reference pipeline silently disabled temperature- and light-based gap merging due to column name mismatches (<code>'TEMPERATURE'</code> / <code>'LIGHT'</code> vs the actual <code>'int_temp'</code> / <code>'light'</code> columns in ActTrust data). R used the correct column names throughout, so R correctly merges sleep fragments while Python did not. Additionally, R’s Fix 26c was using the period-level CSPD <code>state</code> column to detect sleep runs within the recovery window, which incorrectly treated entire 19+ h CSPD periods as a single sleep run. Fix 26c now uses Cole-Kripke epoch scoring on ZCMn to determine sleep/wake within the candidate window, matching the intended behaviour. Both fixes reported to Julia Vallim; R is now the reference implementation for Fix 26c.</li>
+<strong>Fix 26c (fragment recovery)</strong>: two bugs closed.
+<ol style="list-style-type: decimal"><li>The Python reference pipeline silently disabled temperature- and light-based gap merging due to column name mismatches (<code>'TEMPERATURE'</code> / <code>'LIGHT'</code> vs the actual <code>'int_temp'</code> / <code>'light'</code> columns in ActTrust data). <code>pipeline_functions_fix27.py</code> patched; <code>inst/extdata/vallim_nights.csv</code> regenerated against the corrected Python output and re-verified: 52/52 main nights, all sleep dates and classifications match R.</li>
+<li>R’s Fix 26c was using the period-level CSPD <code>state</code> column to detect sleep runs within the recovery window, which incorrectly treated entire 19+ h CSPD periods as a single sleep run. Fix 26c now uses Cole-Kripke epoch scoring on <code>ZCMn</code> to determine sleep/wake within the candidate window, matching the intended behaviour. R is the reference implementation for Fix 26c.</li>
+</ol></li>
 <li>
 <strong><code>offwrist_refiner.R</code></strong>: fixed scalar <code>FALSE</code> assignment to a 0-row data frame (<code>$valley_peak &lt;- rep(FALSE, nrow(...))</code>) that caused a crash on recordings with no valid off-wrist candidates.</li>
 </ul></div>
@@ -209,6 +255,7 @@
 <div class="section level3">
 <h3 id="tests-0-1-2-1">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-2-1"></a></h3>
 <ul><li>Crespo C++ parity tests (<code>test-crespo-cpp-parity.R</code>): <code>rolling_max_cpp</code>, <code>rolling_min_cpp</code>, <code>zero_mitigation_cpp</code>, <code>mark_invalid_zeros_cpp</code>, <code>adaptive_median_filter_cpp</code>, morphological close/open pair, and end-to-end epoch count lock on <code>input1.txt</code>.</li>
+<li>Fix 26c regression test (<code>test-fix26c.R</code>): synthetic 1-min epoch recording with a bloated 19 h CSPD <code>state = 1</code> period containing two Cole-Kripke sleep runs (3 h + 5.5 h) separated by a warm/dark wake gap. Asserts that <code>.recover_fragmented_episodes()</code> merges the CK-derived runs (TBT ~ 9 h) rather than the CSPD state period (TBT ~ 19 h). Runs on CI; no external data required.</li>
 </ul><hr></div>
 </div>
     <div class="section level2">

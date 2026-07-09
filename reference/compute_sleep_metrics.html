@@ -97,7 +97,7 @@ pipeline_functions_fix27.py."><meta property="og:image" content="https://zeitr.c
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -116,6 +116,7 @@ pipeline_functions_fix27.py."><meta property="og:image" content="https://zeitr.c
     <li><h6 class="dropdown-header" data-toc-skip>Examples</h6></li>
     <li><a class="dropdown-item" href="../articles/sleep-analysis.html">Single-recording sleep analysis</a></li>
     <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
+    <li><a class="dropdown-item" href="../articles/holidays.html">Classifying free days: weekends and public holidays</a></li>
   </ul></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
@@ -148,18 +149,42 @@ and weekend/holiday nights. Output column names and derived metrics mirror
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">compute_sleep_metrics</span><span class="op">(</span><span class="va">nights</span>, min_tib_h <span class="op">=</span> <span class="fl">5</span>, tz <span class="op">=</span> <span class="st">"UTC"</span>, holidays <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">compute_sleep_metrics</span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'zeitr_result'</span></span>
+<span><span class="fu">compute_sleep_metrics</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>,</span>
+<span>  min_tib_h <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  tz <span class="op">=</span> <span class="st">"UTC"</span>,</span>
+<span>  holidays <span class="op">=</span> <span class="va">x</span><span class="op">$</span><span class="va">holidays</span>,</span>
+<span>  free_days <span class="op">=</span> <span class="va">x</span><span class="op">$</span><span class="va">free_days</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Default S3 method</span></span>
+<span><span class="fu">compute_sleep_metrics</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>,</span>
+<span>  min_tib_h <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  tz <span class="op">=</span> <span class="st">"UTC"</span>,</span>
+<span>  holidays <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  free_days <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Saturday"</span>, <span class="st">"Sunday"</span><span class="op">)</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
-<dl><dt id="arg-nights">nights<a class="anchor" aria-label="anchor" href="#arg-nights"></a></dt>
-<dd><p>A <code>tibble</code> of nightly sleep statistics as returned by
-<code><a href="run_pipeline_native.html">run_pipeline_native()</a></code> or <code><a href="run_pipeline.html">run_pipeline()</a></code>. Must contain at minimum the
-columns <code>is_nap</code>, <code>bed_time</code>, <code>get_up_time</code>, <code>tbt</code>, <code>tst</code>, <code>sol</code>, <code>soi</code>,
-<code>waso</code>, <code>eff</code>.</p></dd>
+<dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
+<dd><p>A <code>zeitr_result</code> object <strong>or</strong> a <code>tibble</code> of nightly sleep
+statistics as returned by <code><a href="run_pipeline_native.html">run_pipeline_native()</a></code> or <code><a href="run_pipeline.html">run_pipeline()</a></code>.
+Must contain at minimum the columns <code>is_nap</code>, <code>bed_time</code>, <code>get_up_time</code>,
+<code>tbt</code>, <code>tst</code>, <code>sol</code>, <code>soi</code>, <code>waso</code>, <code>eff</code>.</p></dd>
+
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>Not used; reserved for forward compatibility with future methods.</p></dd>
 
 
 <dt id="arg-min-tib-h">min_tib_h<a class="anchor" aria-label="anchor" href="#arg-min-tib-h"></a></dt>
@@ -173,14 +198,29 @@ timestamps. Default is <code>"UTC"</code>.</p></dd>
 
 
 <dt id="arg-holidays">holidays<a class="anchor" aria-label="anchor" href="#arg-holidays"></a></dt>
-<dd><p>A <code>Date</code> vector of public holidays to treat as free days in
-addition to Saturdays and Sundays. Default is <code>NULL</code> (weekends only).</p></dd>
+<dd><p>Holidays to treat as free days in addition to the days in
+<code>free_days</code>. Accepts three forms, which can be mixed in the same vector:</p><ul><li><p><code>Date</code> objects or <code>"YYYY-MM-DD"</code> strings for year-specific dates (e.g.
+<code>as.Date("2019-03-04")</code> for one Carnival day).</p></li>
+<li><p><code>"DD-MM"</code> strings for dates that recur every year (e.g. <code>"25-12"</code> for
+Christmas, <code>"01-01"</code> for New Year).
+Default is <code>NULL</code>. When <code>x</code> is a <code>zeitr_result</code>, defaults to
+<code>x$holidays</code> automatically. A warning is emitted when <code>NULL</code>; suppress
+with <code>options(zeitR.no_holidays_warn = FALSE)</code>.</p></li>
+</ul></dd>
+
+
+<dt id="arg-free-days">free_days<a class="anchor" aria-label="anchor" href="#arg-free-days"></a></dt>
+<dd><p>A character vector of day names (<code>"Monday"</code> through
+<code>"Sunday"</code>, case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+identifying which days of the week are unconditionally treated as free
+days. Default is <code>c("Saturday", "Sunday")</code>. When <code>x</code> is a <code>zeitr_result</code>,
+defaults to <code>x$free_days</code> automatically.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A named list with metrics for three groups (<code>overall</code>, <code>wd</code> =
-weekday, <code>fd</code> = free day):</p><dl><dt><code>n_overall</code>, <code>n_wd</code>, <code>n_fd</code></dt>
+workday, <code>fd</code> = free day):</p><dl><dt><code>n_overall</code>, <code>n_wd</code>, <code>n_fd</code></dt>
 <dd><p>Night counts.</p></dd>
 
 <dt><code>sleep_onset_h</code>, <code>sleep_offset_h</code></dt>
@@ -191,7 +231,7 @@ arithmetic mean offset in decimal hours.</p></dd>
 <dd><p>Mean TBT in hours.</p></dd>
 
 <dt><code>fps_h</code></dt>
-<dd><p>Mean free period sleep (TBT − SOL − SOI) in hours.</p></dd>
+<dd><p>Mean free period sleep (TBT - SOL - SOI) in hours.</p></dd>
 
 <dt><code>tst_h</code></dt>
 <dd><p>Mean TST in hours.</p></dd>
@@ -203,7 +243,7 @@ arithmetic mean offset in decimal hours.</p></dd>
 <dd><p>Mean WASO in minutes.</p></dd>
 
 <dt><code>sleep_eff_pct</code></dt>
-<dd><p>Mean sleep efficiency in percent (0–100).</p></dd>
+<dd><p>Mean sleep efficiency in percent (0-100).</p></dd>
 
 <dt><code>tst_24h_h</code></dt>
 <dd><p>Same as <code>tst_h</code> (24-h TST for main sleep only).</p></dd>
@@ -217,13 +257,19 @@ minutes.</p></dd>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>A night is assigned to the <strong>weekend</strong> group when the get-up date falls on a
-Saturday, Sunday, or any date supplied in <code>holidays</code>. Weekday nights are all
-remaining nights.</p>
-<p><code>sleep_onset_h</code> uses a circular mean (values &gt;= 12 h are shifted by −24 h
+    <p>Dispatches on the class of <code>x</code>:</p><ul><li><p><strong><code>data.frame</code> / <code>tibble</code></strong> – treated as a nights table (same behaviour
+as the original function signature).</p></li>
+<li><p><strong><code>zeitr_result</code></strong> – extracts <code>x$nights</code> and inherits <code>x$holidays</code> and
+<code>x$free_days</code> automatically.</p></li>
+</ul><p>A night is assigned to the <strong>free-day</strong> group when the get-up date falls on
+one of the days in <code>free_days</code> or matches an entry in <code>holidays</code>. Day-of-week
+is determined via the ISO 8601 weekday number (<code>format(date, "%u")</code>) rather
+than <code><a href="https://rdrr.io/r/base/weekday.POSIXt.html" class="external-link">weekdays()</a></code>, which is locale-dependent. All remaining nights are
+<strong>workday</strong> nights.</p>
+<p><code>sleep_onset_h</code> uses a circular mean (values &gt;= 12 h are shifted by -24 h
 before averaging, then wrapped to [0, 24)). <code>sleep_offset_h</code> uses a plain
 arithmetic mean.</p>
-<p><code>fps_h</code> (free period sleep) equals <code>fpr_tib_h − (latencia_min + inertia_min) / 60</code> — TBT net of sleep onset latency and sleep inertia.</p>
+<p><code>fps_h</code> (free period sleep) equals <code>fpr_tib_h - (latencia_min + inertia_min) / 60</code> – TBT net of sleep onset latency and sleep inertia.</p>
 <p><code>dp_midsleep_min</code> and <code>dp_tst_min</code> are standard deviations of per-night
 mid-sleep (minutes) and TST (minutes), respectively.</p>
     </div>
@@ -235,10 +281,19 @@ mid-sleep (minutes) and TST (minutes), respectively.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+<span class="r-in"><span><span class="co"># From a zeitr_result: holidays and free_days forwarded automatically</span></span></span>
 <span class="r-in"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="run_pipeline_native.html">run_pipeline_native</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>,</span></span>
-<span class="r-in"><span>                              tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>                              tz        <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span>,</span></span>
+<span class="r-in"><span>                              holidays  <span class="op">=</span> <span class="va">my_holidays</span>,</span></span>
+<span class="r-in"><span>                              free_days <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Saturday"</span>, <span class="st">"Sunday"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">sm</span> <span class="op">&lt;-</span> <span class="fu">compute_sleep_metrics</span><span class="op">(</span><span class="va">result</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">sm</span> <span class="op">&lt;-</span> <span class="fu">compute_sleep_metrics</span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">nights</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># Non-standard schedule: Friday + Saturday as free days</span></span></span>
+<span class="r-in"><span><span class="va">sm</span> <span class="op">&lt;-</span> <span class="fu">compute_sleep_metrics</span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">nights</span>,</span></span>
+<span class="r-in"><span>                            tz        <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span>,</span></span>
+<span class="r-in"><span>                            holidays  <span class="op">=</span> <span class="va">my_holidays</span>,</span></span>
+<span class="r-in"><span>                            free_days <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Friday"</span>, <span class="st">"Saturday"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">sm</span><span class="op">$</span><span class="va">tst_h</span>            <span class="co"># mean TST in hours</span></span></span>
 <span class="r-in"><span><span class="va">sm</span><span class="op">$</span><span class="va">sleep_onset_h</span>    <span class="co"># mean sleep onset (circular, decimal hours)</span></span></span>
 <span class="r-in"><span><span class="va">sm</span><span class="op">$</span><span class="va">dp_midsleep_min</span>  <span class="co"># within-person SD of mid-sleep in minutes</span></span></span>

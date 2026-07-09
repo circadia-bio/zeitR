@@ -8,19 +8,44 @@ mirror `compute_sleep_metrics()` from Julia Ribeiro da Silva Vallim's
 ## Usage
 
 ``` r
-compute_sleep_metrics(nights, min_tib_h = 5, tz = "UTC", holidays = NULL)
+compute_sleep_metrics(x, ...)
+
+# S3 method for class 'zeitr_result'
+compute_sleep_metrics(
+  x,
+  min_tib_h = 5,
+  tz = "UTC",
+  holidays = x$holidays,
+  free_days = x$free_days,
+  ...
+)
+
+# Default S3 method
+compute_sleep_metrics(
+  x,
+  min_tib_h = 5,
+  tz = "UTC",
+  holidays = NULL,
+  free_days = c("Saturday", "Sunday"),
+  ...
+)
 ```
 
 ## Arguments
 
-- nights:
+- x:
 
-  A `tibble` of nightly sleep statistics as returned by
+  A `zeitr_result` object **or** a `tibble` of nightly sleep statistics
+  as returned by
   [`run_pipeline_native()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native.md)
   or
   [`run_pipeline()`](https://zeitr.circadia-lab.uk/reference/run_pipeline.md).
   Must contain at minimum the columns `is_nap`, `bed_time`,
   `get_up_time`, `tbt`, `tst`, `sol`, `soi`, `waso`, `eff`.
+
+- ...:
+
+  Not used; reserved for forward compatibility with future methods.
 
 - min_tib_h:
 
@@ -34,12 +59,29 @@ compute_sleep_metrics(nights, min_tib_h = 5, tz = "UTC", holidays = NULL)
 
 - holidays:
 
-  A `Date` vector of public holidays to treat as free days in addition
-  to Saturdays and Sundays. Default is `NULL` (weekends only).
+  Holidays to treat as free days in addition to the days in `free_days`.
+  Accepts three forms, which can be mixed in the same vector:
+
+  - `Date` objects or `"YYYY-MM-DD"` strings for year-specific dates
+    (e.g. `as.Date("2019-03-04")` for one Carnival day).
+
+  - `"DD-MM"` strings for dates that recur every year (e.g. `"25-12"`
+    for Christmas, `"01-01"` for New Year). Default is `NULL`. When `x`
+    is a `zeitr_result`, defaults to `x$holidays` automatically. A
+    warning is emitted when `NULL`; suppress with
+    `options(zeitR.no_holidays_warn = FALSE)`.
+
+- free_days:
+
+  A character vector of day names (`"Monday"` through `"Sunday"`,
+  case-insensitive) or ISO integers (1 = Monday ... 7 = Sunday)
+  identifying which days of the week are unconditionally treated as free
+  days. Default is `c("Saturday", "Sunday")`. When `x` is a
+  `zeitr_result`, defaults to `x$free_days` automatically.
 
 ## Value
 
-A named list with metrics for three groups (`overall`, `wd` = weekday,
+A named list with metrics for three groups (`overall`, `wd` = workday,
 `fd` = free day):
 
 - `n_overall`, `n_wd`, `n_fd`:
@@ -56,7 +98,7 @@ A named list with metrics for three groups (`overall`, `wd` = weekday,
 
 - `fps_h`:
 
-  Mean free period sleep (TBT − SOL − SOI) in hours.
+  Mean free period sleep (TBT - SOL - SOI) in hours.
 
 - `tst_h`:
 
@@ -72,7 +114,7 @@ A named list with metrics for three groups (`overall`, `wd` = weekday,
 
 - `sleep_eff_pct`:
 
-  Mean sleep efficiency in percent (0–100).
+  Mean sleep efficiency in percent (0-100).
 
 - `tst_24h_h`:
 
@@ -86,16 +128,27 @@ Workday and free-day metrics carry the suffix `_wd` and `_fd`.
 
 ## Details
 
-A night is assigned to the **weekend** group when the get-up date falls
-on a Saturday, Sunday, or any date supplied in `holidays`. Weekday
-nights are all remaining nights.
+Dispatches on the class of `x`:
 
-`sleep_onset_h` uses a circular mean (values \>= 12 h are shifted by −24
+- **`data.frame` / `tibble`** – treated as a nights table (same
+  behaviour as the original function signature).
+
+- **`zeitr_result`** – extracts `x$nights` and inherits `x$holidays` and
+  `x$free_days` automatically.
+
+A night is assigned to the **free-day** group when the get-up date falls
+on one of the days in `free_days` or matches an entry in `holidays`.
+Day-of-week is determined via the ISO 8601 weekday number
+(`format(date, "%u")`) rather than
+[`weekdays()`](https://rdrr.io/r/base/weekday.POSIXt.html), which is
+locale-dependent. All remaining nights are **workday** nights.
+
+`sleep_onset_h` uses a circular mean (values \>= 12 h are shifted by -24
 h before averaging, then wrapped to \[0, 24)). `sleep_offset_h` uses a
 plain arithmetic mean.
 
 `fps_h` (free period sleep) equals
-`fpr_tib_h − (latencia_min + inertia_min) / 60` — TBT net of sleep onset
+`fpr_tib_h - (latencia_min + inertia_min) / 60` – TBT net of sleep onset
 latency and sleep inertia.
 
 `dp_midsleep_min` and `dp_tst_min` are standard deviations of per-night
@@ -110,10 +163,19 @@ mid-sleep (minutes) and TST (minutes), respectively.
 
 ``` r
 if (FALSE) { # \dontrun{
+# From a zeitr_result: holidays and free_days forwarded automatically
 result <- run_pipeline_native("recordings/P001.txt",
-                              tz = "America/Sao_Paulo")
+                              tz        = "America/Sao_Paulo",
+                              holidays  = my_holidays,
+                              free_days = c("Saturday", "Sunday"))
+sm <- compute_sleep_metrics(result, tz = "America/Sao_Paulo")
 
-sm <- compute_sleep_metrics(result$nights, tz = "America/Sao_Paulo")
+# Non-standard schedule: Friday + Saturday as free days
+sm <- compute_sleep_metrics(result$nights,
+                            tz        = "America/Sao_Paulo",
+                            holidays  = my_holidays,
+                            free_days = c("Friday", "Saturday"))
+
 sm$tst_h            # mean TST in hours
 sm$sleep_onset_h    # mean sleep onset (circular, decimal hours)
 sm$dp_midsleep_min  # within-person SD of mid-sleep in minutes

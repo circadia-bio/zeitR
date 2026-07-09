@@ -1,5 +1,102 @@
 # Changelog
 
+## zeitR 0.1.3 (2026-07)
+
+### Visualisation
+
+- [`plot_actogram()`](https://zeitr.circadia-lab.uk/reference/plot_actogram.md)
+  – single-column raster actogram. One row per calendar day, time-of-day
+  on the x-axis, filled by sleep/wake state. Oldest day at the top,
+  following standard chronobiology convention. Equivalent to the ad-hoc
+  ggplot2 code in the single-recording vignette but packaged as a
+  reusable function with consistent defaults.
+- [`plot_actogram_double()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_double.md)
+  – classic double-plotted actogram. Each recording day appears twice:
+  in the left column of its own row (x = 00:00 to 24:00) and in the
+  right column of the row above (x = 24:00 to 48:00). Circadian phase
+  drift is visible as a diagonal band across consecutive rows. A dashed
+  vertical line marks the 24 h column boundary.
+- [`plot_actogram_activity()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_activity.md)
+  – double-plotted actogram with activity bars. Same row structure as
+  [`plot_actogram_double()`](https://zeitr.circadia-lab.uk/reference/plot_actogram_double.md)
+  but each epoch is drawn as a vertical bar whose height is proportional
+  to the raw ZCMn activity count. Bars are coloured by sleep/wake state
+  so activity intensity and state classification are read
+  simultaneously. A 99th-percentile cap on bar heights prevents outlier
+  bursts from compressing the rest of the range; a thin baseline stub
+  keeps zero-activity epochs (sleep, off-wrist) faintly visible.
+- [`actogram_colours()`](https://zeitr.circadia-lab.uk/reference/actogram_colours.md)
+  – exported helper returning the named hex colour vector used as the
+  default palette across all three actogram functions. Pass the result
+  to any `colours` argument to inspect or partially override defaults.
+- All three functions accept a `zeitr_result` list or a bare tibble with
+  `datetime` and `state` columns. `ggplot2` remains in `Suggests`; a
+  clear error is thrown if it is not installed.
+
+### Performance
+
+- `rolling_median_prepadded_cpp()` added to `src/rolling_filters.cpp`.
+  Replaces the `RcppRoll` / `zoo` / `vapply` fallback chain in
+  `.estimate_sleep_padded()` with a single direct Rcpp call. Off-wrist
+  sleep estimation is now unconditionally fast (O(n \* win) in C++)
+  regardless of which optional packages are installed. `zoo` removed
+  from Imports; `RcppRoll` removed from Suggests.
+- [`check_consistency()`](https://zeitr.circadia-lab.uk/reference/check_consistency.md)
+  vectorised. Two O(n) R `for` loops replaced with
+  [`which()`](https://rdrr.io/r/base/which.html) calls. No behaviour
+  change.
+
+### Free-day classification
+
+- New `free_days` parameter on
+  [`run_pipeline_native()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native.md),
+  [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md),
+  and
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md).
+  Replaces the hardcoded Saturday + Sunday with any combination of days
+  (English names or ISO integers 1–7). Default is
+  `c("Saturday", "Sunday")`. Enables non-standard schedules such as
+  Friday–Saturday weekends or compressed work weeks.
+- `holidays` now accepts `"DD-MM"` strings for fixed-date annual
+  holidays (e.g. `"25-12"` for Christmas) in addition to `Date` objects
+  and `"YYYY-MM-DD"` strings. All three forms can be mixed in the same
+  vector.
+- [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  and
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  are now S3 generics. Passing a `zeitr_result` directly auto-forwards
+  `result$holidays` and `result$free_days` — no need to repeat them
+  manually.
+- A warning is emitted when `holidays = NULL`; suppress with
+  `options(zeitR.no_holidays_warn = FALSE)`.
+
+### Bug fixes
+
+- Free-day detection was broken on non-English locales
+  ([`weekdays()`](https://rdrr.io/r/base/weekday.POSIXt.html) returns
+  `"sabado"` on `pt_BR`). Fixed by using the locale-independent ISO 8601
+  weekday number.
+- MSF and MSW now use the circular mean, matching the fix29 notebook.
+  Plain mean gives wrong results when mid-sleep wraps midnight.
+- [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
+  now drops episodes starting after noon on the last recording day
+  (truncated by end of file), matching fix29’s filter.
+
+### Tests
+
+- Free-day classification tests (`test-free-days.R`):
+  `.parse_free_days()` input validation (English names, ISO integers,
+  case insensitivity, range errors), `.is_free_day()` locale-independent
+  weekday detection (vectorised over a full week, default and custom
+  schedules), all three holiday input forms (`Date`, `"YYYY-MM-DD"`,
+  `"DD-MM"`) including mixed-form vectors, year-specificity of
+  `"YYYY-MM-DD"` vs recurrence of `"DD-MM"`, the
+  `zeitR.no_holidays_warn` option, and `zeitr_result` S3 dispatch
+  forwarding `free_days` and `holidays` to both
+  [`compute_sleep_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.md)
+  and
+  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md).
+
 ## zeitR 0.1.2 (2026-07)
 
 ### Vallim native pipeline
@@ -94,18 +191,20 @@
 
 ### Bug fixes
 
-- **Fix 26c (fragment recovery)**: the Python reference pipeline
-  silently disabled temperature- and light-based gap merging due to
-  column name mismatches (`'TEMPERATURE'` / `'LIGHT'` vs the actual
-  `'int_temp'` / `'light'` columns in ActTrust data). R used the correct
-  column names throughout, so R correctly merges sleep fragments while
-  Python did not. Additionally, R’s Fix 26c was using the period-level
-  CSPD `state` column to detect sleep runs within the recovery window,
-  which incorrectly treated entire 19+ h CSPD periods as a single sleep
-  run. Fix 26c now uses Cole-Kripke epoch scoring on ZCMn to determine
-  sleep/wake within the candidate window, matching the intended
-  behaviour. Both fixes reported to Julia Vallim; R is now the reference
-  implementation for Fix 26c.
+- **Fix 26c (fragment recovery)**: two bugs closed.
+  1.  The Python reference pipeline silently disabled temperature- and
+      light-based gap merging due to column name mismatches
+      (`'TEMPERATURE'` / `'LIGHT'` vs the actual `'int_temp'` /
+      `'light'` columns in ActTrust data). `pipeline_functions_fix27.py`
+      patched; `inst/extdata/vallim_nights.csv` regenerated against the
+      corrected Python output and re-verified: 52/52 main nights, all
+      sleep dates and classifications match R.
+  2.  R’s Fix 26c was using the period-level CSPD `state` column to
+      detect sleep runs within the recovery window, which incorrectly
+      treated entire 19+ h CSPD periods as a single sleep run. Fix 26c
+      now uses Cole-Kripke epoch scoring on `ZCMn` to determine
+      sleep/wake within the candidate window, matching the intended
+      behaviour. R is the reference implementation for Fix 26c.
 - **`offwrist_refiner.R`**: fixed scalar `FALSE` assignment to a 0-row
   data frame (`$valley_peak <- rep(FALSE, nrow(...))`) that caused a
   crash on recordings with no valid off-wrist candidates.
@@ -132,6 +231,12 @@
   `rolling_max_cpp`, `rolling_min_cpp`, `zero_mitigation_cpp`,
   `mark_invalid_zeros_cpp`, `adaptive_median_filter_cpp`, morphological
   close/open pair, and end-to-end epoch count lock on `input1.txt`.
+- Fix 26c regression test (`test-fix26c.R`): synthetic 1-min epoch
+  recording with a bloated 19 h CSPD `state = 1` period containing two
+  Cole-Kripke sleep runs (3 h + 5.5 h) separated by a warm/dark wake
+  gap. Asserts that `.recover_fragmented_episodes()` merges the
+  CK-derived runs (TBT ~ 9 h) rather than the CSPD state period (TBT ~
+  19 h). Runs on CI; no external data required.
 
 ------------------------------------------------------------------------
 
