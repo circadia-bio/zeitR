@@ -100,7 +100,7 @@ export_hypnogram <- function(result,
   # Resolve subject_id: explicit arg > result$subject_id > NULL (omit column)
   sid <- if (!is.null(subject_id)) {
     subject_id
-  } else if (is.list(result) && !is.null(result$subject_id)) {
+  } else if (is.list(result) && !is.data.frame(result) && !is.null(result$subject_id)) {
     result$subject_id
   } else {
     NULL
@@ -111,10 +111,16 @@ export_hypnogram <- function(result,
 
   in_sleep <- state == 1L | state == 7L
 
+  # zcm_is_zero is computed as a full-length logical vector up front so the
+  # case_when() conditions below are never length-0: `zcm == 0` on a NULL
+  # zcm (ZCMn absent) would otherwise produce logical(0), which case_when()
+  # cannot recycle against the other length-n conditions.
+  zcm_is_zero <- if (!is.null(zcm)) zcm == 0 else rep(FALSE, length(state))
+
   stage_chr <- dplyr::case_when(
-    in_sleep & !is.null(zcm) & zcm == 0 ~ "Quiet sleep",
-    in_sleep                             ~ "Sleep",
-    TRUE                                 ~ "W"
+    in_sleep & zcm_is_zero ~ "Quiet sleep",
+    in_sleep               ~ "Sleep",
+    TRUE                   ~ "W"
   )
 
   stage_fct <- factor(stage_chr,

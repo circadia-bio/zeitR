@@ -89,7 +89,7 @@ actogram_colours <- function() {
 # subject ID from a zeitr_result.
 #' @noRd
 .actogram_title <- function(result, prefix) {
-  subj <- if (is.list(result) && !is.null(result[["subject_id"]])) {
+  subj <- if (is.list(result) && !is.data.frame(result) && !is.null(result[["subject_id"]])) {
     result[["subject_id"]]
   } else {
     NULL

@@ -92,7 +92,7 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   activity  <- as.double(epochs$activity)
 
   # ── Exclude off-wrist epochs if state column is present ──────────────────────
-  if (!is.null(epochs$state)) {
+  if ("state" %in% names(epochs)) {
     keep      <- is.na(epochs$state) | epochs$state != 4L
     datetimes <- datetimes[keep]
     activity  <- activity[keep]

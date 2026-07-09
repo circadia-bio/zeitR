@@ -19,6 +19,14 @@
 * Removed `.adaptive_median_filter()`, a dead pure-R fallback in
   `sleep_periods.R` that was superseded by `adaptive_median_filter_cpp()` and
   never called. No behaviour change.
+* Removed four further dead internal helpers from `utils.R` --
+  `zero_sequences()`, `quantile_filter()`, `max_filter()`, `min_filter()` --
+  confirmed unreferenced anywhere in `R/`, `dev/`, or the test suite; all
+  superseded by direct calls to the corresponding Rcpp functions. No
+  behaviour change. (`rolling_apply()` was initially removed too, but is
+  kept -- it's the R reference implementation used by the
+  `rolling_max_cpp()`/`rolling_min_cpp()` parity tests in
+  `test-crespo-cpp-parity.R`.)
 * `run_pipeline_batch()` and `run_pipeline_native_batch()` gain a `parallel`
   argument. When `TRUE`, files are processed concurrently via
   `future.apply::future_lapply()` under whatever `future::plan()` the caller
@@ -72,6 +80,12 @@
   three functions, the missing-`activity_col` error, and acceptance of a
   `zeitr_result` list as well as a bare tibble. `vdiffr` added to
   `Suggests`.
+* New test files bringing five previously 0%-covered files up to full or
+  near-full coverage: `test-circ-utils.R`, `test-export-hypnogram.R`,
+  `test-npcra.R`, `test-study-summary.R`, `test-read-actigraphy.R`. Also
+  `test-utils.R`, covering edge-case branches in `norm_01()`, `zero_prop()`,
+  `ashman_d()`, and `%||%` not guaranteed to be hit by ordinary pipeline
+  data. Overall coverage moved from 81.1% to 87.5%.
 
 ## zeitR 0.1.3  (2026-07)
 
