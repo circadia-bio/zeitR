@@ -50,5 +50,6 @@ study_summary(study)
 }
 \seealso{
 \code{\link[=compute_npcra]{compute_npcra()}} for single-recording NPCRA, \code{\link[=read_actigraphy_dir]{read_actigraphy_dir()}}
-to create a \code{zeitr_study}.
+to create a \code{zeitr_study}, \code{\link[=study_sleep_metrics]{study_sleep_metrics()}} for the sleep-timing/
+chronotype analogue (CPD, MSF/MSW, social jetlag).
 }
