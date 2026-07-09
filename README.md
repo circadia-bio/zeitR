@@ -41,6 +41,7 @@ zeitR is designed to complement [slumbR](https://github.com/circadia-bio/slumbR)
 - 📊 **`compute_waso()`** — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency
 - 📐 **`compute_npcra()`** — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)
 - 🗂️ **`study_summary()`** — participant-level NPCRA summary across a whole study
+- 🗂️ **`study_sleep_metrics()`** — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW, SJL) across a whole study
 - 📋 **`compute_sleep_metrics()`** — per-night sleep metrics split by day type (overall / workday / free day)
 - 📋 **`compute_cpd_metrics()`** — CPD, MSW, MSF, MSFsc, social jet lag (SJL, SJLa)
 - 🚀 **`run_pipeline()`** — full CSPD pipeline on a single file
@@ -191,6 +192,7 @@ zeitR/
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
 │   ├── study_summary.R       # study_summary()
+│   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
 │   ├── pipeline.R            # run_pipeline*(), run_pipeline_native*()

@@ -201,6 +201,7 @@ reference:
   desc: "Summarise results across multiple participants."
   contents:
   - study_summary
+  - study_sleep_metrics
 
 - title: "Pipeline"
   desc: "Run the full analysis pipeline on one file or a directory."

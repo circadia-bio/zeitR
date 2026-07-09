@@ -1,4 +1,4 @@
-## zeitR (development version)
+## zeitR 0.1.4  (2026-07)
 
 ### New features
 
@@ -14,19 +14,6 @@
   unlike `study_summary()`, so there was previously no way to get these
   metrics into the one-row-per-participant shape `sync()` expects without
   writing manual glue code per study.
-
-### Tests
-
-* `test-study-sleep-metrics.R`: synthetic multi-participant coverage for
-  `study_sleep_metrics()` -- both metric sets present with correct
-  `n_overall`/`n_wd`/`n_fd` counts, holiday forwarding shifting a night
-  between the workday/free-day groups, per-participant `holidays`/`free_days`
-  fallback vs a study-level override, a participant whose
-  `compute_cpd_metrics()` call fails (no free days) while
-  `compute_sleep_metrics()` still succeeds for the same participant (only
-  the failing metric set is `NA`-filled), skipping non-`zeitr_result`
-  entries, the empty/all-invalid-batch paths, and the `subject_id`-missing
-  fallback to the list name.
 
 ### Visualisation
 
@@ -91,6 +78,25 @@
   used by `plot_actogram_activity()`, which was not affected by the
   clipping itself since it uses `geom_rect()` with explicit epoch
   boundaries rather than a centred tile).
+* `export_hypnogram()`: `is.list(result)` doesn't exclude a bare tibble
+  (tibbles are lists too), so `result$subject_id` on a bare tibble without
+  that column triggered a spurious "Unknown or uninitialised column"
+  warning. Fixed by adding the missing `!is.data.frame(result)` guard,
+  matching the pattern already used two lines above it in the same
+  function.
+* `export_hypnogram()`: when `ZCMn` is absent (a documented, valid use
+  case), `zcm` is `NULL` and `zcm == 0` evaluates to `logical(0)`, which
+  `dplyr::case_when()` cannot recycle against the other length-n
+  conditions -- a hard error, not just a warning. Fixed by precomputing a
+  proper full-length `zcm_is_zero` vector before the `case_when()` call.
+* `compute_npcra()`: the same `is.null(x$col)`-on-a-tibble pattern for the
+  optional `state` column triggered a spurious "Unknown or uninitialised
+  column" warning whenever `state` was absent (also a documented, valid
+  use case). Fixed with `"state" %in% names(epochs)`.
+* `plot_actogram.R`'s internal `.actogram_title()` had the same
+  `is.list()`/bare-tibble gap as `export_hypnogram()`, not yet triggered by
+  any existing test but the same latent risk. Fixed proactively for
+  consistency with the pattern used elsewhere.
 
 ### Tests
 
@@ -103,17 +109,29 @@
 * `test-actogram-snapshots.R`: visual regression snapshots (`vdiffr`, skipped
   if not installed) for `plot_actogram()`, `plot_actogram_double()`,
   `plot_actogram_activity()`, and `plot_actogram_activity()` with a custom
-  `activity_cap_quantile`, using a deterministic synthetic 2-day fixture.
-  Also covers (independently of `vdiffr`) missing-column errors for all
-  three functions, the missing-`activity_col` error, and acceptance of a
-  `zeitr_result` list as well as a bare tibble. `vdiffr` added to
-  `Suggests`.
+  `activity_cap_quantile` and with `log_scale = TRUE`, using a deterministic
+  synthetic 2-day fixture. Also covers (independently of `vdiffr`)
+  missing-column errors for all three functions, the missing-`activity_col`
+  error, acceptance of a `zeitr_result` list as well as a bare tibble, and
+  that `log_scale = FALSE` is byte-identical to the pre-`log_scale`
+  behaviour. `vdiffr` added to `Suggests`.
 * New test files bringing five previously 0%-covered files up to full or
   near-full coverage: `test-circ-utils.R`, `test-export-hypnogram.R`,
   `test-npcra.R`, `test-study-summary.R`, `test-read-actigraphy.R`. Also
   `test-utils.R`, covering edge-case branches in `norm_01()`, `zero_prop()`,
   `ashman_d()`, and `%||%` not guaranteed to be hit by ordinary pipeline
-  data. Overall coverage moved from 81.1% to 87.5%.
+  data. Overall coverage moved from 81.1% to 87.9%. `covr` added to
+  `Suggests`.
+* `test-study-sleep-metrics.R`: synthetic multi-participant coverage for
+  `study_sleep_metrics()` -- both metric sets present with correct
+  `n_overall`/`n_wd`/`n_fd` counts, holiday forwarding shifting a night
+  between the workday/free-day groups, per-participant `holidays`/`free_days`
+  fallback vs a study-level override, a participant whose
+  `compute_cpd_metrics()` call fails (no free days) while
+  `compute_sleep_metrics()` still succeeds for the same participant (only
+  the failing metric set is `NA`-filled), skipping non-`zeitr_result`
+  entries, the empty/all-invalid-batch paths, and the `subject_id`-missing
+  fallback to the list name.
 
 ## zeitR 0.1.3  (2026-07)
 
