@@ -402,51 +402,6 @@ detect_naps_crespo <- function(x, epoch_h = NULL, params = .cspd_nap_params()) {
   )
 }
 
-#' Adaptive median filter with variable window size
-#' @noRd
-.adaptive_median_filter <- function(
-    x,
-    pad_size,
-    max_hws,
-    padded  = FALSE,
-    n_orig  = NULL
-) {
-  if (padded) {
-    n      <- n_orig %||% (length(x) - 2L * pad_size)
-    center_start <- pad_size + 1L
-  } else {
-    n      <- length(x)
-    padded_x <- c(rep(x[1], pad_size), x, rep(x[length(x)], pad_size))
-    x        <- padded_x
-    center_start <- pad_size + 1L
-  }
-
-  out     <- numeric(n)
-  hws     <- pad_size
-
-  for (i in seq_len(n)) {
-    center <- center_start + i - 1L
-    lo     <- max(1L, center - hws)
-    hi     <- min(length(x), center + hws)
-    val    <- stats::median(x[lo:hi], na.rm = TRUE)
-
-    if (is.na(val)) {
-      val <- if (i > 1L) out[i - 1L] else 0
-    }
-
-    out[i] <- val
-
-    # Variable window: grow toward max_hws then shrink near the end
-    if (i < (n - max_hws + pad_size)) {
-      if (hws < max_hws) hws <- hws + 1L
-    } else {
-      if (hws > pad_size) hws <- hws - 1L
-    }
-  }
-
-  out
-}
-
 #' Binary morphological close then open (1-D, flat structuring element)
 #' @param x integer vector (0/1)
 #' @param size integer structuring element size (must be odd)
