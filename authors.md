@@ -15,7 +15,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/circadia-bio/zeitR/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/circadia-bio/zeitR/blob/v/DESCRIPTION)
 
 França L, Leocadio-Miguel M, Vallim J (2026). *zeitR: Actigraphy Data
 Parsing and Analysis for R*. R package version 0.1.3,
