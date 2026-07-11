@@ -71,6 +71,13 @@ template:
         /* ── Navbar logo size ── */
         .navbar-brand img { height: 40px; width: auto; }
 
+        /* ── Dropdown menus: cap height and scroll instead of silently
+           running past the viewport edge with no visible cue ── */
+        .navbar .dropdown-menu {
+          max-height: calc(100vh - 90px);
+          overflow-y: auto;
+        }
+
         /* ── Remove border under page title ── */
         .page-header { border-bottom: none !important; }
 
