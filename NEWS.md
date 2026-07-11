@@ -1,4 +1,4 @@
-## zeitR 0.1.4  (2026-07)
+## zeitR 0.1.5  (2026-07)
 
 ### ✨ New features
 
@@ -41,6 +41,66 @@
   parameter (`zcm_threshold`, `tat_threshold`). Default band-pass cutoffs
   are ActTrust-style (`0.5`-`2.7` Hz); pass `filter_low`/`filter_high` for
   GT3X+-style (`0.25`-`2.5` Hz) processing instead.
+
+### 🚀 CI
+
+* Fixed mrpheus dependency resolution in CI: added
+  `Additional_repositories: https://circadia-bio.r-universe.dev` and a
+  repo-root `.Rprofile` setting `options(repos = ...)` directly, matching
+  hypnoR's existing setup for the same mrpheus/zeitR pairing.
+  `Additional_repositories` alone doesn't automatically wire into `pak`'s
+  dependency resolution -- it's mainly a documentation/NOTE-suppression
+  field -- so the `.Rprofile` is what actually makes `mrpheus` resolvable
+  for `compute_activity_counts()`.
+
+### 🐛 Bug fixes
+
+* `.zero_crossing_indicator()` (internal, `compute_activity_counts()`)
+  called `rep(FALSE, n - 1)` with `n = 0` for a zero-length input, and
+  `rep()` rejects a negative `times` argument. Surfaced while writing the
+  degenerate-length test case, not by any real recording. Fixed with an
+  early `if (n < 2L) return(logical(0))` guard.
+
+### 📚 Documentation
+
+* New `vignette("physical-activity")` -- walks through `pa_equations()`,
+  `estimate_ee()`, `classify_pa_intensity()`, and `classify_pa_counts()`
+  using the bundled ActTrust recording's real PIM counts. Flags the
+  extrapolation from treadmill-fitted equations to free-living data inline
+  rather than burying it in a caveats section, and points to
+  `?pa_equations` for the full generalisability discussion instead of
+  duplicating it.
+* New `vignette("raw-accelerometry")` -- `compute_activity_counts()` on a
+  simulated raw triaxial recording (quiet segment, then clear 1 Hz
+  movement), covering ActTrust- vs. GT3X+-style filter cutoffs, tuning
+  `zcm_threshold`/`tat_threshold` against sensor noise floor, and closing
+  the full loop into `estimate_ee()`/`classify_pa_intensity()` so the raw
+  signal and PA-intensity vignettes read as one continuous pipeline rather
+  than two unrelated features.
+* README: added the `r-universe` badge and recommended
+  `install.packages(..., repos = c("https://circadia-bio.r-universe.dev", ...))`
+  install path (GitHub `pak` install kept as the dev-version fallback,
+  matching hypnoR); filled in ten previously undocumented `Features`
+  bullets (`read_acttrust()`, `prepare_actigraphy()`, the four PA-intensity
+  functions, the four actogram-plotting functions) that were already
+  shipped and in the pkgdown reference index but never listed; added the
+  PA-intensity MET-band table to Computed Variables; brought the Project
+  Structure tree and Dependencies table (now with an Imports/Suggests
+  `Type` column) up to date with everything actually in `DESCRIPTION`.
+
+### 🧪 Tests
+
+* `test-raw-accelerometry.R`: `.zero_crossing_indicator()`/`.epoch_rowsum()`
+  directly, plus `compute_activity_counts()` input validation, the
+  trailing-incomplete-epoch warning, a flat zero-motion signal (all metrics
+  exactly zero), a clean 1 Hz sinusoid (ZCM ~ 2 x frequency x `epoch_sec` on
+  interior epochs), PIM/TAT increasing with amplitude, and `metrics`
+  subsetting. Skipped via `skip_if_not_installed("mrpheus")` where that
+  dependency is needed.
+
+## zeitR 0.1.4  (2026-07)
+
+### ✨ New features
 
 * New `study_sleep_metrics()` -- batch wrapper computing
   `compute_sleep_metrics()` and `compute_cpd_metrics()` across every
@@ -90,17 +150,6 @@
   installed. Default remains `FALSE` (sequential), so existing code is
   unaffected. `future` and `future.apply` added to `Suggests`.
 
-### 🚀 CI
-
-* Fixed mrpheus dependency resolution in CI: added
-  `Additional_repositories: https://circadia-bio.r-universe.dev` and a
-  repo-root `.Rprofile` setting `options(repos = ...)` directly, matching
-  hypnoR's existing setup for the same mrpheus/zeitR pairing.
-  `Additional_repositories` alone doesn't automatically wire into `pak`'s
-  dependency resolution -- it's mainly a documentation/NOTE-suppression
-  field -- so the `.Rprofile` is what actually makes `mrpheus` resolvable
-  for `compute_activity_counts()`.
-
 ### 🐛 Bug fixes
 
 * `zeitr_abort()`, `zeitr_warn()`, and `zeitr_inform()` (internal message
@@ -148,48 +197,9 @@
   `is.list()`/bare-tibble gap as `export_hypnogram()`, not yet triggered by
   any existing test but the same latent risk. Fixed proactively for
   consistency with the pattern used elsewhere.
-* `.zero_crossing_indicator()` (internal, `compute_activity_counts()`)
-  called `rep(FALSE, n - 1)` with `n = 0` for a zero-length input, and
-  `rep()` rejects a negative `times` argument. Surfaced while writing the
-  degenerate-length test case, not by any real recording. Fixed with an
-  early `if (n < 2L) return(logical(0))` guard.
-
-### 📚 Documentation
-
-* New `vignette("physical-activity")` -- walks through `pa_equations()`,
-  `estimate_ee()`, `classify_pa_intensity()`, and `classify_pa_counts()`
-  using the bundled ActTrust recording's real PIM counts. Flags the
-  extrapolation from treadmill-fitted equations to free-living data inline
-  rather than burying it in a caveats section, and points to
-  `?pa_equations` for the full generalisability discussion instead of
-  duplicating it.
-* New `vignette("raw-accelerometry")` -- `compute_activity_counts()` on a
-  simulated raw triaxial recording (quiet segment, then clear 1 Hz
-  movement), covering ActTrust- vs. GT3X+-style filter cutoffs, tuning
-  `zcm_threshold`/`tat_threshold` against sensor noise floor, and closing
-  the full loop into `estimate_ee()`/`classify_pa_intensity()` so the raw
-  signal and PA-intensity vignettes read as one continuous pipeline rather
-  than two unrelated features.
-* README: added the `r-universe` badge and recommended
-  `install.packages(..., repos = c("https://circadia-bio.r-universe.dev", ...))`
-  install path (GitHub `pak` install kept as the dev-version fallback,
-  matching hypnoR); filled in ten previously undocumented `Features`
-  bullets (`read_acttrust()`, `prepare_actigraphy()`, the four PA-intensity
-  functions, the four actogram-plotting functions) that were already
-  shipped and in the pkgdown reference index but never listed; added the
-  PA-intensity MET-band table to Computed Variables; brought the Project
-  Structure tree and Dependencies table (now with an Imports/Suggests
-  `Type` column) up to date with everything actually in `DESCRIPTION`.
 
 ### 🧪 Tests
 
-* `test-raw-accelerometry.R`: `.zero_crossing_indicator()`/`.epoch_rowsum()`
-  directly, plus `compute_activity_counts()` input validation, the
-  trailing-incomplete-epoch warning, a flat zero-motion signal (all metrics
-  exactly zero), a clean 1 Hz sinusoid (ZCM ~ 2 x frequency x `epoch_sec` on
-  interior epochs), PIM/TAT increasing with amplitude, and `metrics`
-  subsetting. Skipped via `skip_if_not_installed("mrpheus")` where that
-  dependency is needed.
 * `test-batch-helper.R`: `.run_pipeline_over_files()` -- sequential success,
   partial-failure skip-with-warning, all-failing batch returns empty list,
   parallel dispatch via `future_lapply()` (skipped if `future.apply` is not
