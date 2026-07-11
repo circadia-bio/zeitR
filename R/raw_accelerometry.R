@@ -42,7 +42,9 @@
 # this prevents high-frequency noise near zero from inflating the count.
 #' @noRd
 .zero_crossing_indicator <- function(v, threshold) {
-  n    <- length(v)
+  n <- length(v)
+  if (n < 2L) return(logical(0))
+
   zone <- rep(NA_integer_, n)
   zone[v >  threshold] <-  1L
   zone[v < -threshold] <- -1L
