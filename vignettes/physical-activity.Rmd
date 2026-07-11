@@ -144,14 +144,20 @@ free-living PA measure.
 A quick visual of intensity across the whole recording:
 
 ```{r pa-plot, fig.height = 4}
-ggplot(result$data, aes(x = datetime, fill = pa_intensity)) +
-  geom_bar(width = 1/1440, position = "stack") +
+daily <- result$data
+daily$date <- as.Date(daily$datetime)
+daily <- aggregate(list(n = daily$activity), by = list(
+  date = daily$date, pa_intensity = daily$pa_intensity
+), FUN = length)
+
+ggplot(daily, aes(x = date, y = n, fill = pa_intensity)) +
+  geom_col(width = 1) +
   scale_fill_manual(
     values = c(light = "#D9C8A0", moderate = "#F0A500",
                vigorous = "#C25E2A", very_vigorous = "#2D2640"),
     drop = FALSE
   ) +
-  labs(x = NULL, y = "Epochs", fill = "PA intensity") +
+  labs(x = NULL, y = "Epochs/day", fill = "PA intensity") +
   theme_minimal(base_size = 12)
 ```
 
