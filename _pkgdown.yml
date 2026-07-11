@@ -220,6 +220,14 @@ reference:
   - compute_sleep_metrics
   - compute_cpd_metrics
 
+- title: "Physical activity"
+  desc: "Estimate energy expenditure and classify PA intensity from activity counts."
+  contents:
+  - pa_equations
+  - estimate_ee
+  - classify_pa_intensity
+  - classify_pa_counts
+
 - title: "Visualisation"
   desc: "Actogram and raster display of actigraphy recordings."
   contents:

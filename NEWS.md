@@ -2,6 +2,25 @@
 
 ### New features
 
+* New `pa_equations()`, `estimate_ee()`, `classify_pa_intensity()`, and
+  `classify_pa_counts()` -- physical activity intensity classification from
+  ActTrust(R)/GT3X+ activity counts, porting the published cut-points and
+  MET-estimation equations from Batista et al. (2026, PLoS ONE
+  <https://doi.org/10.1371/journal.pone.0348631>). Extends zeitR beyond sleep
+  staging into the other half of the 24h rest-activity cycle: light,
+  moderate, vigorous, and very vigorous PA bands from hip- or wrist-worn
+  ActTrust(R) or GT3X+ counts. Only the published coefficient/cut-point table
+  is ported (not the original study's calorimetry-fitted `lm()`/`msm`
+  pipeline, which needs data no zeitR user will have) -- see `?pa_equations`
+  for the equation-set design and important generalisability caveats: single
+  lab-treadmill validation study (N=56, healthy adults 18-35), GT3X+ (hip)
+  cut-points differ 2-65% from prior published GT3X+ studies which
+  themselves differ from each other by 16-39%, and that spread reflects
+  differing modelling approaches (two-regression, ANN, and this paper's
+  linear model) as well as sample -- diagnosable against Sasaki et al.'s
+  transparent two-regression model, not diagnosable against Santos-Lozano
+  et al.'s ANN, which has no inspectable coefficients to compare against.
+
 * New `study_sleep_metrics()` -- batch wrapper computing
   `compute_sleep_metrics()` and `compute_cpd_metrics()` across every
   participant in a `run_pipeline_batch()`/`run_pipeline_native_batch()`
