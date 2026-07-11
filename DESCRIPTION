@@ -46,6 +46,7 @@ Suggests:
     future (>= 1.33.0),
     future.apply (>= 1.11.0),
     ggplot2 (>= 3.4.0),
+    mrpheus,
     rlang (>= 1.1.0),
     knitr,
     pkgdown,
@@ -53,6 +54,7 @@ Suggests:
     testthat (>= 3.0.0),
     vdiffr (>= 1.0.0)
 Config/testthat/edition: 3
+Additional_repositories: https://circadia-bio.r-universe.dev
 URL: https://zeitr.circadia-lab.uk, https://github.com/circadia-bio/zeitR
 BugReports: https://github.com/circadia-bio/zeitR/issues
 Config/roxygen2/version: 8.0.0

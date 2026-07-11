@@ -227,6 +227,11 @@ reference:
   - compute_sleep_metrics
   - compute_cpd_metrics
 
+- title: "Raw signal processing"
+  desc: "Convert raw triaxial acceleration into epoch-level activity counts."
+  contents:
+  - compute_activity_counts
+
 - title: "Physical activity"
   desc: "Estimate energy expenditure and classify PA intensity from activity counts."
   contents:

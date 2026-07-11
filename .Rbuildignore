@@ -1,4 +1,5 @@
 ^\.github$
+^\.Rprofile$
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
