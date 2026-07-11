@@ -28,7 +28,7 @@ zeitR ships two end-to-end pipelines:
 
 zeitR is designed to complement [slumbR](https://github.com/circadia-bio/slumbR) in the Circadia Lab ecosystem: slumbR handles sleep diary and questionnaire data, zeitR handles the actigraphy side of a study.
 
-Beyond the two pipelines, zeitR also estimates energy expenditure and classifies physical activity (PA) intensity from raw ActTrust/GT3X+ activity counts, using published equations (see `pa_equations()` in Features below) -- extending zeitR beyond sleep into the other half of the 24 h rest-activity cycle.
+Beyond the two pipelines, zeitR also estimates energy expenditure and classifies physical activity (PA) intensity from raw ActTrust/GT3X+ activity counts, using published equations (see `pa_equations()` in Features below) -- extending zeitR beyond sleep into the other half of the 24 h rest-activity cycle. `compute_activity_counts()` extends this one step further back: for devices or pipelines that only provide raw triaxial acceleration samples rather than onboard-computed counts, it converts them into the same epoch-level PIM/TAT/ZCM shape `read_acttrust()` already produces.
 
 ---
 
@@ -49,6 +49,7 @@ Beyond the two pipelines, zeitR also estimates energy expenditure and classifies
 - 🗂️ **`study_sleep_metrics()`** — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW, SJL) across a whole study
 - 📋 **`compute_sleep_metrics()`** — per-night sleep metrics split by day type (overall / workday / free day)
 - 📋 **`compute_cpd_metrics()`** — CPD, MSW, MSF, MSFsc, social jet lag (SJL, SJLa)
+- 🌞 **`compute_activity_counts()`** — convert raw triaxial acceleration into epoch-level PIM/TAT/ZCM counts (reuses `mrpheus`'s validated filter primitives)
 - 📚 **`pa_equations()`** — published ActTrust/GT3X+ MET-estimation coefficients and count cut-points (Batista et al., 2026)
 - 🔥 **`estimate_ee()`** — estimate METs from activity counts via the published regression equation
 - 🏃 **`classify_pa_intensity()`** — bin METs into light/moderate/vigorous/very vigorous PA bands
@@ -169,6 +170,20 @@ a real analysis -- the equations come from a single controlled-treadmill
 validation study and the help page spells out exactly what that does and
 doesn't license.
 
+### Raw accelerometry -> PIM/TAT/ZCM
+
+```r
+# x, y, z: raw triaxial acceleration samples; sampling_rate in Hz
+counts <- compute_activity_counts(x, y, z, sampling_rate = 25, epoch_sec = 60)
+counts$mets         <- estimate_ee(counts$PIM, device = "ACTT", placement = "wrist")
+counts$pa_intensity <- classify_pa_intensity(counts$mets)
+```
+
+Requires `mrpheus` (reuses its validated `remove_dc()`/`bandpass_filter()`
+rather than a new, unvalidated filter). See `vignette("raw-accelerometry")`
+and `?compute_activity_counts` for the full processing chain and what is
+(and isn't) validated about it.
+
 ---
 
 ## 📐 Computed variables
@@ -246,6 +261,7 @@ zeitR/
 │   ├── study_summary.R       # study_summary()
 │   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── pa_intensity.R        # pa_equations(), estimate_ee(), classify_pa_intensity/counts()
+│   ├── raw_accelerometry.R   # compute_activity_counts()
 │   ├── plot_actogram.R       # plot_actogram*(), actogram_colours()
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
@@ -265,7 +281,8 @@ zeitR/
 │   ├── sleep-analysis.Rmd    # CSPD pipeline walkthrough
 │   ├── vallim-pipeline.Rmd   # Vallim pipeline walkthrough
 │   ├── holidays.Rmd          # classifying weekends/public holidays
-│   └── physical-activity.Rmd # PA intensity from ActTrust/GT3X+ counts
+│   ├── physical-activity.Rmd # PA intensity from ActTrust/GT3X+ counts
+│   └── raw-accelerometry.Rmd # PIM/TAT/ZCM from raw triaxial acceleration
 ├── tests/testthat/
 ├── inst/extdata/             # validation fixtures
 ├── DESCRIPTION
@@ -287,6 +304,7 @@ zeitR/
 | tidyr | Imports | Pivoting and reshaping |
 | ggplot2 | Suggests | Actogram and PA-intensity plots — checked at runtime, not required for non-plotting functions |
 | dplyr, forcats, rlang | Suggests | Used in vignettes and some helper functions |
+| mrpheus | Suggests | Filter primitives (`remove_dc()`, `bandpass_filter()`) reused by `compute_activity_counts()`; cross-package dependency from the circadia-bio r-universe, not CRAN |
 | future, future.apply | Suggests | Parallel batch processing (`run_pipeline_batch()`, `run_pipeline_native_batch()`) |
 | vdiffr | Suggests | Visual regression tests for actogram plots |
 | testthat, covr | Suggests | Test suite and coverage |

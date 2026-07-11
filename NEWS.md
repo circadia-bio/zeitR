@@ -1,6 +1,6 @@
 ## zeitR 0.1.4  (2026-07)
 
-### New features
+### ✨ New features
 
 * New `pa_equations()`, `estimate_ee()`, `classify_pa_intensity()`, and
   `classify_pa_counts()` -- physical activity intensity classification from
@@ -21,6 +21,27 @@
   transparent two-regression model, not diagnosable against Santos-Lozano
   et al.'s ANN, which has no inspectable coefficients to compare against.
 
+* New `compute_activity_counts()` -- converts raw triaxial acceleration
+  (`x`/`y`/`z` + `sampling_rate`) into epoch-level PIM/TAT/ZCM activity
+  counts, for devices or pipelines that only provide raw samples rather
+  than onboard-computed counts (e.g. `read_acttrust()`'s `activity`/`ZCMn`
+  columns). Filtering reuses `mrpheus::remove_dc()` /
+  `mrpheus::bandpass_filter()` -- the same zero-phase Butterworth
+  implementation already validated as part of mrpheus's YASA-parity PSG
+  pipeline -- rather than a new, unvalidated filter written from scratch.
+  This makes `mrpheus` a cross-package `Suggests` dependency for this
+  function specifically (precedented by hypnoR, which already `Suggests`
+  both `mrpheus` and `zeitR`); the rest of zeitR stays independent of it.
+  The epoch-level PIM/TAT/ZCM aggregation logic itself has no reference
+  implementation to check against -- no raw-to-counts converter exists in
+  `condor_pipeline`/`circadiaBase_Docker` (only already-epoched data), and
+  Condor's/ActiGraph's exact onboard thresholds are proprietary -- see
+  `?compute_activity_counts` for what's built from the general processing
+  description in Batista et al. (2026, PLoS ONE) vs. what's an open/tunable
+  parameter (`zcm_threshold`, `tat_threshold`). Default band-pass cutoffs
+  are ActTrust-style (`0.5`-`2.7` Hz); pass `filter_low`/`filter_high` for
+  GT3X+-style (`0.25`-`2.5` Hz) processing instead.
+
 * New `study_sleep_metrics()` -- batch wrapper computing
   `compute_sleep_metrics()` and `compute_cpd_metrics()` across every
   participant in a `run_pipeline_batch()`/`run_pipeline_native_batch()`
@@ -34,7 +55,7 @@
   metrics into the one-row-per-participant shape `sync()` expects without
   writing manual glue code per study.
 
-### Visualisation
+### 📊 Visualisation
 
 * `actogram_colours()`: swapped the default `"wake"` and `"off-wrist"`
   colours (wake is now the warm terracotta `#C25E2A`; off-wrist is now the
@@ -48,7 +69,7 @@
   raw signal (occasional high bursts no longer dominate the visible range).
   Default `FALSE` preserves the existing linear-scale behaviour exactly.
 
-### Performance
+### 🚀 Performance
 
 * Removed `.adaptive_median_filter()`, a dead pure-R fallback in
   `sleep_periods.R` that was superseded by `adaptive_median_filter_cpp()` and
@@ -69,7 +90,18 @@
   installed. Default remains `FALSE` (sequential), so existing code is
   unaffected. `future` and `future.apply` added to `Suggests`.
 
-### Bug fixes
+### 🚀 CI
+
+* Fixed mrpheus dependency resolution in CI: added
+  `Additional_repositories: https://circadia-bio.r-universe.dev` and a
+  repo-root `.Rprofile` setting `options(repos = ...)` directly, matching
+  hypnoR's existing setup for the same mrpheus/zeitR pairing.
+  `Additional_repositories` alone doesn't automatically wire into `pak`'s
+  dependency resolution -- it's mainly a documentation/NOTE-suppression
+  field -- so the `.Rprofile` is what actually makes `mrpheus` resolvable
+  for `compute_activity_counts()`.
+
+### 🐛 Bug fixes
 
 * `zeitr_abort()`, `zeitr_warn()`, and `zeitr_inform()` (internal message
   wrappers around `cli::cli_abort()`/`cli_warn()`/`cli_inform()`) did not
@@ -116,9 +148,48 @@
   `is.list()`/bare-tibble gap as `export_hypnogram()`, not yet triggered by
   any existing test but the same latent risk. Fixed proactively for
   consistency with the pattern used elsewhere.
+* `.zero_crossing_indicator()` (internal, `compute_activity_counts()`)
+  called `rep(FALSE, n - 1)` with `n = 0` for a zero-length input, and
+  `rep()` rejects a negative `times` argument. Surfaced while writing the
+  degenerate-length test case, not by any real recording. Fixed with an
+  early `if (n < 2L) return(logical(0))` guard.
 
-### Tests
+### 📚 Documentation
 
+* New `vignette("physical-activity")` -- walks through `pa_equations()`,
+  `estimate_ee()`, `classify_pa_intensity()`, and `classify_pa_counts()`
+  using the bundled ActTrust recording's real PIM counts. Flags the
+  extrapolation from treadmill-fitted equations to free-living data inline
+  rather than burying it in a caveats section, and points to
+  `?pa_equations` for the full generalisability discussion instead of
+  duplicating it.
+* New `vignette("raw-accelerometry")` -- `compute_activity_counts()` on a
+  simulated raw triaxial recording (quiet segment, then clear 1 Hz
+  movement), covering ActTrust- vs. GT3X+-style filter cutoffs, tuning
+  `zcm_threshold`/`tat_threshold` against sensor noise floor, and closing
+  the full loop into `estimate_ee()`/`classify_pa_intensity()` so the raw
+  signal and PA-intensity vignettes read as one continuous pipeline rather
+  than two unrelated features.
+* README: added the `r-universe` badge and recommended
+  `install.packages(..., repos = c("https://circadia-bio.r-universe.dev", ...))`
+  install path (GitHub `pak` install kept as the dev-version fallback,
+  matching hypnoR); filled in ten previously undocumented `Features`
+  bullets (`read_acttrust()`, `prepare_actigraphy()`, the four PA-intensity
+  functions, the four actogram-plotting functions) that were already
+  shipped and in the pkgdown reference index but never listed; added the
+  PA-intensity MET-band table to Computed Variables; brought the Project
+  Structure tree and Dependencies table (now with an Imports/Suggests
+  `Type` column) up to date with everything actually in `DESCRIPTION`.
+
+### 🧪 Tests
+
+* `test-raw-accelerometry.R`: `.zero_crossing_indicator()`/`.epoch_rowsum()`
+  directly, plus `compute_activity_counts()` input validation, the
+  trailing-incomplete-epoch warning, a flat zero-motion signal (all metrics
+  exactly zero), a clean 1 Hz sinusoid (ZCM ~ 2 x frequency x `epoch_sec` on
+  interior epochs), PIM/TAT increasing with amplitude, and `metrics`
+  subsetting. Skipped via `skip_if_not_installed("mrpheus")` where that
+  dependency is needed.
 * `test-batch-helper.R`: `.run_pipeline_over_files()` -- sequential success,
   partial-failure skip-with-warning, all-failing batch returns empty list,
   parallel dispatch via `future_lapply()` (skipped if `future.apply` is not
@@ -154,7 +225,7 @@
 
 ## zeitR 0.1.3  (2026-07)
 
-### Visualisation
+### 📊 Visualisation
 
 * `plot_actogram()` -- single-column raster actogram. One row per calendar day,
   time-of-day on the x-axis, filled by sleep/wake state. Oldest day at the
@@ -180,7 +251,7 @@
   `datetime` and `state` columns. `ggplot2` remains in `Suggests`; a clear
   error is thrown if it is not installed.
 
-### Performance
+### 🚀 Performance
 
 * `rolling_median_prepadded_cpp()` added to `src/rolling_filters.cpp`. Replaces
   the `RcppRoll` / `zoo` / `vapply` fallback chain in `.estimate_sleep_padded()`
@@ -190,7 +261,7 @@
 * `check_consistency()` vectorised. Two O(n) R `for` loops replaced with `which()`
   calls. No behaviour change.
 
-### Free-day classification
+### 📅 Free-day classification
 
 * New `free_days` parameter on `run_pipeline_native()`, `compute_sleep_metrics()`,
   and `compute_cpd_metrics()`. Replaces the hardcoded Saturday + Sunday with
@@ -206,7 +277,7 @@
 * A warning is emitted when `holidays = NULL`; suppress with
   `options(zeitR.no_holidays_warn = FALSE)`.
 
-### Bug fixes
+### 🐛 Bug fixes
 
 * Free-day detection was broken on non-English locales (`weekdays()` returns
   `"sabado"` on `pt_BR`). Fixed by using the locale-independent ISO 8601
@@ -216,7 +287,7 @@
 * `compute_cpd_metrics()` now drops episodes starting after noon on the last
   recording day (truncated by end of file), matching fix29's filter.
 
-### Tests
+### 🧪 Tests
 
 * Free-day classification tests (`test-free-days.R`): `.parse_free_days()`
   input validation (English names, ISO integers, case insensitivity, range
@@ -228,7 +299,7 @@
   `free_days` and `holidays` to both `compute_sleep_metrics()` and
   `compute_cpd_metrics()`.
 
-### Documentation
+### 📚 Documentation
 
 * New vignette `vignette("actogram")` -- covers all three plot functions and
   `actogram_colours()`: single-column vs double-plotted vs activity-bar
@@ -238,7 +309,7 @@
 
 ## zeitR 0.1.2  (2026-07)
 
-### Vallim native pipeline
+### 🌙 Vallim native pipeline
 
 * `run_pipeline_native()` — full single-recording pipeline using the Vallim
   (JRSV) rule set developed by Julia Ribeiro da Silva Vallim. Replaces
@@ -264,7 +335,7 @@
 * Julia Ribeiro da Silva Vallim (ORCID 0000-0001-8708-8479) added as
   author in DESCRIPTION, `_pkgdown.yml`, and pipeline documentation.
 
-### Performance (Rcpp)
+### 🚀 Performance (Rcpp)
 
 * Five rolling filters replaced with Rcpp implementations — **215×** speedup
   on a 40,000-epoch recording (12 GB → 312 KB memory):
@@ -276,13 +347,13 @@
   single-pass O(n) convolution replaces 17 vectorised R additions.
 * `Rcpp (>= 1.0.0)` added to `Imports` and `LinkingTo`.
 
-### Other changes
+### 🔧 Other changes
 
 * `mclust` moved from `Suggests` to `Imports`; the GMM fallback warning is
   no longer emitted for standard ActTrust recordings.
 * `_pkgdown.yml` updated with all new exports and Julia Vallim authorship.
 
-### Tests
+### 🧪 Tests
 
 * Rcpp rolling filter parity tests (`test-rolling-filters-parity.R`): all
   five filters, `diff5_cpp`, and `score_epochs_cole_kripke_cpp` validated
@@ -292,7 +363,7 @@
   against `inst/extdata/vallim_nights.csv` (generated by
   `dev/parity_vallim.py` on the Python reference pipeline).
 
-### hypnoR export
+### 📤 hypnoR export
 
 * `export_hypnogram()` — converts a `zeitr_result` into the tidy hypnogram
   format expected by `hypnoR`. Stage mapping: `ZCMn == 0` within sleep
@@ -302,7 +373,7 @@
   filename stem) and can be overridden with an explicit argument. Works in
   both single-file and batch contexts.
 
-### Sleep summary metrics
+### 📋 Sleep summary metrics
 
 * `compute_sleep_metrics()` — per-night sleep metrics split by day type
   (overall / workday / free day): SOL, TST, TBT, WASO, sleep efficiency,
@@ -314,7 +385,7 @@
   reference. Both functions accept a `holidays` argument for country-specific
   public holidays beyond weekends.
 
-### Bug fixes
+### 🐛 Bug fixes
 
 * **Fix 26c (fragment recovery)**: two bugs closed.
   (1) The Python reference pipeline silently disabled temperature- and
@@ -333,7 +404,7 @@
   frame (`$valley_peak <- rep(FALSE, nrow(...))`) that caused a crash on
   recordings with no valid off-wrist candidates.
 
-### Performance (Rcpp) — continued
+### 🚀 Performance (Rcpp) — continued
 
 * **Crespo MSP hot paths** — five additional Rcpp ports eliminating the
   remaining R `for` loops and `vapply` calls in the main sleep detector:
@@ -349,7 +420,7 @@
   - The coarse median filter `vapply` in `.crespo_msp()` now reuses the
     existing `rolling_median_cpp` with constant padding.
 
-### Tests
+### 🧪 Tests
 
 * Crespo C++ parity tests (`test-crespo-cpp-parity.R`): `rolling_max_cpp`,
   `rolling_min_cpp`, `zero_mitigation_cpp`, `mark_invalid_zeros_cpp`,
@@ -366,7 +437,7 @@
 
 ## zeitR 0.1.0  (2026-06)
 
-### Pipeline
+### 🚀 Pipeline
 
 * Full actigraphy pipeline validated epoch-for-epoch (`0 / 76,196` mismatches)
   against the Condor circadiaBase Python reference on an ActTrust recording:
@@ -380,7 +451,7 @@
 * `run_pipeline()` gains a `quiet` argument to suppress the timestamp-issue
   warning (useful in batch and testing contexts).
 
-### New functions
+### ✨ New functions
 
 * `acttrust_params()` — exported device parameter preset consolidating all
   ActTrust-specific defaults across off-wrist, sleep, nap, and WASO stages.
@@ -388,7 +459,7 @@
 * `label_states()` — converts the integer `state` column to a human-readable
   ordered factor (`"wake"`, `"sleep"`, `"nap"`, `"off-wrist"`).
 
-### Tests
+### 🧪 Tests
 
 * End-to-end pipeline parity regression test (`test-pipeline-parity.R`):
   epoch-level state, per-layer counts, and nightly statistics locked against
@@ -403,7 +474,7 @@
   per-night statistics, and within-night epoch agreement on
   boundary-matched nights.
 
-### Initial release
+### 🌱 Initial release
 
 * Full package scaffold: `read_acttrust()`, `read_actigraphy()`,
   `read_actigraphy_dir()`, `prepare_actigraphy()`, `check_consistency()`,
