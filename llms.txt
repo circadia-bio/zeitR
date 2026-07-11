@@ -432,6 +432,21 @@ metrics.
 - [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
   : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 
+## Physical activity
+
+Estimate energy expenditure and classify PA intensity from activity
+counts.
+
+- [`pa_equations()`](https://zeitr.circadia-lab.uk/reference/pa_equations.md)
+  : Published activity-count equations for estimating METs and PA
+  intensity
+- [`estimate_ee()`](https://zeitr.circadia-lab.uk/reference/estimate_ee.md)
+  : Estimate energy expenditure (METs) from activity counts
+- [`classify_pa_intensity()`](https://zeitr.circadia-lab.uk/reference/classify_pa_intensity.md)
+  : Classify physical activity intensity from METs
+- [`classify_pa_counts()`](https://zeitr.circadia-lab.uk/reference/classify_pa_counts.md)
+  : Classify physical activity intensity directly from activity counts
+
 ## Visualisation
 
 Actogram and raster display of actigraphy recordings.
@@ -490,3 +505,5 @@ Package-level documentation.
   classification](https://zeitr.circadia-lab.uk/articles/vallim-pipeline.md):
 - [Classifying free days: weekends and public
   holidays](https://zeitr.circadia-lab.uk/articles/holidays.md):
+- [Physical activity intensity from ActTrust/GT3X+
+  counts](https://zeitr.circadia-lab.uk/articles/physical-activity.md):

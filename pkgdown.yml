@@ -6,10 +6,11 @@ articles:
   getting-started: getting-started.html
   holidays: holidays.html
   npcra: npcra.html
+  physical-activity: physical-activity.html
   sleep-analysis: sleep-analysis.html
   study-analysis: study-analysis.html
   vallim-pipeline: vallim-pipeline.html
-last_built: 2026-07-09T23:28Z
+last_built: 2026-07-11T13:05Z
 urls:
   reference: https://zeitr.circadia-lab.uk/reference
   article: https://zeitr.circadia-lab.uk/articles
