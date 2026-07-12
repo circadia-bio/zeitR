@@ -84,6 +84,14 @@ metrics.
 - [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
   : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 
+## Raw signal processing
+
+Convert raw triaxial acceleration into epoch-level activity counts.
+
+- [`compute_activity_counts()`](https://zeitr.circadia-lab.uk/reference/compute_activity_counts.md)
+  : Compute PIM, TAT, and ZCM activity counts from raw triaxial
+  acceleration
+
 ## Physical activity
 
 Estimate energy expenditure and classify PA intensity from activity

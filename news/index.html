@@ -22,6 +22,13 @@
   /* ── Navbar logo size ── */
   .navbar-brand img { height: 40px; width: auto; }
 
+  /* ── Dropdown menus: cap height and scroll instead of silently
+     running past the viewport edge with no visible cue ── */
+  .navbar .dropdown-menu {
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+  }
+
   /* ── Remove border under page title ── */
   .page-header { border-bottom: none !important; }
 
@@ -91,7 +98,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -115,6 +122,7 @@
     <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
     <li><a class="dropdown-item" href="../articles/holidays.html">Classifying free days: weekends and public holidays</a></li>
     <li><a class="dropdown-item" href="../articles/physical-activity.html">Physical activity intensity from ActTrust/GT3X+ counts</a></li>
+    <li><a class="dropdown-item" href="../articles/raw-accelerometry.html">From raw accelerometry to PIM/TAT/ZCM activity counts</a></li>
   </ul></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
@@ -138,28 +146,55 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.4" id="zeitr-014-2026-07">zeitR 0.1.4 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-014-2026-07"></a></h2>
+<h2 class="pkg-version" data-toc-text="0.1.5" id="zeitr-015-2026-07">zeitR 0.1.5 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-015-2026-07"></a></h2>
 <div class="section level3">
-<h3 id="new-features-0-1-4">New features<a class="anchor" aria-label="anchor" href="#new-features-0-1-4"></a></h3>
+<h3 id="sparkles-new-features-0-1-5">✨ New features<a class="anchor" aria-label="anchor" href="#sparkles-new-features-0-1-5"></a></h3>
 <ul><li><p>New <code><a href="../reference/pa_equations.html">pa_equations()</a></code>, <code><a href="../reference/estimate_ee.html">estimate_ee()</a></code>, <code><a href="../reference/classify_pa_intensity.html">classify_pa_intensity()</a></code>, and <code><a href="../reference/classify_pa_counts.html">classify_pa_counts()</a></code> – physical activity intensity classification from ActTrust(R)/GT3X+ activity counts, porting the published cut-points and MET-estimation equations from Batista et al. (2026, PLoS ONE <a href="https://doi.org/10.1371/journal.pone.0348631" class="external-link uri">https://doi.org/10.1371/journal.pone.0348631</a>). Extends zeitR beyond sleep staging into the other half of the 24h rest-activity cycle: light, moderate, vigorous, and very vigorous PA bands from hip- or wrist-worn ActTrust(R) or GT3X+ counts. Only the published coefficient/cut-point table is ported (not the original study’s calorimetry-fitted <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm()</a></code>/<code>msm</code> pipeline, which needs data no zeitR user will have) – see <code><a href="../reference/pa_equations.html">?pa_equations</a></code> for the equation-set design and important generalisability caveats: single lab-treadmill validation study (N=56, healthy adults 18-35), GT3X+ (hip) cut-points differ 2-65% from prior published GT3X+ studies which themselves differ from each other by 16-39%, and that spread reflects differing modelling approaches (two-regression, ANN, and this paper’s linear model) as well as sample – diagnosable against Sasaki et al.’s transparent two-regression model, not diagnosable against Santos-Lozano et al.’s ANN, which has no inspectable coefficients to compare against.</p></li>
-<li><p>New <code><a href="../reference/study_sleep_metrics.html">study_sleep_metrics()</a></code> – batch wrapper computing <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> across every participant in a <code><a href="../reference/run_pipeline_batch.html">run_pipeline_batch()</a></code>/<code><a href="../reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code> result, stacked into one tibble with a <code>participant_id</code> column – the sleep-timing/chronotype (CPD, MSF/MSW, social jetlag) counterpart to <code><a href="../reference/study_summary.html">study_summary()</a></code> (NPCRA/activity-rhythm variables). Closes a gap found while checking <code>syncR::sync()</code> compatibility: <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> each return a single named list per participant with no participant identifier and no batch equivalent, unlike <code><a href="../reference/study_summary.html">study_summary()</a></code>, so there was previously no way to get these metrics into the one-row-per-participant shape <code>sync()</code> expects without writing manual glue code per study.</p></li>
+<li><p>New <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code> – converts raw triaxial acceleration (<code>x</code>/<code>y</code>/<code>z</code> + <code>sampling_rate</code>) into epoch-level PIM/TAT/ZCM activity counts, for devices or pipelines that only provide raw samples rather than onboard-computed counts (e.g. <code><a href="../reference/read_acttrust.html">read_acttrust()</a></code>’s <code>activity</code>/<code>ZCMn</code> columns). Filtering reuses <code><a href="https://mrpheus.circadia-lab.uk/reference/remove_dc.html" class="external-link">mrpheus::remove_dc()</a></code> / <code><a href="https://mrpheus.circadia-lab.uk/reference/bandpass_filter.html" class="external-link">mrpheus::bandpass_filter()</a></code> – the same zero-phase Butterworth implementation already validated as part of mrpheus’s YASA-parity PSG pipeline – rather than a new, unvalidated filter written from scratch. This makes <code>mrpheus</code> a cross-package <code>Suggests</code> dependency for this function specifically (precedented by hypnoR, which already <code>Suggests</code> both <code>mrpheus</code> and <code>zeitR</code>); the rest of zeitR stays independent of it. The epoch-level PIM/TAT/ZCM aggregation logic itself has no reference implementation to check against – no raw-to-counts converter exists in <code>condor_pipeline</code>/<code>circadiaBase_Docker</code> (only already-epoched data), and Condor’s/ActiGraph’s exact onboard thresholds are proprietary – see <code><a href="../reference/compute_activity_counts.html">?compute_activity_counts</a></code> for what’s built from the general processing description in Batista et al. (2026, PLoS ONE) vs. what’s an open/tunable parameter (<code>zcm_threshold</code>, <code>tat_threshold</code>). Default band-pass cutoffs are ActTrust-style (<code>0.5</code>-<code>2.7</code> Hz); pass <code>filter_low</code>/<code>filter_high</code> for GT3X+-style (<code>0.25</code>-<code>2.5</code> Hz) processing instead.</p></li>
 </ul></div>
 <div class="section level3">
-<h3 id="visualisation-0-1-4">Visualisation<a class="anchor" aria-label="anchor" href="#visualisation-0-1-4"></a></h3>
+<h3 id="rocket-ci-0-1-5">🚀 CI<a class="anchor" aria-label="anchor" href="#rocket-ci-0-1-5"></a></h3>
+<ul><li>Fixed mrpheus dependency resolution in CI: added <code>Additional_repositories: https://circadia-bio.r-universe.dev</code> and a repo-root <code>.Rprofile</code> setting <code>options(repos = ...)</code> directly, matching hypnoR’s existing setup for the same mrpheus/zeitR pairing. <code>Additional_repositories</code> alone doesn’t automatically wire into <code>pak</code>’s dependency resolution – it’s mainly a documentation/NOTE-suppression field – so the <code>.Rprofile</code> is what actually makes <code>mrpheus</code> resolvable for <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-bug-fixes-0-1-5">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-0-1-5"></a></h3>
+<ul><li>
+<code>.zero_crossing_indicator()</code> (internal, <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code>) called <code>rep(FALSE, n - 1)</code> with <code>n = 0</code> for a zero-length input, and <code><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep()</a></code> rejects a negative <code>times</code> argument. Surfaced while writing the degenerate-length test case, not by any real recording. Fixed with an early <code>if (n &lt; 2L) return(logical(0))</code> guard.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="books-documentation-0-1-5">📚 Documentation<a class="anchor" aria-label="anchor" href="#books-documentation-0-1-5"></a></h3>
+<ul><li>New <code><a href="../articles/physical-activity.html">vignette("physical-activity")</a></code> – walks through <code><a href="../reference/pa_equations.html">pa_equations()</a></code>, <code><a href="../reference/estimate_ee.html">estimate_ee()</a></code>, <code><a href="../reference/classify_pa_intensity.html">classify_pa_intensity()</a></code>, and <code><a href="../reference/classify_pa_counts.html">classify_pa_counts()</a></code> using the bundled ActTrust recording’s real PIM counts. Flags the extrapolation from treadmill-fitted equations to free-living data inline rather than burying it in a caveats section, and points to <code><a href="../reference/pa_equations.html">?pa_equations</a></code> for the full generalisability discussion instead of duplicating it.</li>
+<li>New <code><a href="../articles/raw-accelerometry.html">vignette("raw-accelerometry")</a></code> – <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code> on a simulated raw triaxial recording (quiet segment, then clear 1 Hz movement), covering ActTrust- vs. GT3X+-style filter cutoffs, tuning <code>zcm_threshold</code>/<code>tat_threshold</code> against sensor noise floor, and closing the full loop into <code><a href="../reference/estimate_ee.html">estimate_ee()</a></code>/<code><a href="../reference/classify_pa_intensity.html">classify_pa_intensity()</a></code> so the raw signal and PA-intensity vignettes read as one continuous pipeline rather than two unrelated features.</li>
+<li>README: added the <code>r-universe</code> badge and recommended <code>install.packages(..., repos = c("https://circadia-bio.r-universe.dev", ...))</code> install path (GitHub <code>pak</code> install kept as the dev-version fallback, matching hypnoR); filled in ten previously undocumented <code>Features</code> bullets (<code><a href="../reference/read_acttrust.html">read_acttrust()</a></code>, <code><a href="../reference/prepare_actigraphy.html">prepare_actigraphy()</a></code>, the four PA-intensity functions, the four actogram-plotting functions) that were already shipped and in the pkgdown reference index but never listed; added the PA-intensity MET-band table to Computed Variables; brought the Project Structure tree and Dependencies table (now with an Imports/Suggests <code>Type</code> column) up to date with everything actually in <code>DESCRIPTION</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="test_tube-tests-0-1-5">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-5"></a></h3>
+<ul><li>
+<code>test-raw-accelerometry.R</code>: <code>.zero_crossing_indicator()</code>/<code>.epoch_rowsum()</code> directly, plus <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code> input validation, the trailing-incomplete-epoch warning, a flat zero-motion signal (all metrics exactly zero), a clean 1 Hz sinusoid (ZCM ~ 2 x frequency x <code>epoch_sec</code> on interior epochs), PIM/TAT increasing with amplitude, and <code>metrics</code> subsetting. Skipped via <code>skip_if_not_installed("mrpheus")</code> where that dependency is needed.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.4" id="zeitr-014-2026-07">zeitR 0.1.4 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-014-2026-07"></a></h2>
+<div class="section level3">
+<h3 id="sparkles-new-features-0-1-4">✨ New features<a class="anchor" aria-label="anchor" href="#sparkles-new-features-0-1-4"></a></h3>
+<ul><li>New <code><a href="../reference/study_sleep_metrics.html">study_sleep_metrics()</a></code> – batch wrapper computing <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> across every participant in a <code><a href="../reference/run_pipeline_batch.html">run_pipeline_batch()</a></code>/<code><a href="../reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code> result, stacked into one tibble with a <code>participant_id</code> column – the sleep-timing/chronotype (CPD, MSF/MSW, social jetlag) counterpart to <code><a href="../reference/study_summary.html">study_summary()</a></code> (NPCRA/activity-rhythm variables). Closes a gap found while checking <code>syncR::sync()</code> compatibility: <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> each return a single named list per participant with no participant identifier and no batch equivalent, unlike <code><a href="../reference/study_summary.html">study_summary()</a></code>, so there was previously no way to get these metrics into the one-row-per-participant shape <code>sync()</code> expects without writing manual glue code per study.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bar_chart-visualisation-0-1-4">📊 Visualisation<a class="anchor" aria-label="anchor" href="#bar_chart-visualisation-0-1-4"></a></h3>
 <ul><li>
 <code><a href="../reference/actogram_colours.html">actogram_colours()</a></code>: swapped the default <code>"wake"</code> and <code>"off-wrist"</code> colours (wake is now the warm terracotta <code>#C25E2A</code>; off-wrist is now the neutral sand <code>#D9C8A0</code>). Affects the default palette used by <code><a href="../reference/plot_actogram.html">plot_actogram()</a></code>, <code><a href="../reference/plot_actogram_double.html">plot_actogram_double()</a></code>, and <code><a href="../reference/plot_actogram_activity.html">plot_actogram_activity()</a></code> whenever <code>colours</code> is not supplied explicitly.</li>
 <li>
 <code><a href="../reference/plot_actogram_activity.html">plot_actogram_activity()</a></code> gains a <code>log_scale</code> argument. When <code>TRUE</code>, applies a <code><a href="https://rdrr.io/r/base/Log.html" class="external-link">log1p()</a></code> transform to the activity signal before capping and normalising bar heights, compressing the dynamic range so structure among low-to-moderate activity epochs is easier to see against a right-skewed raw signal (occasional high bursts no longer dominate the visible range). Default <code>FALSE</code> preserves the existing linear-scale behaviour exactly.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="performance-0-1-4">Performance<a class="anchor" aria-label="anchor" href="#performance-0-1-4"></a></h3>
+<h3 id="rocket-performance-0-1-4">🚀 Performance<a class="anchor" aria-label="anchor" href="#rocket-performance-0-1-4"></a></h3>
 <ul><li>Removed <code>.adaptive_median_filter()</code>, a dead pure-R fallback in <code>sleep_periods.R</code> that was superseded by <code>adaptive_median_filter_cpp()</code> and never called. No behaviour change.</li>
 <li>Removed four further dead internal helpers from <code>utils.R</code> – <code>zero_sequences()</code>, <code>quantile_filter()</code>, <code>max_filter()</code>, <code>min_filter()</code> – confirmed unreferenced anywhere in <code>R/</code>, <code>dev/</code>, or the test suite; all superseded by direct calls to the corresponding Rcpp functions. No behaviour change. (<code>rolling_apply()</code> was initially removed too, but is kept – it’s the R reference implementation used by the <code>rolling_max_cpp()</code>/<code>rolling_min_cpp()</code> parity tests in <code>test-crespo-cpp-parity.R</code>.)</li>
 <li>
 <code><a href="../reference/run_pipeline_batch.html">run_pipeline_batch()</a></code> and <code><a href="../reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code> gain a <code>parallel</code> argument. When <code>TRUE</code>, files are processed concurrently via <code><a href="https://future.apply.futureverse.org/reference/future_lapply.html" class="external-link">future.apply::future_lapply()</a></code> under whatever <code><a href="https://future.futureverse.org/reference/plan.html" class="external-link">future::plan()</a></code> the caller has set (e.g. <code>future::plan(future::multisession(workers = 4))</code>). Falls back to sequential processing with a warning if <code>future.apply</code> is not installed. Default remains <code>FALSE</code> (sequential), so existing code is unaffected. <code>future</code> and <code>future.apply</code> added to <code>Suggests</code>.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="bug-fixes-0-1-4">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-4"></a></h3>
+<h3 id="bug-bug-fixes-0-1-4">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-0-1-4"></a></h3>
 <ul><li>
 <code>zeitr_abort()</code>, <code>zeitr_warn()</code>, and <code>zeitr_inform()</code> (internal message wrappers around <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_abort()</a></code>/<code>cli_warn()</code>/<code>cli_inform()</code>) did not forward <code>.envir</code>, so <a href="https://glue.tidyverse.org/" class="external-link">glue</a>-style interpolation of a variable local to the <em>calling</em> function (e.g. <code>{.val {missing_cols}}</code>) silently failed with “object not found” instead of producing the intended message. Fixed by defaulting <code>.envir = parent.frame()</code> in all three wrappers; no call sites needed to change.</li>
 <li>Five call sites (three in <code>plot_actogram.R</code>, two in <code>export.R</code>) passed their error/warning message as multiple separate comma-delimited string arguments instead of one string. R does not auto-concatenate adjacent string literals, so the extra arguments were passed through to <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_abort()</a></code>/<code>cli_warn()</code> as unnamed condition data, which <code>rlang</code> rejects (“Conditions must have named data fields”). Fixed by merging each into a single message string. None of the five affected error paths had previously been exercised by a test.</li>
@@ -175,7 +210,7 @@
 <code>plot_actogram.R</code>’s internal <code>.actogram_title()</code> had the same <code><a href="https://rdrr.io/r/base/list.html" class="external-link">is.list()</a></code>/bare-tibble gap as <code><a href="../reference/export_hypnogram.html">export_hypnogram()</a></code>, not yet triggered by any existing test but the same latent risk. Fixed proactively for consistency with the pattern used elsewhere.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="tests-0-1-4">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-4"></a></h3>
+<h3 id="test_tube-tests-0-1-4">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-4"></a></h3>
 <ul><li>
 <code>test-batch-helper.R</code>: <code>.run_pipeline_over_files()</code> – sequential success, partial-failure skip-with-warning, all-failing batch returns empty list, parallel dispatch via <code>future_lapply()</code> (skipped if <code>future.apply</code> is not installed), sequential fallback when <code>future.apply</code> is unavailable (skipped if it is installed), and a regression guard confirming both exported batch wrappers still default to <code>parallel = FALSE</code>.</li>
 <li>
@@ -188,7 +223,7 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.3" id="zeitr-013-2026-07">zeitR 0.1.3 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-013-2026-07"></a></h2>
 <div class="section level3">
-<h3 id="visualisation-0-1-3">Visualisation<a class="anchor" aria-label="anchor" href="#visualisation-0-1-3"></a></h3>
+<h3 id="bar_chart-visualisation-0-1-3">📊 Visualisation<a class="anchor" aria-label="anchor" href="#bar_chart-visualisation-0-1-3"></a></h3>
 <ul><li>
 <code><a href="../reference/plot_actogram.html">plot_actogram()</a></code> – single-column raster actogram. One row per calendar day, time-of-day on the x-axis, filled by sleep/wake state. Oldest day at the top, following standard chronobiology convention. Equivalent to the ad-hoc ggplot2 code in the single-recording vignette but packaged as a reusable function with consistent defaults.</li>
 <li>
@@ -200,14 +235,14 @@
 <li>All three functions accept a <code>zeitr_result</code> list or a bare tibble with <code>datetime</code> and <code>state</code> columns. <code>ggplot2</code> remains in <code>Suggests</code>; a clear error is thrown if it is not installed.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="performance-0-1-3">Performance<a class="anchor" aria-label="anchor" href="#performance-0-1-3"></a></h3>
+<h3 id="rocket-performance-0-1-3">🚀 Performance<a class="anchor" aria-label="anchor" href="#rocket-performance-0-1-3"></a></h3>
 <ul><li>
 <code>rolling_median_prepadded_cpp()</code> added to <code>src/rolling_filters.cpp</code>. Replaces the <code>RcppRoll</code> / <code>zoo</code> / <code>vapply</code> fallback chain in <code>.estimate_sleep_padded()</code> with a single direct Rcpp call. Off-wrist sleep estimation is now unconditionally fast (O(n * win) in C++) regardless of which optional packages are installed. <code>zoo</code> removed from Imports; <code>RcppRoll</code> removed from Suggests.</li>
 <li>
 <code><a href="../reference/check_consistency.html">check_consistency()</a></code> vectorised. Two O(n) R <code>for</code> loops replaced with <code><a href="https://rdrr.io/r/base/which.html" class="external-link">which()</a></code> calls. No behaviour change.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="free-day-classification-0-1-3">Free-day classification<a class="anchor" aria-label="anchor" href="#free-day-classification-0-1-3"></a></h3>
+<h3 id="date-free-day-classification-0-1-3">📅 Free-day classification<a class="anchor" aria-label="anchor" href="#date-free-day-classification-0-1-3"></a></h3>
 <ul><li>New <code>free_days</code> parameter on <code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code>, <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code>, and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code>. Replaces the hardcoded Saturday + Sunday with any combination of days (English names or ISO integers 1–7). Default is <code>c("Saturday", "Sunday")</code>. Enables non-standard schedules such as Friday–Saturday weekends or compressed work weeks.</li>
 <li>
 <code>holidays</code> now accepts <code>"DD-MM"</code> strings for fixed-date annual holidays (e.g. <code>"25-12"</code> for Christmas) in addition to <code>Date</code> objects and <code>"YYYY-MM-DD"</code> strings. All three forms can be mixed in the same vector.</li>
@@ -216,25 +251,25 @@
 <li>A warning is emitted when <code>holidays = NULL</code>; suppress with <code>options(zeitR.no_holidays_warn = FALSE)</code>.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="bug-fixes-0-1-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-3"></a></h3>
+<h3 id="bug-bug-fixes-0-1-3">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-0-1-3"></a></h3>
 <ul><li>Free-day detection was broken on non-English locales (<code><a href="https://rdrr.io/r/base/weekday.POSIXt.html" class="external-link">weekdays()</a></code> returns <code>"sabado"</code> on <code>pt_BR</code>). Fixed by using the locale-independent ISO 8601 weekday number.</li>
 <li>MSF and MSW now use the circular mean, matching the fix29 notebook. Plain mean gives wrong results when mid-sleep wraps midnight.</li>
 <li>
 <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> now drops episodes starting after noon on the last recording day (truncated by end of file), matching fix29’s filter.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="tests-0-1-3">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-3"></a></h3>
+<h3 id="test_tube-tests-0-1-3">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-3"></a></h3>
 <ul><li>Free-day classification tests (<code>test-free-days.R</code>): <code>.parse_free_days()</code> input validation (English names, ISO integers, case insensitivity, range errors), <code>.is_free_day()</code> locale-independent weekday detection (vectorised over a full week, default and custom schedules), all three holiday input forms (<code>Date</code>, <code>"YYYY-MM-DD"</code>, <code>"DD-MM"</code>) including mixed-form vectors, year-specificity of <code>"YYYY-MM-DD"</code> vs recurrence of <code>"DD-MM"</code>, the <code>zeitR.no_holidays_warn</code> option, and <code>zeitr_result</code> S3 dispatch forwarding <code>free_days</code> and <code>holidays</code> to both <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code>.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="documentation-0-1-3">Documentation<a class="anchor" aria-label="anchor" href="#documentation-0-1-3"></a></h3>
+<h3 id="books-documentation-0-1-3">📚 Documentation<a class="anchor" aria-label="anchor" href="#books-documentation-0-1-3"></a></h3>
 <ul><li>New vignette <code><a href="../articles/actogram.html">vignette("actogram")</a></code> – covers all three plot functions and <code><a href="../reference/actogram_colours.html">actogram_colours()</a></code>: single-column vs double-plotted vs activity-bar formats, colour customisation, <code>date_label_every</code>, extending the returned <code>ggplot</code> object with additional layers, and working with bare tibbles instead of a <code>zeitr_result</code>.</li>
 </ul></div>
 </div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.2" id="zeitr-012-2026-07">zeitR 0.1.2 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-012-2026-07"></a></h2>
 <div class="section level3">
-<h3 id="vallim-native-pipeline-0-1-2">Vallim native pipeline<a class="anchor" aria-label="anchor" href="#vallim-native-pipeline-0-1-2"></a></h3>
+<h3 id="crescent_moon-vallim-native-pipeline-0-1-2">🌙 Vallim native pipeline<a class="anchor" aria-label="anchor" href="#crescent_moon-vallim-native-pipeline-0-1-2"></a></h3>
 <ul><li>
 <code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code> — full single-recording pipeline using the Vallim (JRSV) rule set developed by Julia Ribeiro da Silva Vallim. Replaces Condor’s <code>nights_df</code> classification with a 7-step adaptive rule set: Fix 25 (truncated episode exclusion), Fix 26a (adaptive nocturnal window inferred from wrist temperature and ambient light), Fix 26b (sleep-date collision resolution), Fix 26c (fragmented episode recovery), Fix 29 (14–16 h episode splitting), Rules 3–5 (main/secondary classification), Rule 6 (longest-main-per-date selection), Rule 7 (days-without-main exclusion). Validated against the Python reference pipeline: all 52 main nights on the ActTrust validation recording classified identically.</li>
 <li>
@@ -250,7 +285,7 @@
 <li>Julia Ribeiro da Silva Vallim (ORCID 0000-0001-8708-8479) added as author in DESCRIPTION, <code>_pkgdown.yml</code>, and pipeline documentation.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="performance-rcpp-0-1-2">Performance (Rcpp)<a class="anchor" aria-label="anchor" href="#performance-rcpp-0-1-2"></a></h3>
+<h3 id="rocket-performance-rcpp-0-1-2">🚀 Performance (Rcpp)<a class="anchor" aria-label="anchor" href="#rocket-performance-rcpp-0-1-2"></a></h3>
 <ul><li>Five rolling filters replaced with Rcpp implementations — <strong>215×</strong> speedup on a 40,000-epoch recording (12 GB → 312 KB memory): <code>rolling_median_cpp</code>, <code>rolling_mean_cpp</code>, <code>rolling_var_cpp</code>, <code>rolling_zero_prop_cpp</code>, <code>rolling_quantile_cpp</code>.</li>
 <li>
 <code>diff5()</code> five-point stencil derivative ported to <code>diff5_cpp</code> — replaces the interior R <code>for</code> loop; used in off-wrist temperature derivative.</li>
@@ -260,31 +295,31 @@
 <code>Rcpp (&gt;= 1.0.0)</code> added to <code>Imports</code> and <code>LinkingTo</code>.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="other-changes-0-1-2">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-2"></a></h3>
+<h3 id="wrench-other-changes-0-1-2">🔧 Other changes<a class="anchor" aria-label="anchor" href="#wrench-other-changes-0-1-2"></a></h3>
 <ul><li>
 <code>mclust</code> moved from <code>Suggests</code> to <code>Imports</code>; the GMM fallback warning is no longer emitted for standard ActTrust recordings.</li>
 <li>
 <code>_pkgdown.yml</code> updated with all new exports and Julia Vallim authorship.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="tests-0-1-2">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-2"></a></h3>
+<h3 id="test_tube-tests-0-1-2">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-2"></a></h3>
 <ul><li>Rcpp rolling filter parity tests (<code>test-rolling-filters-parity.R</code>): all five filters, <code>diff5_cpp</code>, and <code>score_epochs_cole_kripke_cpp</code> validated against R reference implementations.</li>
 <li>Vallim pipeline classification parity tests (<code>test-vallim-parity.R</code>): episode count, sleep-date coverage, and <code>sleep_type</code> classification locked against <code>inst/extdata/vallim_nights.csv</code> (generated by <code>dev/parity_vallim.py</code> on the Python reference pipeline).</li>
 </ul></div>
 <div class="section level3">
-<h3 id="hypnor-export-0-1-2">hypnoR export<a class="anchor" aria-label="anchor" href="#hypnor-export-0-1-2"></a></h3>
+<h3 id="outbox_tray-hypnor-export-0-1-2">📤 hypnoR export<a class="anchor" aria-label="anchor" href="#outbox_tray-hypnor-export-0-1-2"></a></h3>
 <ul><li>
 <code><a href="../reference/export_hypnogram.html">export_hypnogram()</a></code> — converts a <code>zeitr_result</code> into the tidy hypnogram format expected by <code>hypnoR</code>. Stage mapping: <code>ZCMn == 0</code> within sleep epochs becomes <code>"Quiet sleep"</code>; non-zero sleep activity becomes <code>"Sleep"</code>; wake and off-wrist epochs become <code>"W"</code>. <code>subject_id</code> is inferred automatically from <code>result$subject_id</code> (set by the pipeline from the filename stem) and can be overridden with an explicit argument. Works in both single-file and batch contexts.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="sleep-summary-metrics-0-1-2">Sleep summary metrics<a class="anchor" aria-label="anchor" href="#sleep-summary-metrics-0-1-2"></a></h3>
+<h3 id="clipboard-sleep-summary-metrics-0-1-2">📋 Sleep summary metrics<a class="anchor" aria-label="anchor" href="#clipboard-sleep-summary-metrics-0-1-2"></a></h3>
 <ul><li>
 <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> — per-night sleep metrics split by day type (overall / workday / free day): SOL, TST, TBT, WASO, sleep efficiency, sleep onset, get-up time, mid-sleep, and within-person SDs. Column names and arithmetic mirror Julia Vallim’s <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> in <code>pipeline_functions_fix27.py</code>.</li>
 <li>
 <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> — CPD, MSW, MSF, MSFsc, SJL, and signed SJLa. Ports <code>nights_to_cpd_df()</code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> from the same reference. Both functions accept a <code>holidays</code> argument for country-specific public holidays beyond weekends.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="bug-fixes-0-1-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-2"></a></h3>
+<h3 id="bug-bug-fixes-0-1-2">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-0-1-2"></a></h3>
 <ul><li>
 <strong>Fix 26c (fragment recovery)</strong>: two bugs closed.
 <ol style="list-style-type: decimal"><li>The Python reference pipeline silently disabled temperature- and light-based gap merging due to column name mismatches (<code>'TEMPERATURE'</code> / <code>'LIGHT'</code> vs the actual <code>'int_temp'</code> / <code>'light'</code> columns in ActTrust data). <code>pipeline_functions_fix27.py</code> patched; <code>inst/extdata/vallim_nights.csv</code> regenerated against the corrected Python output and re-verified: 52/52 main nights, all sleep dates and classifications match R.</li>
@@ -294,7 +329,7 @@
 <strong><code>offwrist_refiner.R</code></strong>: fixed scalar <code>FALSE</code> assignment to a 0-row data frame (<code>$valley_peak &lt;- rep(FALSE, nrow(...))</code>) that caused a crash on recordings with no valid off-wrist candidates.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="performance-rcpp--continued-0-1-2">Performance (Rcpp) — continued<a class="anchor" aria-label="anchor" href="#performance-rcpp--continued-0-1-2"></a></h3>
+<h3 id="rocket-performance-rcpp--continued-0-1-2">🚀 Performance (Rcpp) — continued<a class="anchor" aria-label="anchor" href="#rocket-performance-rcpp--continued-0-1-2"></a></h3>
 <ul><li>
 <strong>Crespo MSP hot paths</strong> — five additional Rcpp ports eliminating the remaining R <code>for</code> loops and <code>vapply</code> calls in the main sleep detector:
 <ul><li>
@@ -309,7 +344,7 @@
 </ul></li>
 </ul></div>
 <div class="section level3">
-<h3 id="tests-0-1-2-1">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-2-1"></a></h3>
+<h3 id="test_tube-tests-0-1-2-1">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-2-1"></a></h3>
 <ul><li>Crespo C++ parity tests (<code>test-crespo-cpp-parity.R</code>): <code>rolling_max_cpp</code>, <code>rolling_min_cpp</code>, <code>zero_mitigation_cpp</code>, <code>mark_invalid_zeros_cpp</code>, <code>adaptive_median_filter_cpp</code>, morphological close/open pair, and end-to-end epoch count lock on <code>input1.txt</code>.</li>
 <li>Fix 26c regression test (<code>test-fix26c.R</code>): synthetic 1-min epoch recording with a bloated 19 h CSPD <code>state = 1</code> period containing two Cole-Kripke sleep runs (3 h + 5.5 h) separated by a warm/dark wake gap. Asserts that <code>.recover_fragmented_episodes()</code> merges the CK-derived runs (TBT ~ 9 h) rather than the CSPD state period (TBT ~ 19 h). Runs on CI; no external data required.</li>
 </ul><hr></div>
@@ -317,7 +352,7 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="zeitr-010-2026-06">zeitR 0.1.0 (2026-06)<a class="anchor" aria-label="anchor" href="#zeitr-010-2026-06"></a></h2>
 <div class="section level3">
-<h3 id="pipeline-0-1-0">Pipeline<a class="anchor" aria-label="anchor" href="#pipeline-0-1-0"></a></h3>
+<h3 id="rocket-pipeline-0-1-0">🚀 Pipeline<a class="anchor" aria-label="anchor" href="#rocket-pipeline-0-1-0"></a></h3>
 <ul><li>Full actigraphy pipeline validated epoch-for-epoch (<code>0 / 76,196</code> mismatches) against the Condor circadiaBase Python reference on an ActTrust recording: <code><a href="../reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code>, <code><a href="../reference/detect_sleep_crespo.html">detect_sleep_crespo()</a></code>, <code><a href="../reference/detect_naps_crespo.html">detect_naps_crespo()</a></code> (faithful <code>nap_wrapper</code> port), <code><a href="../reference/compute_waso.html">compute_waso()</a></code>.</li>
 <li>
 <code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> gains a <code>params</code> argument (default <code><a href="../reference/acttrust_params.html">acttrust_params()</a></code>); device-specific defaults are now consolidated in one place and can be overridden without touching individual detector calls. <code>wake_thresh</code> is removed from the <code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> signature — it now lives in <code>params$waso$wake_thresh</code>.</li>
@@ -325,21 +360,21 @@
 <code><a href="../reference/run_pipeline.html">run_pipeline()</a></code> gains a <code>quiet</code> argument to suppress the timestamp-issue warning (useful in batch and testing contexts).</li>
 </ul></div>
 <div class="section level3">
-<h3 id="new-functions-0-1-0">New functions<a class="anchor" aria-label="anchor" href="#new-functions-0-1-0"></a></h3>
+<h3 id="sparkles-new-functions-0-1-0">✨ New functions<a class="anchor" aria-label="anchor" href="#sparkles-new-functions-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/acttrust_params.html">acttrust_params()</a></code> — exported device parameter preset consolidating all ActTrust-specific defaults across off-wrist, sleep, nap, and WASO stages. Copy and modify to adapt the pipeline to other devices.</li>
 <li>
 <code><a href="../reference/label_states.html">label_states()</a></code> — converts the integer <code>state</code> column to a human-readable ordered factor (<code>"wake"</code>, <code>"sleep"</code>, <code>"nap"</code>, <code>"off-wrist"</code>).</li>
 </ul></div>
 <div class="section level3">
-<h3 id="tests-0-1-0">Tests<a class="anchor" aria-label="anchor" href="#tests-0-1-0"></a></h3>
+<h3 id="test_tube-tests-0-1-0">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-0"></a></h3>
 <ul><li>End-to-end pipeline parity regression test (<code>test-pipeline-parity.R</code>): epoch-level state, per-layer counts, and nightly statistics locked against <code>python_output.csv</code> and <code>python_nights.csv</code>.</li>
 <li>CSPD refiner parity tests (<code>test-cspd-refiner-parity.R</code>): stage-1 peak-valley length filter, stage-2 sleep-gap separation, full <code>.cspd_refine_periods</code> output, and bedtime/getuptime indices against Python intermediates.</li>
 <li>Sleep Crespo wiring test (<code>test-sleep-crespo-wiring.R</code>): isolates <code>detect_sleep_crespo(refine = TRUE)</code> against <code>cspd_refined_output.csv</code>.</li>
 <li>WASO parity tests (<code>test-waso-parity.R</code>): <code>.nights_df</code> boundaries, per-night statistics, and within-night epoch agreement on boundary-matched nights.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="initial-release-0-1-0">Initial release<a class="anchor" aria-label="anchor" href="#initial-release-0-1-0"></a></h3>
+<h3 id="seedling-initial-release-0-1-0">🌱 Initial release<a class="anchor" aria-label="anchor" href="#seedling-initial-release-0-1-0"></a></h3>
 <ul><li>Full package scaffold: <code><a href="../reference/read_acttrust.html">read_acttrust()</a></code>, <code><a href="../reference/read_actigraphy.html">read_actigraphy()</a></code>, <code><a href="../reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code>, <code><a href="../reference/prepare_actigraphy.html">prepare_actigraphy()</a></code>, <code><a href="../reference/check_consistency.html">check_consistency()</a></code>, <code><a href="../reference/score_epochs_cole_kripke.html">score_epochs_cole_kripke()</a></code>, <code><a href="../reference/compute_npcra.html">compute_npcra()</a></code>, <code><a href="../reference/study_summary.html">study_summary()</a></code>, <code><a href="../reference/run_pipeline_batch.html">run_pipeline_batch()</a></code>.</li>
 <li>Three vignettes: getting started, NPCRA, study-level analysis.</li>
 <li>pkgdown site with Bootstrap 5 and Circadia Lab branding.</li>

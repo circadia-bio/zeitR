@@ -8,6 +8,7 @@
 <url><loc>https://zeitr.circadia-lab.uk/articles/index.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/npcra.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/physical-activity.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/articles/raw-accelerometry.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/sleep-analysis.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/study-analysis.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/articles/vallim-pipeline.html</loc></url>
@@ -22,6 +23,7 @@
 <url><loc>https://zeitr.circadia-lab.uk/reference/classify_pa_counts.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/classify_pa_intensity.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_activity_counts.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_npcra.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.html</loc></url>

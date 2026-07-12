@@ -22,6 +22,13 @@
   /* ── Navbar logo size ── */
   .navbar-brand img { height: 40px; width: auto; }
 
+  /* ── Dropdown menus: cap height and scroll instead of silently
+     running past the viewport edge with no visible cue ── */
+  .navbar .dropdown-menu {
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+  }
+
   /* ── Remove border under page title ── */
   .page-header { border-bottom: none !important; }
 
@@ -91,7 +98,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -115,6 +122,7 @@
     <li><a class="dropdown-item" href="../articles/vallim-pipeline.html">The Vallim pipeline: native sleep classification</a></li>
     <li><a class="dropdown-item" href="../articles/holidays.html">Classifying free days: weekends and public holidays</a></li>
     <li><a class="dropdown-item" href="../articles/physical-activity.html">Physical activity intensity from ActTrust/GT3X+ counts</a></li>
+    <li><a class="dropdown-item" href="../articles/raw-accelerometry.html">From raw accelerometry to PIM/TAT/ZCM activity counts</a></li>
   </ul></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
@@ -165,6 +173,8 @@
         </dd><dt><a href="holidays.html">Classifying free days: weekends and public holidays</a></dt>
         <dd>
         </dd><dt><a href="physical-activity.html">Physical activity intensity from ActTrust/GT3X+ counts</a></dt>
+        <dd>
+        </dd><dt><a href="raw-accelerometry.html">From raw accelerometry to PIM/TAT/ZCM activity counts</a></dt>
         <dd>
       </dd></dl></div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

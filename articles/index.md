@@ -24,3 +24,5 @@
   holidays](https://zeitr.circadia-lab.uk/articles/holidays.md):
 - [Physical activity intensity from ActTrust/GT3X+
   counts](https://zeitr.circadia-lab.uk/articles/physical-activity.md):
+- [From raw accelerometry to PIM/TAT/ZCM activity
+  counts](https://zeitr.circadia-lab.uk/articles/raw-accelerometry.md):
