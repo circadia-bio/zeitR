@@ -3,6 +3,7 @@
 **Actigraphy data parsing and analysis for R.**
 
 [![r-universe](https://circadia-bio.r-universe.dev/badges/zeitR)](https://circadia-bio.r-universe.dev/zeitR)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21315925-blue)](https://doi.org/10.5281/zenodo.21315925)
 [![License:
 MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://zeitr.circadia-lab.uk/LICENSE)
 [![R](https://img.shields.io/badge/R-%3E%3D4.1-276DC3)](https://www.r-project.org/)
@@ -461,6 +462,23 @@ were mismatched in the Python original.
 | Author, maintainer | Lucas França | Northumbria University, Circadia Lab |
 | Author | Mario Leocadio-Miguel | Northumbria University, Circadia Lab |
 | Author | Julia Ribeiro da Silva Vallim | Universidade Federal de São Paulo |
+
+------------------------------------------------------------------------
+
+## 📄 Citation
+
+If you use zeitR in your research, please cite it:
+
+``` bibtex
+@software{franca_zeitr_2026,
+  author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},
+  title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},
+  year    = {2026},
+  version = {0.1.5},
+  doi     = {10.5281/zenodo.21315925},
+  url     = {https://github.com/circadia-bio/zeitR}
+}
+```
 
 ------------------------------------------------------------------------
 
