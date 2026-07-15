@@ -107,6 +107,42 @@ test_that("compute_npcra(window_days = ...) splits into the expected number of w
   expect_equal(result$IS, rep(1, 3L))
 })
 
+test_that("compute_npcra() trims to D+1 00:00 by default", {
+  d <- make_npcra_fixture(n_days = 7L)   # starts exactly at 2024-01-01 00:00
+
+  result_default <- compute_npcra(d)                       # trim_to_d1 = TRUE
+  result_notrim   <- compute_npcra(d, trim_to_d1 = FALSE)
+
+  # Trimming removes exactly one full day (1440 epochs at 1-min resolution)
+  expect_equal(result_notrim$n_epochs - result_default$n_epochs, 1440L)
+  expect_equal(result_default$n_days, 6)
+  expect_equal(result_notrim$n_days, 7)
+
+  # The fixture repeats identically every day, so trimming one day off
+  # should not change IS/L5/M10/RA at all.
+  expect_equal(result_default$IS,  result_notrim$IS)
+  expect_equal(result_default$L5,  result_notrim$L5)
+  expect_equal(result_default$M10, result_notrim$M10)
+  expect_equal(result_default$RA,  result_notrim$RA)
+})
+
+test_that("compute_npcra() falls back to the untrimmed recording with a warning when trim_to_d1 leaves <2 epochs", {
+  # A recording entirely within a single calendar day has nothing left
+  # after trimming to D+1 00:00.
+  t0 <- as.POSIXct("2024-01-01 08:00:00", tz = "UTC")
+  d  <- tibble::tibble(
+    datetime = t0 + 60L * 0:1439,   # 2024-01-01 08:00 -- 2024-01-02 07:59
+    activity = rep(c(0, 100), each = 720L)
+  )
+
+  expect_warning(
+    result <- compute_npcra(d, trim_to_d1 = TRUE),
+    "fewer than 2 epochs"
+  )
+  result_notrim <- compute_npcra(d, trim_to_d1 = FALSE)
+  expect_equal(result$n_epochs, result_notrim$n_epochs)
+})
+
 test_that("compute_npcra() respects a manually supplied epoch_s", {
   d <- make_npcra_fixture()
   # Supplying the correct epoch length explicitly should give the same
