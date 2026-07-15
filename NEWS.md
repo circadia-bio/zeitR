@@ -1,3 +1,55 @@
+## zeitR (development version)
+
+### ✨ New features
+
+* New `compute_sri()` — Sleep Regularity Index (Phillips et al. 2017),
+  ported from **Fix 30** of the Python reference pipeline (`SRI_vallim`).
+  Derives sleep/wake directly from the epoch-level `state` column zeitR's
+  own pipelines already produce, rather than from a pyActigraphy scoring
+  algorithm -- Julia's concordance analysis against manual reference scoring
+  showed this is substantially more accurate than Sadeh/Cole-Kripke/
+  Roenneberg/Scripps (ICC 0.82 vs 0.19-0.67, N=404). Off-wrist gaps
+  ≤30 min are interpolated; longer gaps are excluded from the day-to-day
+  comparison rather than counted as a mismatch.
+* `compute_npcra()` gains a `trim_to_d1` argument (default `TRUE`): the
+  recording is now trimmed to start at 00:00 of D+1 before computing IS,
+  IV, RA, L5, and M10, matching the Python reference pipeline's convention
+  (which never spans the raw, typically fractional, recording length --
+  the previous default here reported e.g. `n_days = 7.5` where Python
+  reports a clean `7`). Set `trim_to_d1 = FALSE` for the previous
+  behaviour. Does not replicate Python's separate 30-min-threshold rule for
+  the M10/L5 windows specifically -- only the D+1 window start.
+
+### 🐛 Bug fixes
+
+* **Fix 25 / Fix 26c interaction**: `.recover_fragmented_episodes()`
+  (`classify_sleep_episodes()`'s Fix 26c step) had no knowledge of the
+  boundary Fix 25 uses to exclude episodes truncated by the end of the
+  recording. When Fix 25 correctly excluded such an episode, its date
+  became "uncovered", and the Fix 26c recovery scan would reconstruct the
+  *same* episode from the *same* raw epochs -- silently undoing Fix 25 and
+  producing a biologically implausible extra main night (e.g. 8 main nights
+  on a 7-day recording). Root-caused while investigating Julia's report of
+  this exact symptom (matching the Python pipeline's now-fixed Fix 29f).
+  Fixed by giving `.recover_fragmented_episodes()` the same last-day-noon
+  boundary and skipping recovery for any candidate that would itself start
+  at/after noon on the recording's last calendar day.
+
+### 🧪 Tests
+
+* `test-fix26c.R`: regression test reproducing the Fix 25 / Fix 26c
+  interaction above -- a short evening sleep-like run right at the file's
+  end (mirroring the notebook's ID_0138 case) is no longer recovered.
+* `test-npcra.R`: `trim_to_d1` default behaviour (exact day removed,
+  `n_days` unaffected numerically on the repeating fixture), and the
+  <2-epoch fallback-with-warning path.
+* New `test-sri.R`: `compute_sri()` on perfectly regular (SRI = 100) and
+  perfectly inverted (SRI = -100) synthetic patterns, off-wrist gap
+  interpolation vs exclusion at the 30-min boundary, `zeitr_result`/bare
+  data frame input, the <24h fallback-with-warning path, and
+  `.interpolate_short_gaps()` directly (ffill, start-of-vector bfill,
+  gap spanning the whole vector).
+
 ## zeitR 0.1.5  (2026-07)
 
 ### ✨ New features
