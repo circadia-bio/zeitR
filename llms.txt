@@ -513,6 +513,8 @@ Read raw actigraphy files into R.
   : Read all actigraphy files in a directory
 - [`read_acttrust()`](https://zeitr.circadia-lab.uk/reference/read_acttrust.md)
   : Read a Condor Instruments ActTrust actigraphy file
+- [`read_axivity()`](https://zeitr.circadia-lab.uk/reference/read_axivity.md)
+  : Read an Axivity AX3/AX6 .cwa file into a zeitR-standard epoch tibble
 
 ## Prepare & validate
 

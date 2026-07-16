@@ -18,8 +18,8 @@ read_actigraphy(path, device = "acttrust", tz = "UTC", ...)
 
 - device:
 
-  `character(1)`. Device type. One of `"acttrust"` (default). Additional
-  devices will be added in future versions.
+  `character(1)`. Device type. One of `"acttrust"` (default) or
+  `"axivity"`. Additional devices will be added in future versions.
 
 - tz:
 
@@ -52,6 +52,15 @@ A `zeitr_recording` S3 object — a named list with:
 Currently supported devices:
 
 - `"acttrust"` — Condor Instruments ActTrust / ActTrust2 (`.txt`)
+
+- `"axivity"` — Axivity AX3/AX6 (`.cwa`), via
+  [`read_axivity()`](https://zeitr.circadia-lab.uk/reference/read_axivity.md)
+  (requires the `axR` package; converts raw acceleration to epoch-level
+  counts with
+  [`compute_activity_counts()`](https://zeitr.circadia-lab.uk/reference/compute_activity_counts.md)
+  – see
+  [`read_axivity()`](https://zeitr.circadia-lab.uk/reference/read_axivity.md)'s
+  Details for validation caveats)
 
 ## See also
 

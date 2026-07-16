@@ -5,6 +5,23 @@
 ### ✨ New features
 
 - New
+  [`read_axivity()`](https://zeitr.circadia-lab.uk/reference/read_axivity.md)
+  – bridges [axR](https://github.com/circadia-bio/axR)’s
+  `axivity_read_cwa()` raw per-sample output (AX3/AX6 `.cwa` files) into
+  the same 9-column epoch-level shape
+  [`read_acttrust()`](https://zeitr.circadia-lab.uk/reference/read_acttrust.md)
+  produces, converting raw triaxial acceleration to PIM/TAT/ZCM via
+  [`compute_activity_counts()`](https://zeitr.circadia-lab.uk/reference/compute_activity_counts.md)
+  (GT3X+ filter preset, `0.25`-`2.5` Hz, since no validated
+  Axivity-specific preset exists). Wired into
+  `read_actigraphy(device = "axivity")`. `axR` added to `Suggests` now
+  that it’s published on r-universe. Treat `activity`/`ZCMn` from this
+  path as an unvalidated approximation – see
+  [`?read_axivity`](https://zeitr.circadia-lab.uk/reference/read_axivity.md)
+  for the full caveats (sampling-rate detection, time-zone re-labelling
+  instead of conversion, and what specifically hasn’t been checked
+  against a reference like GGIR).
+- New
   [`compute_sri()`](https://zeitr.circadia-lab.uk/reference/compute_sri.md)
   — Sleep Regularity Index (Phillips et al. 2017), ported from **Fix
   30** of the Python reference pipeline (`SRI_vallim`). Derives
@@ -43,6 +60,19 @@
 
 ### 🧪 Tests
 
+- New `test-read-axivity.R`:
+  [`read_axivity()`](https://zeitr.circadia-lab.uk/reference/read_axivity.md)’s
+  bridging logic (column shape, per-epoch light/int_temp averaging,
+  epoch-start datetimes, tz re-labelling vs shifting, metadata assembly,
+  dominant-sample-rate detection with an outlier warning, and an exact
+  match against a direct
+  [`compute_activity_counts()`](https://zeitr.circadia-lab.uk/reference/compute_activity_counts.md)
+  call on the same input) – `axivity_read_cwa()` itself is mocked
+  throughout via
+  [`testthat::local_mocked_bindings()`](https://testthat.r-lib.org/reference/local_mocked_bindings.html),
+  so these don’t need a real `.cwa` binary fixture. Skipped via
+  `skip_if_not_installed()` for `axR`/`mrpheus`/`withr` where needed.
+  `withr` added to `Suggests`.
 - `test-fix26c.R`: regression test reproducing the Fix 25 / Fix 26c
   interaction above – a short evening sleep-like run right at the file’s
   end (mirroring the notebook’s ID_0138 case) is no longer recovered.

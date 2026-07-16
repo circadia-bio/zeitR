@@ -170,8 +170,8 @@ zeitr_recording object with $epochs (a tidy tibble) and $metadata
 
 
 <dt id="arg-device">device<a class="anchor" aria-label="anchor" href="#arg-device"></a></dt>
-<dd><p><code>character(1)</code>. Device type. One of <code>"acttrust"</code> (default).
-Additional devices will be added in future versions.</p></dd>
+<dd><p><code>character(1)</code>. Device type. One of <code>"acttrust"</code> (default)
+or <code>"axivity"</code>. Additional devices will be added in future versions.</p></dd>
 
 
 <dt id="arg-tz">tz<a class="anchor" aria-label="anchor" href="#arg-tz"></a></dt>
@@ -201,6 +201,10 @@ and <code>participant_id</code> (derived from the filename stem).</p></dd>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Currently supported devices:</p><ul><li><p><code>"acttrust"</code> — Condor Instruments ActTrust / ActTrust2 (<code>.txt</code>)</p></li>
+<li><p><code>"axivity"</code> — Axivity AX3/AX6 (<code>.cwa</code>), via <code><a href="read_axivity.html">read_axivity()</a></code>
+(requires the <code>axR</code> package; converts raw acceleration to epoch-level
+counts with <code><a href="compute_activity_counts.html">compute_activity_counts()</a></code> – see <code><a href="read_axivity.html">read_axivity()</a></code>'s
+Details for validation caveats)</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
