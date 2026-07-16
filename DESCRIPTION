@@ -40,6 +40,7 @@ Imports:
 LinkingTo:
     Rcpp
 Suggests:
+    axR,
     covr,
     dplyr (>= 1.1.0),
     forcats (>= 1.0.0),
@@ -52,7 +53,8 @@ Suggests:
     pkgdown,
     rmarkdown,
     testthat (>= 3.0.0),
-    vdiffr (>= 1.0.0)
+    vdiffr (>= 1.0.0),
+    withr
 Config/testthat/edition: 3
 Additional_repositories: https://circadia-bio.r-universe.dev
 URL: https://zeitr.circadia-lab.uk, https://github.com/circadia-bio/zeitR
