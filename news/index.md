@@ -1,6 +1,6 @@
 # Changelog
 
-## zeitR (development version)
+## zeitR 0.1.6 (2026-07)
 
 ### ✨ New features
 

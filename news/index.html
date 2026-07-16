@@ -98,7 +98,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -142,25 +142,25 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.6/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="development version" id="zeitr-development-version">zeitR (development version)<a class="anchor" aria-label="anchor" href="#zeitr-development-version"></a></h2>
+<h2 class="pkg-version" data-toc-text="0.1.6" id="zeitr-016-2026-07">zeitR 0.1.6 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-016-2026-07"></a></h2>
 <div class="section level3">
-<h3 id="sparkles-new-features-development-version">✨ New features<a class="anchor" aria-label="anchor" href="#sparkles-new-features-development-version"></a></h3>
+<h3 id="sparkles-new-features-0-1-6">✨ New features<a class="anchor" aria-label="anchor" href="#sparkles-new-features-0-1-6"></a></h3>
 <ul><li>New <code><a href="../reference/read_axivity.html">read_axivity()</a></code> – bridges <a href="https://github.com/circadia-bio/axR" class="external-link">axR</a>’s <code>axivity_read_cwa()</code> raw per-sample output (AX3/AX6 <code>.cwa</code> files) into the same 9-column epoch-level shape <code><a href="../reference/read_acttrust.html">read_acttrust()</a></code> produces, converting raw triaxial acceleration to PIM/TAT/ZCM via <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code> (GT3X+ filter preset, <code>0.25</code>-<code>2.5</code> Hz, since no validated Axivity-specific preset exists). Wired into <code>read_actigraphy(device = "axivity")</code>. <code>axR</code> added to <code>Suggests</code> now that it’s published on r-universe. Treat <code>activity</code>/<code>ZCMn</code> from this path as an unvalidated approximation – see <code><a href="../reference/read_axivity.html">?read_axivity</a></code> for the full caveats (sampling-rate detection, time-zone re-labelling instead of conversion, and what specifically hasn’t been checked against a reference like GGIR).</li>
 <li>New <code><a href="../reference/compute_sri.html">compute_sri()</a></code> — Sleep Regularity Index (Phillips et al. 2017), ported from <strong>Fix 30</strong> of the Python reference pipeline (<code>SRI_vallim</code>). Derives sleep/wake directly from the epoch-level <code>state</code> column zeitR’s own pipelines already produce, rather than from a pyActigraphy scoring algorithm – Julia’s concordance analysis against manual reference scoring showed this is substantially more accurate than Sadeh/Cole-Kripke/ Roenneberg/Scripps (ICC 0.82 vs 0.19-0.67, N=404). Off-wrist gaps ≤30 min are interpolated; longer gaps are excluded from the day-to-day comparison rather than counted as a mismatch.</li>
 <li>
 <code><a href="../reference/compute_npcra.html">compute_npcra()</a></code> gains a <code>trim_to_d1</code> argument (default <code>TRUE</code>): the recording is now trimmed to start at 00:00 of D+1 before computing IS, IV, RA, L5, and M10, matching the Python reference pipeline’s convention (which never spans the raw, typically fractional, recording length – the previous default here reported e.g. <code>n_days = 7.5</code> where Python reports a clean <code>7</code>). Set <code>trim_to_d1 = FALSE</code> for the previous behaviour. Does not replicate Python’s separate 30-min-threshold rule for the M10/L5 windows specifically – only the D+1 window start.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="bug-bug-fixes-development-version">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-development-version"></a></h3>
+<h3 id="bug-bug-fixes-0-1-6">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-0-1-6"></a></h3>
 <ul><li>
 <strong>Fix 25 / Fix 26c interaction</strong>: <code>.recover_fragmented_episodes()</code> (<code><a href="../reference/classify_sleep_episodes.html">classify_sleep_episodes()</a></code>’s Fix 26c step) had no knowledge of the boundary Fix 25 uses to exclude episodes truncated by the end of the recording. When Fix 25 correctly excluded such an episode, its date became “uncovered”, and the Fix 26c recovery scan would reconstruct the <em>same</em> episode from the <em>same</em> raw epochs – silently undoing Fix 25 and producing a biologically implausible extra main night (e.g. 8 main nights on a 7-day recording). Root-caused while investigating Julia’s report of this exact symptom (matching the Python pipeline’s now-fixed Fix 29f). Fixed by giving <code>.recover_fragmented_episodes()</code> the same last-day-noon boundary and skipping recovery for any candidate that would itself start at/after noon on the recording’s last calendar day.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="test_tube-tests-development-version">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-development-version"></a></h3>
+<h3 id="test_tube-tests-0-1-6">🧪 Tests<a class="anchor" aria-label="anchor" href="#test_tube-tests-0-1-6"></a></h3>
 <ul><li>New <code>test-read-axivity.R</code>: <code><a href="../reference/read_axivity.html">read_axivity()</a></code>’s bridging logic (column shape, per-epoch light/int_temp averaging, epoch-start datetimes, tz re-labelling vs shifting, metadata assembly, dominant-sample-rate detection with an outlier warning, and an exact match against a direct <code><a href="../reference/compute_activity_counts.html">compute_activity_counts()</a></code> call on the same input) – <code>axivity_read_cwa()</code> itself is mocked throughout via <code><a href="https://testthat.r-lib.org/reference/local_mocked_bindings.html" class="external-link">testthat::local_mocked_bindings()</a></code>, so these don’t need a real <code>.cwa</code> binary fixture. Skipped via <code>skip_if_not_installed()</code> for <code>axR</code>/<code>mrpheus</code>/<code>withr</code> where needed. <code>withr</code> added to <code>Suggests</code>.</li>
 <li>
 <code>test-fix26c.R</code>: regression test reproducing the Fix 25 / Fix 26c interaction above – a short evening sleep-like run right at the file’s end (mirroring the notebook’s ID_0138 case) is no longer recovered.</li>

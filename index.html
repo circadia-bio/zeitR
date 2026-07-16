@@ -133,7 +133,7 @@
 
     <a class="navbar-brand me-2" href="index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -219,6 +219,8 @@
 <li>📂 <strong><code><a href="reference/read_actigraphy_dir.html">read_actigraphy_dir()</a></code></strong> — batch-read a whole directory into a <code>zeitr_study</code>
 </li>
 <li>🧾 <strong><code><a href="reference/read_acttrust.html">read_acttrust()</a></code></strong> — parse a Condor ActTrust <code>.txt</code> export into a tidy tibble</li>
+<li>⌚️ <strong><code><a href="reference/read_axivity.html">read_axivity()</a></code></strong> — bridge <code>axR</code>’s raw Axivity AX3/AX6 (<code>.cwa</code>) output into the same epoch-level shape, via <code><a href="reference/compute_activity_counts.html">compute_activity_counts()</a></code>
+</li>
 <li>🧼 <strong><code><a href="reference/prepare_actigraphy.html">prepare_actigraphy()</a></code></strong> — clamp temperature ranges and initialise <code>state</code>/<code>offwrist</code>/<code>sleep</code> columns</li>
 <li>🔍 <strong><code><a href="reference/check_consistency.html">check_consistency()</a></code></strong> — flag timestamp gaps, backward jumps, and firmware artefacts</li>
 <li>🦾 <strong><code><a href="reference/detect_offwrist_bimodal.html">detect_offwrist_bimodal()</a></code></strong> — Condor bimodal activity/temperature off-wrist detection</li>
@@ -227,6 +229,7 @@
 <li>⏱️ <strong><code><a href="reference/score_epochs_cole_kripke.html">score_epochs_cole_kripke()</a></code></strong> — epoch-level wake/sleep scoring (Cole &amp; Kripke, 1992)</li>
 <li>📊 <strong><code><a href="reference/compute_waso.html">compute_waso()</a></code></strong> — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency</li>
 <li>📐 <strong><code><a href="reference/compute_npcra.html">compute_npcra()</a></code></strong> — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)</li>
+<li>🌙 <strong><code><a href="reference/compute_sri.html">compute_sri()</a></code></strong> — Sleep Regularity Index (Phillips et al., 2017), from epoch-level sleep/wake state</li>
 <li>🗂️ <strong><code><a href="reference/study_summary.html">study_summary()</a></code></strong> — participant-level NPCRA summary across a whole study</li>
 <li>🗂️ <strong><code><a href="reference/study_sleep_metrics.html">study_sleep_metrics()</a></code></strong> — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW, SJL) across a whole study</li>
 <li>📋 <strong><code><a href="reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code></strong> — per-night sleep metrics split by day type (overall / workday / free day)</li>
@@ -324,9 +327,19 @@
 <span><span class="co">#&gt;   0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
+<h3 id="sleep-regularity-index">Sleep Regularity Index<a class="anchor" aria-label="anchor" href="#sleep-regularity-index"></a>
 </h3>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline_native.html">run_pipeline_native</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/compute_sri.html">compute_sri</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   participant_id   sri n_pairs n_epochs</span></span>
+<span><span class="co">#&gt;   P001             78.4    8640    10080</span></span></code></pre></div>
+<p>Derives sleep/wake from the epoch-level <code>state</code> column zeitR’s own pipelines already produce, rather than a pyActigraphy-style scoring algorithm – see <code><a href="reference/compute_sri.html">?compute_sri</a></code> for the off-wrist gap-interpolation rules and why this approach showed substantially better agreement with manual reference scoring in validation.</p>
+</div>
+<div class="section level3">
+<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
+</h3>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/acttrust_params.html">acttrust_params</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">p</span><span class="op">$</span><span class="va">sleep</span><span class="op">$</span><span class="va">sleep_quantile</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="fl">3</span>   <span class="co"># original Crespo (2012) threshold</span></span>
 <span></span>
@@ -335,7 +348,7 @@
 <div class="section level3">
 <h3 id="physical-activity-intensity">Physical activity intensity<a class="anchor" aria-label="anchor" href="#physical-activity-intensity"></a>
 </h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">pa_intensity</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/classify_pa_counts.html">classify_pa_counts</a></span><span class="op">(</span></span>
 <span>  <span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">activity</span>,</span>
 <span>  device    <span class="op">=</span> <span class="st">"ACTT"</span>,</span>
@@ -348,12 +361,25 @@
 <div class="section level3">
 <h3 id="raw-accelerometry---pimtatzcm">Raw accelerometry -&gt; PIM/TAT/ZCM<a class="anchor" aria-label="anchor" href="#raw-accelerometry---pimtatzcm"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># x, y, z: raw triaxial acceleration samples; sampling_rate in Hz</span></span>
 <span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_activity_counts.html">compute_activity_counts</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, <span class="va">z</span>, sampling_rate <span class="op">=</span> <span class="fl">25</span>, epoch_sec <span class="op">=</span> <span class="fl">60</span><span class="op">)</span></span>
 <span><span class="va">counts</span><span class="op">$</span><span class="va">mets</span>         <span class="op">&lt;-</span> <span class="fu"><a href="reference/estimate_ee.html">estimate_ee</a></span><span class="op">(</span><span class="va">counts</span><span class="op">$</span><span class="va">PIM</span>, device <span class="op">=</span> <span class="st">"ACTT"</span>, placement <span class="op">=</span> <span class="st">"wrist"</span><span class="op">)</span></span>
 <span><span class="va">counts</span><span class="op">$</span><span class="va">pa_intensity</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/classify_pa_intensity.html">classify_pa_intensity</a></span><span class="op">(</span><span class="va">counts</span><span class="op">$</span><span class="va">mets</span><span class="op">)</span></span></code></pre></div>
 <p>Requires <code>mrpheus</code> (reuses its validated <code>remove_dc()</code>/<code>bandpass_filter()</code> rather than a new, unvalidated filter). See <code><a href="articles/raw-accelerometry.html">vignette("raw-accelerometry")</a></code> and <code><a href="reference/compute_activity_counts.html">?compute_activity_counts</a></code> for the full processing chain and what is (and isn’t) validated about it.</p>
+</div>
+<div class="section level3">
+<h3 id="axivity-ax3ax6-cwa-files">Axivity AX3/AX6 (<code>.cwa</code>) files<a class="anchor" aria-label="anchor" href="#axivity-ax3ax6-cwa-files"></a>
+</h3>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Bridges axR::axivity_read_cwa()'s raw per-sample output into the same</span></span>
+<span><span class="co"># epoch-level shape read_acttrust() produces</span></span>
+<span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_axivity.html">read_axivity</a></span><span class="op">(</span><span class="st">"recordings/P001.cwa"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="va">rec</span></span>
+<span></span>
+<span><span class="co"># or via the device-agnostic wrapper</span></span>
+<span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_actigraphy.html">read_actigraphy</a></span><span class="op">(</span><span class="st">"recordings/P001.cwa"</span>, device <span class="op">=</span> <span class="st">"axivity"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span></code></pre></div>
+<p>Requires <code>axR</code> (raw <code>.cwa</code> parsing). Treat <code>activity</code>/<code>ZCMn</code> from this path as an unvalidated approximation – no filter/threshold preset has been checked against real Axivity output; see <code><a href="reference/read_axivity.html">?read_axivity</a></code> for the full caveats.</p>
 <hr>
 </div>
 </div>
@@ -396,6 +422,30 @@
 <code>M10</code> / <code>M10_onset</code>
 </td>
 <td>Mean activity and onset of the most active 10 h window</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level3">
+<h3 id="sleep-regularity-index-compute_sri">Sleep Regularity Index (<code>compute_sri()</code>)<a class="anchor" aria-label="anchor" href="#sleep-regularity-index-compute_sri"></a>
+</h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>Variable</th>
+<th>Definition</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>sri</code></td>
+<td>Sleep Regularity Index (Phillips et al., 2017) — day-to-day sleep/wake consistency; −100 (inverted) to +100 (perfectly regular), 0 = chance</td>
+</tr>
+<tr>
+<td><code>n_pairs</code></td>
+<td>Number of valid 24h-apart epoch comparisons used</td>
 </tr>
 </tbody>
 </table>
@@ -547,6 +597,7 @@
 ├── R/
 │   ├── zeitR-package.R       # package-level docs and Rcpp registration
 │   ├── read_acttrust.R       # ActTrust file parser
+│   ├── read_axivity.R        # Axivity .cwa bridge (via axR + compute_activity_counts())
 │   ├── read_actigraphy.R     # device-agnostic wrapper, zeitr_study
 │   ├── prepare.R             # temperature clamping, state column init
 │   ├── consistency.R         # timestamp quality checks
@@ -558,6 +609,7 @@
 │   ├── cole_kripke.R         # score_epochs_cole_kripke()
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
+│   ├── sri.R                 # compute_sri()
 │   ├── study_summary.R       # study_summary()
 │   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── pa_intensity.R        # pa_equations(), estimate_ee(), classify_pa_intensity/counts()
@@ -651,6 +703,11 @@
 <td>Filter primitives (<code>remove_dc()</code>, <code>bandpass_filter()</code>) reused by <code><a href="reference/compute_activity_counts.html">compute_activity_counts()</a></code>; cross-package dependency from the circadia-bio r-universe, not CRAN</td>
 </tr>
 <tr>
+<td>axR</td>
+<td>Suggests</td>
+<td>Raw <code>.cwa</code>/AX6 file parsing (<code>axivity_read_cwa()</code>) reused by <code><a href="reference/read_axivity.html">read_axivity()</a></code>; cross-package dependency from the circadia-bio r-universe, not CRAN</td>
+</tr>
+<tr>
 <td>future, future.apply</td>
 <td>Suggests</td>
 <td>Parallel batch processing (<code><a href="reference/run_pipeline_batch.html">run_pipeline_batch()</a></code>, <code><a href="reference/run_pipeline_native_batch.html">run_pipeline_native_batch()</a></code>)</td>
@@ -664,6 +721,12 @@
 <td>testthat, covr</td>
 <td>Suggests</td>
 <td>Test suite and coverage</td>
+</tr>
+<tr>
+<td>withr</td>
+<td>Suggests</td>
+<td>Test-only: temporary files/mocked bindings cleanup in <code>test-read-axivity.R</code>
+</td>
 </tr>
 <tr>
 <td>knitr, rmarkdown, pkgdown</td>
@@ -712,14 +775,14 @@
 <h2 id="page_facing_up-citation">📄 Citation<a class="anchor" aria-label="anchor" href="#page_facing_up-citation"></a>
 </h2>
 <p>If you use zeitR in your research, please cite it:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bibtex"><code class="sourceCode bibtex"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co">@software{franca_zeitr_2026,</span></span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="co">  author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},</span></span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="co">  title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},</span></span>
-<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="co">  year    = {2026},</span></span>
-<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a><span class="co">  version = {0.1.5},</span></span>
-<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a><span class="co">  doi     = {10.5281/zenodo.21315925},</span></span>
-<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a><span class="co">  url     = {https://github.com/circadia-bio/zeitR}</span></span>
-<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bibtex"><code class="sourceCode bibtex"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co">@software{franca_zeitr_2026,</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="co">  author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},</span></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a><span class="co">  title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},</span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="co">  year    = {2026},</span></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co">  version = {0.1.6},</span></span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a><span class="co">  doi     = {10.5281/zenodo.21315925},</span></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a><span class="co">  url     = {https://github.com/circadia-bio/zeitR}</span></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
 <hr>
 </div>
 <div class="section level2">
