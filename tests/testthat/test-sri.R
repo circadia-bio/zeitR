@@ -26,20 +26,18 @@ test_that("compute_sri() returns exactly 100 for a perfectly regular pattern", {
   expect_gt(result$n_pairs, 0L)
 })
 
-test_that("compute_sri() returns close to -100 for a perfectly inverted alternating pattern", {
-  # Sleep/wake flips every day: day 1 sleeps 00:00-08:00, day 2 sleeps
-  # 12:00-20:00, day 3 back to 00:00-08:00, etc. Every 24h-apart pair should
-  # mismatch.
+test_that("compute_sri() returns exactly -100 for a perfectly inverted alternating pattern", {
+  # Whole calendar days alternate entirely sleep / entirely wake, so every
+  # epoch differs from the epoch exactly 24h later at every single minute
+  # (not just during a shifted sleep window, which would still agree on
+  # wake outside of it).
   t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
   n_days <- 6L
   n  <- n_days * 24L * 60L
   dt <- t0 + 60L * seq.int(0L, n - 1L)
 
   day   <- as.integer(format(dt, "%d", tz = "UTC")) - 1L
-  hour  <- as.integer(format(dt, "%H", tz = "UTC"))
-  even_day_sleep <- hour < 8L
-  odd_day_sleep  <- hour >= 12L & hour < 20L
-  state <- ifelse(day %% 2L == 0L, as.integer(even_day_sleep), as.integer(odd_day_sleep))
+  state <- ifelse(day %% 2L == 0L, 1L, 0L)   # even days all-sleep, odd all-wake
 
   d      <- tibble::tibble(datetime = dt, state = state)
   result <- compute_sri(d)
