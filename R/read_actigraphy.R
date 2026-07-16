@@ -7,11 +7,15 @@
 #' Currently supported devices:
 #' \itemize{
 #'   \item `"acttrust"` — Condor Instruments ActTrust / ActTrust2 (`.txt`)
+#'   \item `"axivity"` — Axivity AX3/AX6 (`.cwa`), via [read_axivity()]
+#'     (requires the `axR` package; converts raw acceleration to epoch-level
+#'     counts with [compute_activity_counts()] -- see [read_axivity()]'s
+#'     Details for validation caveats)
 #' }
 #'
 #' @param path `character(1)`. Path to the raw actigraphy file.
-#' @param device `character(1)`. Device type. One of `"acttrust"` (default).
-#'   Additional devices will be added in future versions.
+#' @param device `character(1)`. Device type. One of `"acttrust"` (default)
+#'   or `"axivity"`. Additional devices will be added in future versions.
 #' @param tz `character(1)`. Recording time zone passed to the underlying
 #'   reader. Default is `"UTC"`.
 #' @param ... Additional arguments forwarded to the device-specific reader
@@ -42,9 +46,10 @@ read_actigraphy <- function(path, device = "acttrust", tz = "UTC", ...) {
 
   raw <- switch(device,
     acttrust = read_acttrust(path, tz = tz, ...),
+    axivity  = read_axivity(path, tz = tz, ...),
     zeitr_abort(
       "Unsupported device {.val {device}}.
-       Currently supported: {.val acttrust}."
+       Currently supported: {.val acttrust}, {.val axivity}."
     )
   )
 
