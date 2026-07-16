@@ -11,6 +11,14 @@
 #   Fix 27  — execution order audit + 14 h TBT ceiling
 #   Fix 29  — corrected split/exclude logic for long episodes
 #
+# R-side fix (no Python counterpart number; found investigating Julia's
+# Fix 29f report of "8 main nights on a 7-day recording"):
+#   .recover_fragmented_episodes() is given the same last-day-noon boundary
+#   as Fix 25, so it can no longer reconstruct an episode that Fix 25 just
+#   excluded as truncated by the end of the recording. Without this,
+#   Fix 25 removing an episode makes its date "uncovered", and Fix 26c would
+#   recover the same episode straight back from the same raw epochs.
+#
 # Execution order in classify_sleep_episodes() follows Fix 27:
 #   Fix 25 -> Fix 26a -> Fix 29 / Rule 2 -> Fix 26c ->
 #   Rules 3-5 -> Fix 26b -> Rule 6 -> Rule 7
@@ -476,6 +484,15 @@ classify_sleep_episodes <- function(
   last_date  <- as.Date(max(dt), tz = tz)
   all_dates  <- seq(first_date, last_date, by = "day")
 
+  # Fix 25 boundary, mirrored here: a date can be "uncovered" precisely
+  # *because* its only candidate episode was excluded by Fix 25 for starting
+  # at/after noon on the recording's last calendar day (truncated by the end
+  # of the file, not a real wake-up). Without this check, the scan below
+  # would reconstruct that same excluded episode from the same raw epochs,
+  # silently undoing Fix 25 and reintroducing a biologically implausible
+  # extra main night (e.g. an 8th night on a 7-day recording).
+  last_day_noon <- as.POSIXct(paste0(format(last_date), " 12:00:00"), tz = tz)
+
   new_eps <- list()
 
   for (i in seq_along(all_dates)) {
@@ -532,6 +549,16 @@ classify_sleep_episodes <- function(
     for (ep_i in merged) {
       tbt_h <- as.numeric(difftime(ep_i$gts, ep_i$bts, units = "hours"))
       if (tbt_h < min_tib_h) next
+
+      # Fix 25 guard: don't recover an episode that Fix 25 would itself
+      # exclude (starts at/after noon on the recording's last calendar day).
+      if (ep_i$bts >= last_day_noon) {
+        if (verbose)
+          cli::cli_inform(
+            "  [Fix 26c] Skipped recovery on {format(sd)} -- candidate starts at/after noon on the recording's last day (would be truncated, matching Fix 25)."
+          )
+        next
+      }
 
       stats_i <- .episode_stats_from_state(data, ep_i$bts, ep_i$gts, epoch_min)
       if (is.null(stats_i)) next
