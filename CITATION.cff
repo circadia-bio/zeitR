@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "zeitR: Actigraphy Data Parsing and Analysis for R"
-version: 0.1.5
+version: 0.1.6
 doi: 10.5281/zenodo.21315925
 url: "https://github.com/circadia-bio/zeitR"
 repository-code: "https://github.com/circadia-bio/zeitR"

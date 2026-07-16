@@ -1,6 +1,6 @@
 Package: zeitR
 Title: Actigraphy Data Parsing and Analysis for R
-Version: 0.1.5
+Version: 0.1.6
 Authors@R: c(
     person("Lucas", "França",
            email = "lucas.franca@northumbria.ac.uk",

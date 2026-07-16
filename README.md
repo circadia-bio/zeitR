@@ -38,6 +38,7 @@ Beyond the two pipelines, zeitR also estimates energy expenditure and classifies
 - 📥 **`read_actigraphy()`** — parse a raw device file into a `zeitr_recording` object
 - 📂 **`read_actigraphy_dir()`** — batch-read a whole directory into a `zeitr_study`
 - 🧾 **`read_acttrust()`** — parse a Condor ActTrust `.txt` export into a tidy tibble
+- ⌚️ **`read_axivity()`** — bridge `axR`'s raw Axivity AX3/AX6 (`.cwa`) output into the same epoch-level shape, via `compute_activity_counts()`
 - 🧼 **`prepare_actigraphy()`** — clamp temperature ranges and initialise `state`/`offwrist`/`sleep` columns
 - 🔍 **`check_consistency()`** — flag timestamp gaps, backward jumps, and firmware artefacts
 - 🦾 **`detect_offwrist_bimodal()`** — Condor bimodal activity/temperature off-wrist detection
@@ -46,6 +47,7 @@ Beyond the two pipelines, zeitR also estimates energy expenditure and classifies
 - ⏱️ **`score_epochs_cole_kripke()`** — epoch-level wake/sleep scoring (Cole & Kripke, 1992)
 - 📊 **`compute_waso()`** — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency
 - 📐 **`compute_npcra()`** — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)
+- 🌙 **`compute_sri()`** — Sleep Regularity Index (Phillips et al., 2017), from epoch-level sleep/wake state
 - 🗂️ **`study_summary()`** — participant-level NPCRA summary across a whole study
 - 🗂️ **`study_sleep_metrics()`** — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW, SJL) across a whole study
 - 📋 **`compute_sleep_metrics()`** — per-night sleep metrics split by day type (overall / workday / free day)
@@ -145,6 +147,21 @@ npcra
 #>   0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0
 ```
 
+### Sleep Regularity Index
+
+```r
+result <- run_pipeline_native("recordings/P001.txt", tz = "America/Sao_Paulo")
+compute_sri(result)
+#>   participant_id   sri n_pairs n_epochs
+#>   P001             78.4    8640    10080
+```
+
+Derives sleep/wake from the epoch-level `state` column zeitR's own pipelines
+already produce, rather than a pyActigraphy-style scoring algorithm -- see
+`?compute_sri` for the off-wrist gap-interpolation rules and why this
+approach showed substantially better agreement with manual reference
+scoring in validation.
+
 ### Device configuration
 
 ```r
@@ -185,6 +202,23 @@ rather than a new, unvalidated filter). See `vignette("raw-accelerometry")`
 and `?compute_activity_counts` for the full processing chain and what is
 (and isn't) validated about it.
 
+### Axivity AX3/AX6 (`.cwa`) files
+
+```r
+# Bridges axR::axivity_read_cwa()'s raw per-sample output into the same
+# epoch-level shape read_acttrust() produces
+rec <- read_axivity("recordings/P001.cwa", tz = "America/Sao_Paulo")
+rec
+
+# or via the device-agnostic wrapper
+rec <- read_actigraphy("recordings/P001.cwa", device = "axivity", tz = "America/Sao_Paulo")
+```
+
+Requires `axR` (raw `.cwa` parsing). Treat `activity`/`ZCMn` from this path
+as an unvalidated approximation -- no filter/threshold preset has been
+checked against real Axivity output; see `?read_axivity` for the full
+caveats.
+
 ---
 
 ## 📐 Computed variables
@@ -198,6 +232,13 @@ and `?compute_activity_counts` for the full processing chain and what is
 | `RA` | Relative amplitude — contrast between M10 and L5 (0–1) |
 | `L5` / `L5_onset` | Mean activity and onset of the least active 5 h window |
 | `M10` / `M10_onset` | Mean activity and onset of the most active 10 h window |
+
+### Sleep Regularity Index (`compute_sri()`)
+
+| Variable | Definition |
+|---|---|
+| `sri` | Sleep Regularity Index (Phillips et al., 2017) — day-to-day sleep/wake consistency; −100 (inverted) to +100 (perfectly regular), 0 = chance |
+| `n_pairs` | Number of valid 24h-apart epoch comparisons used |
 
 ### Nightly sleep statistics
 
@@ -248,6 +289,7 @@ zeitR/
 ├── R/
 │   ├── zeitR-package.R       # package-level docs and Rcpp registration
 │   ├── read_acttrust.R       # ActTrust file parser
+│   ├── read_axivity.R        # Axivity .cwa bridge (via axR + compute_activity_counts())
 │   ├── read_actigraphy.R     # device-agnostic wrapper, zeitr_study
 │   ├── prepare.R             # temperature clamping, state column init
 │   ├── consistency.R         # timestamp quality checks
@@ -259,6 +301,7 @@ zeitR/
 │   ├── cole_kripke.R         # score_epochs_cole_kripke()
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
+│   ├── sri.R                 # compute_sri()
 │   ├── study_summary.R       # study_summary()
 │   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── pa_intensity.R        # pa_equations(), estimate_ee(), classify_pa_intensity/counts()
@@ -306,9 +349,11 @@ zeitR/
 | ggplot2 | Suggests | Actogram and PA-intensity plots — checked at runtime, not required for non-plotting functions |
 | dplyr, forcats, rlang | Suggests | Used in vignettes and some helper functions |
 | mrpheus | Suggests | Filter primitives (`remove_dc()`, `bandpass_filter()`) reused by `compute_activity_counts()`; cross-package dependency from the circadia-bio r-universe, not CRAN |
+| axR | Suggests | Raw `.cwa`/AX6 file parsing (`axivity_read_cwa()`) reused by `read_axivity()`; cross-package dependency from the circadia-bio r-universe, not CRAN |
 | future, future.apply | Suggests | Parallel batch processing (`run_pipeline_batch()`, `run_pipeline_native_batch()`) |
 | vdiffr | Suggests | Visual regression tests for actogram plots |
 | testthat, covr | Suggests | Test suite and coverage |
+| withr | Suggests | Test-only: temporary files/mocked bindings cleanup in `test-read-axivity.R` |
 | knitr, rmarkdown, pkgdown | Suggests | Vignettes and documentation site |
 
 ---
@@ -332,7 +377,7 @@ If you use zeitR in your research, please cite it:
   author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},
   title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},
   year    = {2026},
-  version = {0.1.5},
+  version = {0.1.6},
   doi     = {10.5281/zenodo.21315925},
   url     = {https://github.com/circadia-bio/zeitR}
 }
