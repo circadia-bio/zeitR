@@ -110,7 +110,10 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   }
 
   # ── Trim to D+1 00:00 (Python pipeline convention) ────────────────────
-  if (isTRUE(trim_to_d1) && length(datetimes) > 0L) {
+  # Only attempted when there are already >= 2 epochs -- an input that's
+  # already too small shouldn't get a "trimming left too few" warning of
+  # its own before hitting the real n < 2 abort below.
+  if (isTRUE(trim_to_d1) && length(datetimes) >= 2L) {
     tz_d1     <- attr(datetimes, "tzone") %||% "UTC"
     first_day <- as.Date(min(datetimes), tz = tz_d1)
     d1_start  <- as.POSIXct(paste0(format(first_day + 1L), " 00:00:00"), tz = tz_d1)

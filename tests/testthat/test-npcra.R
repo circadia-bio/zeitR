@@ -127,12 +127,13 @@ test_that("compute_npcra() trims to D+1 00:00 by default", {
 })
 
 test_that("compute_npcra() falls back to the untrimmed recording with a warning when trim_to_d1 leaves <2 epochs", {
-  # A recording entirely within a single calendar day has nothing left
-  # after trimming to D+1 00:00.
+  # A recording that stays entirely within a single calendar day (08:00 --
+  # 23:59, never crossing midnight) has nothing left after trimming to
+  # D+1 00:00.
   t0 <- as.POSIXct("2024-01-01 08:00:00", tz = "UTC")
   d  <- tibble::tibble(
-    datetime = t0 + 60L * 0:1439,   # 2024-01-01 08:00 -- 2024-01-02 07:59
-    activity = rep(c(0, 100), each = 720L)
+    datetime = t0 + 60L * 0:959,    # 2024-01-01 08:00 -- 2024-01-01 23:59
+    activity = rep(c(0, 100), each = 480L)
   )
 
   expect_warning(
