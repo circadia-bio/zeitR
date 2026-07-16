@@ -166,7 +166,8 @@ activity profile built from <strong>hourly means</strong> (p = 24).</p>
 <span>  epoch_s <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  L5_hours <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  M10_hours <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>  window_days <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  window_days <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  trim_to_d1 <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -203,6 +204,20 @@ variables are computed for each window. A <code>window_start</code> column is ad
 to the output. Partial final windows (shorter than <code>window_days</code>) are
 included but flagged via a lower <code>n_days</code> value. Default <code>NULL</code> computes
 a single estimate over the full recording.</p></dd>
+
+
+<dt id="arg-trim-to-d-">trim_to_d1<a class="anchor" aria-label="anchor" href="#arg-trim-to-d-"></a></dt>
+<dd><p><code>logical(1)</code>. If <code>TRUE</code> (default), the recording is
+trimmed to start at 00:00 of D+1 – the first full calendar day after
+recording onset – before any NPCRA variable is computed, matching the
+Python reference pipeline's convention (it always starts its NPCRA
+window at D+1 00:00 rather than spanning the raw, typically fractional,
+recording length). Set to <code>FALSE</code> for the full untrimmed recording (the
+pre-<code>trim_to_d1</code> behaviour). If trimming would leave fewer than 2 epochs,
+a warning is emitted and the untrimmed recording is used instead.
+Off-wrist exclusion (<code>state == 4</code>) still applies either way; this does
+not replicate the Python pipeline's separate 30-min-threshold rule for
+the M10/L5 windows specifically – only the D+1 window start.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -546,6 +546,8 @@ Non-parametric circadian rhythm variables.
 
 - [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
   : Non-parametric circadian rhythm analysis (NPCRA)
+- [`compute_sri()`](https://zeitr.circadia-lab.uk/reference/compute_sri.md)
+  : Sleep Regularity Index (SRI)
 - [`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md)
   : Compute WASO and nightly sleep statistics
 

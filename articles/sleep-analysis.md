@@ -279,15 +279,15 @@ npcra |>
 
 | Variable | Value | Description |
 |:---|---:|:---|
-| IS | 0.2156 | Interdaily stability (0–1; higher = more consistent rhythm) |
-| IV | 0.9994 | Intradaily variability (≥0; higher = more fragmented rhythm) |
-| RA | 0.9411 | Relative amplitude (0–1; contrast between M10 and L5) |
+| IS | 0.2149 | Interdaily stability (0–1; higher = more consistent rhythm) |
+| IV | 0.9995 | Intradaily variability (≥0; higher = more fragmented rhythm) |
+| RA | 0.9414 | Relative amplitude (0–1; contrast between M10 and L5) |
 | L5 | 116.4156 | Mean activity during the least-active 5 h window |
 | L5_onset | 01:00 | Clock time of the L5 window onset (hh:mm) |
-| M10 | 3837.8615 | Mean activity during the most-active 10 h window |
+| M10 | 3855.6968 | Mean activity during the most-active 10 h window |
 | M10_onset | 08:00 | Clock time of the M10 window onset (hh:mm) |
-| n_days | 52.91 | Recording duration in days |
-| n_epochs | 76196 | Total number of epochs |
+| n_days | 52.38 | Recording duration in days |
+| n_epochs | 75426 | Total number of epochs |
 
 For a healthy adult with a regular sleep-wake schedule you would expect:
 

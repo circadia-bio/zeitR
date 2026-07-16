@@ -13,7 +13,8 @@ compute_npcra(
   epoch_s = NULL,
   L5_hours = 5,
   M10_hours = 10,
-  window_days = NULL
+  window_days = NULL,
+  trim_to_d1 = TRUE
 )
 ```
 
@@ -50,6 +51,20 @@ compute_npcra(
   output. Partial final windows (shorter than `window_days`) are
   included but flagged via a lower `n_days` value. Default `NULL`
   computes a single estimate over the full recording.
+
+- trim_to_d1:
+
+  `logical(1)`. If `TRUE` (default), the recording is trimmed to start
+  at 00:00 of D+1 – the first full calendar day after recording onset –
+  before any NPCRA variable is computed, matching the Python reference
+  pipeline's convention (it always starts its NPCRA window at D+1 00:00
+  rather than spanning the raw, typically fractional, recording length).
+  Set to `FALSE` for the full untrimmed recording (the pre-`trim_to_d1`
+  behaviour). If trimming would leave fewer than 2 epochs, a warning is
+  emitted and the untrimmed recording is used instead. Off-wrist
+  exclusion (`state == 4`) still applies either way; this does not
+  replicate the Python pipeline's separate 30-min-threshold rule for the
+  M10/L5 windows specifically – only the D+1 window start.
 
 ## Value
 
