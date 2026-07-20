@@ -11,6 +11,7 @@ plot_actogram_activity(
   colours = NULL,
   activity_col = "ZCMn",
   activity_cap_quantile = 0.99,
+  log_scale = FALSE,
   date_label_every = 7L,
   epoch_min = 1,
   base_size = 13
@@ -34,12 +35,17 @@ absent.}
 \code{\link[=actogram_colours]{actogram_colours()}}.}
 
 \item{activity_col}{\code{character(1)}. Name of the column in \code{result$data} to
-use as the activity signal.  Default \code{"ZCMn"} (zero-crossing mean;
+use as the activity signal. Default \code{"ZCMn"} (zero-crossing mean;
 present in all ActTrust recordings processed by \code{zeitR}).}
 
 \item{activity_cap_quantile}{\code{numeric(1)} in (0, 1]. Quantile of non-zero
-activity values used to cap bar heights before normalising.  Default
+activity values used to cap bar heights before normalising. Default
 \code{0.99} (top 1 \% of active epochs are clipped to full bar height).}
+
+\item{log_scale}{\code{logical(1)}. If \code{TRUE}, applies a \code{log1p()} transform to
+the activity signal before capping and normalising, compressing the
+dynamic range so lower-activity variation is easier to see. Default
+\code{FALSE} (linear scale).}
 
 \item{date_label_every}{\code{integer(1)}. Label every Nth row on the y-axis.
 Default \code{7} (weekly ticks).}
@@ -64,9 +70,17 @@ and state classification.
 \details{
 Bar heights are capped at the \code{activity_cap_quantile} quantile of
 non-zero epochs to prevent outlier activity bursts from compressing the
-visible range for the rest of the recording.  A thin baseline stub
+visible range for the rest of the recording. A thin baseline stub
 (2 \% of row height) is drawn for zero-activity epochs so that sleep periods
 and off-wrist blocks remain faintly visible.
+
+Actigraphy activity counts are typically right-skewed, with occasional
+bursts far above the typical waking level. On the default linear scale
+this compresses most of the meaningful variation among low-to-moderate
+activity epochs into a thin sliver near the baseline. Set \code{log_scale = TRUE} to apply a \code{log1p()} transform (\code{log(1 + x)}, so zero-activity
+epochs map to \code{0} rather than \code{-Inf}) before capping and normalising --
+this expands the low-activity range at the cost of visually compressing
+the difference between already-high activity bursts.
 }
 \examples{
 \dontrun{
@@ -75,6 +89,10 @@ plot_actogram_activity(result)
 
 # Cap at 95th percentile to highlight moderate activity
 plot_actogram_activity(result, activity_cap_quantile = 0.95)
+
+# Log scale: reveals structure among low-activity epochs that a linear
+# scale would otherwise compress near the baseline
+plot_actogram_activity(result, log_scale = TRUE)
 }
 }
 \seealso{

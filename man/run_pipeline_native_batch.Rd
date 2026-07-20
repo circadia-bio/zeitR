@@ -4,12 +4,19 @@
 \alias{run_pipeline_native_batch}
 \title{Run the native pipeline on all files in a directory}
 \usage{
-run_pipeline_native_batch(folder, pattern = "*.txt", ...)
+run_pipeline_native_batch(folder, pattern = "*.txt", parallel = FALSE, ...)
 }
 \arguments{
 \item{folder}{\code{character(1)}. Path to a directory of ActTrust files.}
 
 \item{pattern}{\code{character(1)}. Glob pattern. Default \code{"*.txt"}.}
+
+\item{parallel}{\code{logical(1)}. If \code{TRUE}, processes files in parallel using
+\code{future.apply::future_lapply()} (a \code{Suggests}-only dependency). Requires
+a \code{future::plan()} to be set beforehand, e.g.
+\code{future::plan(future::multisession(workers = 4))}; falls back to
+sequential processing with a warning if \code{future.apply} is not installed.
+Default \code{FALSE}.}
 
 \item{...}{Additional arguments forwarded to \code{\link[=run_pipeline_native]{run_pipeline_native()}}.}
 }
@@ -25,5 +32,10 @@ fail are skipped with a warning.
 \dontrun{
 results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo")
 lapply(results, function(r) r$nights)
+
+# Parallel: process a large cohort across 4 workers
+future::plan(future::multisession(workers = 4))
+results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo",
+                                     parallel = TRUE)
 }
 }

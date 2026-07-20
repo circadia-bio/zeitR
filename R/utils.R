@@ -7,13 +7,19 @@
 # ── Messages ──────────────────────────────────────────────────────────────────
 
 #' @noRd
-zeitr_abort <- function(msg, ...) cli::cli_abort(msg, ...)
+zeitr_abort <- function(msg, ..., .envir = parent.frame()) {
+  cli::cli_abort(msg, ..., .envir = .envir)
+}
 
 #' @noRd
-zeitr_warn <- function(msg, ...) cli::cli_warn(msg, ...)
+zeitr_warn <- function(msg, ..., .envir = parent.frame()) {
+  cli::cli_warn(msg, ..., .envir = .envir)
+}
 
 #' @noRd
-zeitr_inform <- function(msg, ...) cli::cli_inform(msg, ...)
+zeitr_inform <- function(msg, ..., .envir = parent.frame()) {
+  cli::cli_inform(msg, ..., .envir = .envir)
+}
 
 # ── Scaling ───────────────────────────────────────────────────────────────────
 
@@ -49,6 +55,11 @@ zero_prop_filter <- function(x, hws, pad_value = 1) {
 # ── Rolling filters ───────────────────────────────────────────────────────────
 
 #' Apply a rolling function with boundary padding
+#'
+#' Used as the R reference implementation in Rcpp parity tests
+#' (test-crespo-cpp-parity.R) for rolling_max_cpp()/rolling_min_cpp(); not
+#' called anywhere in the package's own pipeline code, which calls the Rcpp
+#' rolling filters directly.
 #'
 #' @param x numeric vector
 #' @param hws integer half-window size
@@ -94,35 +105,6 @@ var_filter <- function(x, hws) {
   rolling_var_cpp(as.double(x), as.integer(hws))
 }
 
-#' Rolling quantile filter with border replication padding
-#' @param x numeric vector
-#' @param hws integer half-window size
-#' @param q quantile probability (default 0.6)
-#' @noRd
-quantile_filter <- function(x, hws, q = 0.6) {
-  rolling_quantile_cpp(as.double(x), as.integer(hws), as.double(q))
-}
-
-#' Rolling maximum filter
-#' @param x numeric vector
-#' @param hws integer half-window size
-#' @param pad_value boundary pad value (default 0, for morphological ops)
-#' @noRd
-max_filter <- function(x, hws, pad_value = 0) {
-  rolling_max_cpp(as.double(x), as.integer(hws), replicate = FALSE,
-                  pad_value = as.double(pad_value))
-}
-
-#' Rolling minimum filter
-#' @param x numeric vector
-#' @param hws integer half-window size
-#' @param pad_value boundary pad value (default 0, for morphological ops)
-#' @noRd
-min_filter <- function(x, hws, pad_value = 0) {
-  rolling_min_cpp(as.double(x), as.integer(hws), replicate = FALSE,
-                  pad_value = as.double(pad_value))
-}
-
 # ── Five-point derivative ─────────────────────────────────────────────────────
 
 #' Five-point stencil derivative estimate
@@ -135,36 +117,6 @@ min_filter <- function(x, hws, pad_value = 0) {
 #' @noRd
 diff5 <- function(x, delta = 1) {
   diff5_cpp(as.double(x), as.double(delta))
-}
-
-# ── Zero-sequence detection ───────────────────────────────────────────────────
-
-#' Find contiguous runs of zeros in a binary vector
-#'
-#' Returns a two-column integer matrix with columns `start` and `end`
-#' (1-indexed, inclusive) for each run of zeros with length >=
-#' `minimum_length`.
-#'
-#' @param x numeric vector (treated as binary: 0 vs non-zero)
-#' @param minimum_length minimum run length to return (default 1)
-#' @noRd
-zero_sequences <- function(x, minimum_length = 1L) {
-  n <- length(x)
-  is_zero <- as.integer(x == 0)
-
-  rle_result <- rle(is_zero)
-  ends   <- cumsum(rle_result$lengths)
-  starts <- ends - rle_result$lengths + 1L
-
-  zero_runs <- which(rle_result$values == 1L &
-                       rle_result$lengths >= minimum_length)
-
-  if (length(zero_runs) == 0L) {
-    return(matrix(integer(0), ncol = 2L,
-                  dimnames = list(NULL, c("start", "end"))))
-  }
-
-  cbind(start = starts[zero_runs], end = ends[zero_runs])
 }
 
 # ── Ashman's D ────────────────────────────────────────────────────────────────

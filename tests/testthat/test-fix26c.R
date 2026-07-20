@@ -107,3 +107,77 @@ test_that("Fix 26c uses Cole-Kripke epoch scoring, not CSPD period-level state",
   expect_gt(recovered$tbt, 8 * 60,
             label = "TBT spans both merged CK sleep runs")
 })
+
+
+# ── Fix 25 / Fix 26c interaction ─────────────────────────────────────────────
+# Regression test for the "8 main sleep episodes on a 7-day recording" bug
+# reported by Julia (JRSV Fix 29f): Fix 25 correctly excludes an episode
+# starting at/after noon on the recording's last calendar day (truncated by
+# the end of the file, not a real wake-up) at the classify_sleep_episodes()
+# level. But .recover_fragmented_episodes() previously had no knowledge of
+# that boundary: once Fix 25 removed the episode, its date became
+# "uncovered", and the recovery scan below reconstructed the *same* episode
+# from the *same* raw epochs -- silently undoing Fix 25.
+#
+# Scenario (mirrors the notebook's ID_0138 case): a recording whose last
+# calendar day has a short evening sleep-like run (19:23-23:56, TBT ~4.5 h)
+# right where the file ends -- device removed, not a real wake-up. No other
+# candidate episode covers that date, so it reaches the recovery scan.
+
+test_that(".recover_fragmented_episodes() does not recover an episode that would be truncated on the recording's last day", {
+  t0 <- as.POSIXct("2020-01-07 00:00:00", tz = "UTC")
+  n  <- 24L * 60L                              # 1440 1-min epochs (one day)
+  dt <- t0 + 60L * seq.int(0L, n - 1L)
+
+  idx <- function(h) as.integer(h * 60) + 1L    # 1-indexed position of hour h
+
+  zcm   <- rep(100.0, n)   # default: active -> CK wake
+  state <- rep(0L,    n)
+  temp  <- rep(25.0,  n)
+  lux   <- rep(500.0, n)
+
+  # Sleep-like run: 19:23 -- 23:56 (device removed at file end, not a real
+  # wake-up). ZCMn = 0 -> CK sleep for the whole run.
+  zcm[idx(19 + 23 / 60):n] <- 0.0
+
+  data <- data.frame(
+    datetime = dt,
+    ZCMn     = zcm,
+    state    = state,
+    int_temp = temp,
+    light    = lux,
+    stringsAsFactors = FALSE
+  )
+
+  # No episodes cover 2020-01-07 -- as would happen if Fix 25 had just
+  # excluded the only candidate episode for that date.
+  episodes <- data.frame(
+    bts        = as.POSIXct(character(0L)),
+    gts        = as.POSIXct(character(0L)),
+    tbt        = double(0L), tst = double(0L), sol = double(0L),
+    soi        = double(0L), waso = double(0L), nw = integer(0L),
+    eff        = double(0L), nap = logical(0L),
+    sleep_date = as.Date(character(0L)),
+    sleep_type = character(0L),
+    stringsAsFactors = FALSE
+  )
+
+  result <- .recover_fragmented_episodes(
+    data         = data,
+    episodes     = episodes,
+    epoch_min    = 1.0,
+    temp_thresh  = 28.0,
+    light_thresh = 10.0,
+    min_tib_h    = 3.0,
+    noc_start    = 18.0,
+    noc_end      = 6.0,
+    tz           = "UTC"
+  )
+
+  # No episode should be recovered for 2020-01-07: the only candidate starts
+  # at 19:23, after noon on the recording's last (and only) calendar day.
+  recovered <- result[as.character(result$sleep_date) == "2020-01-07", ,
+                      drop = FALSE]
+  expect_equal(nrow(recovered), 0L,
+               label = "no recovery for an episode that would be truncated on the last day")
+})

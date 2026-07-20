@@ -36,6 +36,17 @@
 #'   to the output. Partial final windows (shorter than `window_days`) are
 #'   included but flagged via a lower `n_days` value. Default `NULL` computes
 #'   a single estimate over the full recording.
+#' @param trim_to_d1 `logical(1)`. If `TRUE` (default), the recording is
+#'   trimmed to start at 00:00 of D+1 -- the first full calendar day after
+#'   recording onset -- before any NPCRA variable is computed, matching the
+#'   Python reference pipeline's convention (it always starts its NPCRA
+#'   window at D+1 00:00 rather than spanning the raw, typically fractional,
+#'   recording length). Set to `FALSE` for the full untrimmed recording (the
+#'   pre-`trim_to_d1` behaviour). If trimming would leave fewer than 2 epochs,
+#'   a warning is emitted and the untrimmed recording is used instead.
+#'   Off-wrist exclusion (`state == 4`) still applies either way; this does
+#'   not replicate the Python pipeline's separate 30-min-threshold rule for
+#'   the M10/L5 windows specifically -- only the D+1 window start.
 #'
 #' @return A tibble with columns `participant_id`, `window_start` (if
 #'   `window_days` is set), `IS`, `IV`, `RA`, `L5`, `L5_onset`, `M10`,
@@ -69,7 +80,7 @@
 #' compute_npcra(rec, window_days = 14)
 #' }
 compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
-                          window_days = NULL) {
+                          window_days = NULL, trim_to_d1 = TRUE) {
 
   # ── Extract epochs tibble and participant_id ─────────────────────────────────
   if (inherits(x, "zeitr_recording")) {
@@ -92,10 +103,29 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   activity  <- as.double(epochs$activity)
 
   # ── Exclude off-wrist epochs if state column is present ──────────────────────
-  if (!is.null(epochs$state)) {
+  if ("state" %in% names(epochs)) {
     keep      <- is.na(epochs$state) | epochs$state != 4L
     datetimes <- datetimes[keep]
     activity  <- activity[keep]
+  }
+
+  # ── Trim to D+1 00:00 (Python pipeline convention) ────────────────────
+  # Only attempted when there are already >= 2 epochs -- an input that's
+  # already too small shouldn't get a "trimming left too few" warning of
+  # its own before hitting the real n < 2 abort below.
+  if (isTRUE(trim_to_d1) && length(datetimes) >= 2L) {
+    tz_d1     <- attr(datetimes, "tzone") %||% "UTC"
+    first_day <- as.Date(min(datetimes), tz = tz_d1)
+    d1_start  <- as.POSIXct(paste0(format(first_day + 1L), " 00:00:00"), tz = tz_d1)
+    keep_d1   <- datetimes >= d1_start
+    if (sum(keep_d1) < 2L) {
+      zeitr_warn(
+        "{.arg trim_to_d1} = TRUE leaves fewer than 2 epochs after trimming to D+1 00:00; using the untrimmed recording instead."
+      )
+    } else {
+      datetimes <- datetimes[keep_d1]
+      activity  <- activity[keep_d1]
+    }
   }
 
   n <- length(activity)

@@ -71,6 +71,13 @@ template:
         /* ── Navbar logo size ── */
         .navbar-brand img { height: 40px; width: auto; }
 
+        /* ── Dropdown menus: cap height and scroll instead of silently
+           running past the viewport edge with no visible cue ── */
+        .navbar .dropdown-menu {
+          max-height: calc(100vh - 90px);
+          overflow-y: auto;
+        }
+
         /* ── Remove border under page title ── */
         .page-header { border-bottom: none !important; }
 
@@ -195,12 +202,14 @@ reference:
   desc: "Non-parametric circadian rhythm variables."
   contents:
   - compute_npcra
+  - compute_sri
   - compute_waso
 
 - title: "Study-level"
   desc: "Summarise results across multiple participants."
   contents:
   - study_summary
+  - study_sleep_metrics
 
 - title: "Pipeline"
   desc: "Run the full analysis pipeline on one file or a directory."
@@ -218,6 +227,19 @@ reference:
   contents:
   - compute_sleep_metrics
   - compute_cpd_metrics
+
+- title: "Raw signal processing"
+  desc: "Convert raw triaxial acceleration into epoch-level activity counts."
+  contents:
+  - compute_activity_counts
+
+- title: "Physical activity"
+  desc: "Estimate energy expenditure and classify PA intensity from activity counts."
+  contents:
+  - pa_equations
+  - estimate_ee
+  - classify_pa_intensity
+  - classify_pa_counts
 
 - title: "Visualisation"
   desc: "Actogram and raster display of actigraphy recordings."
@@ -259,6 +281,8 @@ articles:
   - sleep-analysis
   - vallim-pipeline
   - holidays
+  - physical-activity
+  - raw-accelerometry
 
 news:
   releases:

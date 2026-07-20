@@ -9,8 +9,8 @@ read_actigraphy(path, device = "acttrust", tz = "UTC", ...)
 \arguments{
 \item{path}{\code{character(1)}. Path to the raw actigraphy file.}
 
-\item{device}{\code{character(1)}. Device type. One of \code{"acttrust"} (default).
-Additional devices will be added in future versions.}
+\item{device}{\code{character(1)}. Device type. One of \code{"acttrust"} (default)
+or \code{"axivity"}. Additional devices will be added in future versions.}
 
 \item{tz}{\code{character(1)}. Recording time zone passed to the underlying
 reader. Default is \code{"UTC"}.}
@@ -38,6 +38,10 @@ A device-agnostic wrapper that reads a raw actigraphy file and returns a
 Currently supported devices:
 \itemize{
 \item \code{"acttrust"} — Condor Instruments ActTrust / ActTrust2 (\code{.txt})
+\item \code{"axivity"} — Axivity AX3/AX6 (\code{.cwa}), via \code{\link[=read_axivity]{read_axivity()}}
+(requires the \code{axR} package; converts raw acceleration to epoch-level
+counts with \code{\link[=compute_activity_counts]{compute_activity_counts()}} -- see \code{\link[=read_axivity]{read_axivity()}}'s
+Details for validation caveats)
 }
 }
 \examples{
