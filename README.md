@@ -387,7 +387,7 @@ If you use zeitR in your research, please cite it:
 
 ## 🤝 Related Tools
 
-- 🌙 [**slumbR**](https://github.com/circadia-bio/slumbR) — sleep diary processing and circadian metrics
+- 🛌 [**slumbR**](https://github.com/circadia-bio/slumbR) — sleep diary processing and circadian metrics
 - 🧮 [**tallieR**](https://github.com/circadia-bio/tallieR) — sociodemographic and questionnaire scoring
 - 🔄 [**syncR**](https://github.com/circadia-bio/syncR) — unified participant-indexed database for the Circadia ecosystem
 - 🔬 [**circadia-bio**](https://github.com/circadia-bio) — the Circadia Lab GitHub organisation
