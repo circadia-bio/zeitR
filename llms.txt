@@ -541,7 +541,7 @@ If you use zeitR in your research, please cite it:
 
 ## 🤝 Related Tools
 
-- 🌙 [**slumbR**](https://github.com/circadia-bio/slumbR) — sleep diary
+- 🛌 [**slumbR**](https://github.com/circadia-bio/slumbR) — sleep diary
   processing and circadian metrics
 - 🧮 [**tallieR**](https://github.com/circadia-bio/tallieR) —
   sociodemographic and questionnaire scoring
