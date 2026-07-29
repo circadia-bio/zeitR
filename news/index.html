@@ -123,6 +123,7 @@
     <li><a class="dropdown-item" href="../articles/holidays.html">Classifying free days: weekends and public holidays</a></li>
     <li><a class="dropdown-item" href="../articles/physical-activity.html">Physical activity intensity from ActTrust/GT3X+ counts</a></li>
     <li><a class="dropdown-item" href="../articles/raw-accelerometry.html">From raw accelerometry to PIM/TAT/ZCM activity counts</a></li>
+    <li><a class="dropdown-item" href="../articles/lids.html">LIDS: ultradian sleep-cycle dynamics from actigraphy</a></li>
   </ul></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-news" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">News</button>
@@ -145,6 +146,16 @@
       <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="zeitr-development-version">zeitR (development version)<a class="anchor" aria-label="anchor" href="#zeitr-development-version"></a></h2>
+<div class="section level3">
+<h3 id="sparkles-new-features-development-version">✨ New features<a class="anchor" aria-label="anchor" href="#sparkles-new-features-development-version"></a></h3>
+<ul><li>
+<p>New LIDS (Locomotor Inactivity During Sleep) module – <code><a href="../reference/lids_transform.html">lids_transform()</a></code>, <code><a href="../reference/fit_lids.html">fit_lids()</a></code>, <code><a href="../reference/detect_lids_bouts.html">detect_lids_bouts()</a></code>, <code><a href="../reference/compute_lids.html">compute_lids()</a></code>, and <code><a href="../reference/study_lids_metrics.html">study_lids_metrics()</a></code> – porting the ultradian-rhythm methodology of Winnebeck et al. (2018, <em>Current Biology</em>) and its infant extension in Hammad et al. (2026, <em>SLEEP</em>, <a href="https://zenodo.org/records/18199381" class="external-link uri">https://zenodo.org/records/18199381</a>). <code><a href="../reference/lids_transform.html">lids_transform()</a></code> applies the <code>100/(1+x)</code> non-linear transform plus Gaussian (Hammad 2026, default) or moving-average (Winnebeck 2018 / <code>pyActigraphy</code>) smoothing; <code><a href="../reference/fit_lids.html">fit_lids()</a></code> scans candidate periods (30-180 min by default) with an OLS sloped-cosine fit, selecting the period with the highest Munich Rhythmicity Index. <code><a href="../reference/compute_lids.html">compute_lids()</a></code> is the main entry point: it extracts sleep bouts either from an existing zeitR pipeline’s <code>state</code> column (<code>bout_source = "state"</code>) or via the new standalone <code><a href="../reference/detect_lids_bouts.html">detect_lids_bouts()</a></code> Roenneberg relative-immobility detector (<code>bout_source = "roenneberg"</code>, for raw activity that hasn’t been run through <code><a href="../reference/run_pipeline.html">run_pipeline()</a></code>/<code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code>), fits each bout, and applies the Winnebeck/Hammad quality filter (<code>pearson_r</code>, <code>p_value</code>, offset bounds). <code><a href="../reference/study_lids_metrics.html">study_lids_metrics()</a></code> is the batch/<code>syncR::sync()</code>-ready counterpart, summarising each participant’s quality-filtered bouts (median +/- IQR period, amplitude, offset, slope) into one row, alongside <code><a href="../reference/study_sleep_metrics.html">study_sleep_metrics()</a></code> and <code><a href="../reference/study_summary.html">study_summary()</a></code>.</p>
+<p>Ported from a prototype R notebook draft by Mario Leocadio-Miguel (itself adapted from an older MATLAB script); one bug in that draft is fixed here – its bout-fusing step was truncated mid-statement (<code>fused.a...</code>) and would not have run as written; see <code><a href="../reference/detect_lids_bouts.html">?detect_lids_bouts</a></code> for the full reimplementation (<code>.fuse_bouts()</code>). Not yet validated against <code>pyActigraphy</code>’s <code>LIDS</code> class or an external reference dataset – treat results accordingly until a parity check is run.</p>
+</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.6" id="zeitr-016-2026-07">zeitR 0.1.6 (2026-07)<a class="anchor" aria-label="anchor" href="#zeitr-016-2026-07"></a></h2>
 <div class="section level3">

@@ -160,6 +160,7 @@
     <li><a class="dropdown-item" href="articles/holidays.html">Classifying free days: weekends and public holidays</a></li>
     <li><a class="dropdown-item" href="articles/physical-activity.html">Physical activity intensity from ActTrust/GT3X+ counts</a></li>
     <li><a class="dropdown-item" href="articles/raw-accelerometry.html">From raw accelerometry to PIM/TAT/ZCM activity counts</a></li>
+    <li><a class="dropdown-item" href="articles/lids.html">LIDS: ultradian sleep-cycle dynamics from actigraphy</a></li>
   </ul>
 </li>
 <li class="nav-item dropdown">
@@ -254,6 +255,11 @@
 <li>📏 <strong><code><a href="reference/circ_sd_h.html">circ_sd_h()</a></code></strong> — circular SD for clock-time variables</li>
 <li>🏷️ <strong><code><a href="reference/label_states.html">label_states()</a></code></strong> — convert integer epoch states to a human-readable factor</li>
 <li>⚙️ <strong><code><a href="reference/acttrust_params.html">acttrust_params()</a></code></strong> — device parameter preset for the ActTrust actigraph</li>
+<li>🌀 <strong><code><a href="reference/lids_transform.html">lids_transform()</a></code></strong> — LIDS non-linear inactivity transform + Gaussian/moving-average smoothing</li>
+<li>📐 <strong><code><a href="reference/fit_lids.html">fit_lids()</a></code></strong> — sloped-cosine fit scanning candidate ultradian periods (Munich Rhythmicity Index)</li>
+<li>🌙 <strong><code><a href="reference/detect_lids_bouts.html">detect_lids_bouts()</a></code></strong> — standalone Roenneberg relative-immobility sleep-bout detector for raw activity</li>
+<li>🔄 <strong><code><a href="reference/compute_lids.html">compute_lids()</a></code></strong> — full LIDS pipeline: bout extraction, transform, fit, and quality filtering</li>
+<li>🗂️ <strong><code><a href="reference/study_lids_metrics.html">study_lids_metrics()</a></code></strong> — participant-level ultradian cycle-length/amplitude/offset summary across a whole study</li>
 </ul>
 <hr>
 </div>
@@ -337,9 +343,27 @@
 <p>Derives sleep/wake from the epoch-level <code>state</code> column zeitR’s own pipelines already produce, rather than a pyActigraphy-style scoring algorithm – see <code><a href="reference/compute_sri.html">?compute_sri</a></code> for the off-wrist gap-interpolation rules and why this approach showed substantially better agreement with manual reference scoring in validation.</p>
 </div>
 <div class="section level3">
-<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
+<h3 id="lids--ultradian-sleep-cycle-dynamics">LIDS – ultradian sleep-cycle dynamics<a class="anchor" aria-label="anchor" href="#lids--ultradian-sleep-cycle-dynamics"></a>
 </h3>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span>     <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline_native.html">run_pipeline_native</a></span><span class="op">(</span><span class="st">"recordings/P001.txt"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="va">lids_bouts</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_lids.html">compute_lids</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">lids_bouts</span><span class="op">[</span><span class="va">lids_bouts</span><span class="op">$</span><span class="va">passes_quality_filter</span>,</span>
+<span>           <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bout_id"</span>, <span class="st">"period_min"</span>, <span class="st">"amplitude"</span>, <span class="st">"offset"</span>, <span class="st">"pearson_r"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   bout_id period_min amplitude offset pearson_r</span></span>
+<span><span class="co">#&gt;         1         92      12.4   88.1      0.67</span></span>
+<span><span class="co">#&gt;         2         88      10.9   85.3      0.71</span></span>
+<span></span>
+<span><span class="co"># Study-level: median cycle length, amplitude, offset, slope per participant</span></span>
+<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_pipeline_native_batch.html">run_pipeline_native_batch</a></span><span class="op">(</span><span class="st">"recordings/"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/study_lids_metrics.html">study_lids_metrics</a></span><span class="op">(</span><span class="va">results</span><span class="op">)</span></span></code></pre></div>
+<p>Ports Winnebeck et al. (2018) and its infant extension in Hammad et al. (2026, <em>SLEEP</em>): the <code>100/(1+x)</code> LIDS transform, Gaussian or moving-average smoothing, and a sloped-cosine period scan selected by the Munich Rhythmicity Index. Bouts come either from an existing zeitR pipeline’s <code>state</code> column or from the standalone <code><a href="reference/detect_lids_bouts.html">detect_lids_bouts()</a></code> relative-immobility detector for raw activity – see <code><a href="articles/lids.html">vignette("lids")</a></code> and <code><a href="reference/compute_lids.html">?compute_lids</a></code> before using this in a real analysis; <strong>not yet validated</strong> against <code>pyActigraphy</code>’s <code>LIDS</code> class or an external reference dataset.</p>
+</div>
+<div class="section level3">
+<h3 id="device-configuration">Device configuration<a class="anchor" aria-label="anchor" href="#device-configuration"></a>
+</h3>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/acttrust_params.html">acttrust_params</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">p</span><span class="op">$</span><span class="va">sleep</span><span class="op">$</span><span class="va">sleep_quantile</span> <span class="op">&lt;-</span> <span class="fl">1</span><span class="op">/</span><span class="fl">3</span>   <span class="co"># original Crespo (2012) threshold</span></span>
 <span></span>
@@ -348,7 +372,7 @@
 <div class="section level3">
 <h3 id="physical-activity-intensity">Physical activity intensity<a class="anchor" aria-label="anchor" href="#physical-activity-intensity"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">pa_intensity</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/classify_pa_counts.html">classify_pa_counts</a></span><span class="op">(</span></span>
 <span>  <span class="va">result</span><span class="op">$</span><span class="va">data</span><span class="op">$</span><span class="va">activity</span>,</span>
 <span>  device    <span class="op">=</span> <span class="st">"ACTT"</span>,</span>
@@ -361,7 +385,7 @@
 <div class="section level3">
 <h3 id="raw-accelerometry---pimtatzcm">Raw accelerometry -&gt; PIM/TAT/ZCM<a class="anchor" aria-label="anchor" href="#raw-accelerometry---pimtatzcm"></a>
 </h3>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># x, y, z: raw triaxial acceleration samples; sampling_rate in Hz</span></span>
 <span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compute_activity_counts.html">compute_activity_counts</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, <span class="va">z</span>, sampling_rate <span class="op">=</span> <span class="fl">25</span>, epoch_sec <span class="op">=</span> <span class="fl">60</span><span class="op">)</span></span>
 <span><span class="va">counts</span><span class="op">$</span><span class="va">mets</span>         <span class="op">&lt;-</span> <span class="fu"><a href="reference/estimate_ee.html">estimate_ee</a></span><span class="op">(</span><span class="va">counts</span><span class="op">$</span><span class="va">PIM</span>, device <span class="op">=</span> <span class="st">"ACTT"</span>, placement <span class="op">=</span> <span class="st">"wrist"</span><span class="op">)</span></span>
@@ -371,7 +395,7 @@
 <div class="section level3">
 <h3 id="axivity-ax3ax6-cwa-files">Axivity AX3/AX6 (<code>.cwa</code>) files<a class="anchor" aria-label="anchor" href="#axivity-ax3ax6-cwa-files"></a>
 </h3>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Bridges axR::axivity_read_cwa()'s raw per-sample output into the same</span></span>
 <span><span class="co"># epoch-level shape read_acttrust() produces</span></span>
 <span><span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/read_axivity.html">read_axivity</a></span><span class="op">(</span><span class="st">"recordings/P001.cwa"</span>, tz <span class="op">=</span> <span class="st">"America/Sao_Paulo"</span><span class="op">)</span></span>
@@ -523,6 +547,53 @@
 </tbody>
 </table>
 <p>Published coefficients and count-based cut-points for ActTrust/GT3X+, hip/wrist, are in <code><a href="reference/pa_equations.html">pa_equations()</a></code> – see <code><a href="reference/pa_equations.html">?pa_equations</a></code> for important generalisability caveats before applying these outside the source study’s population (single lab-treadmill validation, N=56, healthy adults 18-35).</p>
+</div>
+<div class="section level3">
+<h3 id="lids-ultradian-rhythm-compute_lids">LIDS ultradian rhythm (<code>compute_lids()</code>)<a class="anchor" aria-label="anchor" href="#lids-ultradian-rhythm-compute_lids"></a>
+</h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>Variable</th>
+<th>Definition</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>period_min</code></td>
+<td>Estimated ultradian cycle length (minutes) at peak Munich Rhythmicity Index</td>
+</tr>
+<tr>
+<td><code>amplitude</code></td>
+<td>Oscillation amplitude (LIDS units)</td>
+</tr>
+<tr>
+<td><code>offset</code></td>
+<td>Inactivity level at bout start</td>
+</tr>
+<tr>
+<td><code>slope_per_60min</code></td>
+<td>Linear trend in inactivity across the bout (LIDS units/hour)</td>
+</tr>
+<tr>
+<td><code>phase_rad</code></td>
+<td>Phase at bout start (radians; <code>0</code> = LIDS peak at onset)</td>
+</tr>
+<tr>
+<td>
+<code>pearson_r</code>, <code>p_value</code>, <code>mri</code>
+</td>
+<td>Cosine-fit quality and the Munich Rhythmicity Index</td>
+</tr>
+<tr>
+<td><code>passes_quality_filter</code></td>
+<td>
+<code>TRUE</code> if the bout clears the Winnebeck/Hammad quality bar (<code>pearson_r &gt;= 0.4</code>, <code>p_value &lt;= 0.05</code>, <code>1 &lt; offset &lt; 99</code> by default)</td>
+</tr>
+</tbody>
+</table>
 <hr>
 </div>
 </div>
@@ -585,6 +656,12 @@
 <td>Roenneberg et al.</td>
 <td>ActTrust ✓</td>
 </tr>
+<tr>
+<td>Ultradian sleep cycles</td>
+<td>LIDS sloped-cosine fit (MRI period scan)</td>
+<td>Winnebeck et al. (2018); Hammad et al. (2026)</td>
+<td>Not yet validated</td>
+</tr>
 </tbody>
 </table>
 <p>The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim’s Python reference notebook. R is now the reference implementation for Fix 26c (fragment recovery), which correctly uses Cole-Kripke epoch scoring and proper temperature/light column names that were mismatched in the Python original.</p>
@@ -614,6 +691,7 @@
 │   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── pa_intensity.R        # pa_equations(), estimate_ee(), classify_pa_intensity/counts()
 │   ├── raw_accelerometry.R   # compute_activity_counts()
+│   ├── lids.R                # lids_transform(), fit_lids(), detect_lids_bouts(), compute_lids(), study_lids_metrics()
 │   ├── plot_actogram.R       # plot_actogram*(), actogram_colours()
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
@@ -634,7 +712,8 @@
 │   ├── vallim-pipeline.Rmd   # Vallim pipeline walkthrough
 │   ├── holidays.Rmd          # classifying weekends/public holidays
 │   ├── physical-activity.Rmd # PA intensity from ActTrust/GT3X+ counts
-│   └── raw-accelerometry.Rmd # PIM/TAT/ZCM from raw triaxial acceleration
+│   ├── raw-accelerometry.Rmd # PIM/TAT/ZCM from raw triaxial acceleration
+│   └── lids.Rmd              # ultradian sleep-cycle dynamics (LIDS)
 ├── tests/testthat/
 ├── inst/extdata/             # validation fixtures
 ├── DESCRIPTION
@@ -775,14 +854,14 @@
 <h2 id="page_facing_up-citation">📄 Citation<a class="anchor" aria-label="anchor" href="#page_facing_up-citation"></a>
 </h2>
 <p>If you use zeitR in your research, please cite it:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bibtex"><code class="sourceCode bibtex"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co">@software{franca_zeitr_2026,</span></span>
-<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="co">  author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},</span></span>
-<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a><span class="co">  title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},</span></span>
-<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="co">  year    = {2026},</span></span>
-<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co">  version = {0.1.6},</span></span>
-<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a><span class="co">  doi     = {10.5281/zenodo.21315925},</span></span>
-<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a><span class="co">  url     = {https://github.com/circadia-bio/zeitR}</span></span>
-<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bibtex"><code class="sourceCode bibtex"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co">@software{franca_zeitr_2026,</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="co">  author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},</span></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="co">  title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},</span></span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a><span class="co">  year    = {2026},</span></span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a><span class="co">  version = {0.1.6},</span></span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a><span class="co">  doi     = {10.5281/zenodo.21315925},</span></span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a><span class="co">  url     = {https://github.com/circadia-bio/zeitR}</span></span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
 <hr>
 </div>
 <div class="section level2">

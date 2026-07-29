@@ -88,6 +88,23 @@ metrics.
 - [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
   : Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa
 
+## Ultradian rhythms (LIDS)
+
+Locomotor Inactivity During Sleep – ultradian sleep-cycle dynamics from
+actigraphy.
+
+- [`lids_transform()`](https://zeitr.circadia-lab.uk/reference/lids_transform.md)
+  : Apply the LIDS (Locomotor Inactivity During Sleep) transform
+- [`fit_lids()`](https://zeitr.circadia-lab.uk/reference/fit_lids.md) :
+  Fit a sloped cosine to a LIDS profile, scanning candidate periods
+- [`detect_lids_bouts()`](https://zeitr.circadia-lab.uk/reference/detect_lids_bouts.md)
+  : Detect nighttime sleep bouts via the Roenneberg relative-immobility
+  method
+- [`compute_lids()`](https://zeitr.circadia-lab.uk/reference/compute_lids.md)
+  : Compute LIDS ultradian-rhythm parameters for every sleep bout
+- [`study_lids_metrics()`](https://zeitr.circadia-lab.uk/reference/study_lids_metrics.md)
+  : Batch LIDS ultradian-rhythm summary across a study
+
 ## Raw signal processing
 
 Convert raw triaxial acceleration into epoch-level activity counts.

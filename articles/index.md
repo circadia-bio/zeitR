@@ -26,3 +26,5 @@
   counts](https://zeitr.circadia-lab.uk/articles/physical-activity.md):
 - [From raw accelerometry to PIM/TAT/ZCM activity
   counts](https://zeitr.circadia-lab.uk/articles/raw-accelerometry.md):
+- [LIDS: ultradian sleep-cycle dynamics from
+  actigraphy](https://zeitr.circadia-lab.uk/articles/lids.md):
