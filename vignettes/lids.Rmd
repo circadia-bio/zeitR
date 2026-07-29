@@ -1,0 +1,233 @@
+---
+title: "LIDS: ultradian sleep-cycle dynamics from actigraphy"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{LIDS: ultradian sleep-cycle dynamics from actigraphy}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse   = TRUE,
+  comment    = "#>",
+  fig.width  = 9,
+  fig.height = 4.5,
+  dpi        = 150,
+  out.width  = "100%"
+)
+library(zeitR)
+
+has_ggplot2 <- requireNamespace("ggplot2", quietly = TRUE)
+if (has_ggplot2) library(ggplot2)
+```
+
+Sleep isn't uniform from lights-out to wake-up: limb movement during sleep
+rises and falls in ~60-110 minute cycles that track the alternation between
+REM and non-REM sleep. Locomotor Inactivity During Sleep (LIDS) is a way to
+recover that ultradian structure from ordinary wrist/ankle actigraphy,
+without polysomnography -- turning raw movement counts into an "inactivity"
+signal, then fitting a cosine to it to estimate cycle length, amplitude, and
+how inactivity trends over the course of the night.
+
+zeitR's LIDS module ports two papers:
+
+- **Winnebeck, Fischer, Leise & Roenneberg (2018)**, *Current Biology* --
+  the original method (adults/adolescents): the `100/(1+x)` transform,
+  moving-average smoothing, a plain cosine fit, and the Munich Rhythmicity
+  Index (MRI) for period selection.
+- **Hammad, Schoch, Engelmann, Spock, Kurth & Winnebeck (2026)**, *SLEEP* --
+  an infant-tuned extension: Gaussian smoothing, a *sloped* cosine (adding a
+  linear trend term to capture the well-documented overnight decline in
+  inactivity), and a period scan tuned for shorter (~60 min) cycles.
+
+**This module has not yet been validated against `pyActigraphy`'s `LIDS`
+class or an external reference dataset** -- see `?compute_lids` and
+`?fit_lids` for exactly what's ported from which paper, and treat results
+as exploratory until a parity check is run.
+
+---
+
+## The pipeline in one call: `compute_lids()`
+
+For a `zeitr_result` from [`run_pipeline()`](../reference/run_pipeline.html)
+or [`run_pipeline_native()`](../reference/run_pipeline_native.html),
+`compute_lids()` does everything: extracts sleep bouts, transforms and fits
+each one, and returns a tibble with one row per bout.
+
+```{r pipeline-overview}
+FILE <- system.file("extdata", "input1.txt", package = "zeitR")
+TZ   <- "America/Sao_Paulo"
+
+result <- run_pipeline_native(FILE, tz = TZ, quiet = TRUE)
+
+lids_bouts <- compute_lids(result, duration_range = c(3, 12))
+lids_bouts
+```
+
+Each row is one detected sleep bout (`state == 1` runs from the pipeline
+output, by default -- see [Where bouts come from] below), with:
+
+| Column | Meaning |
+|---|---|
+| `period_min` | Estimated ultradian cycle length (minutes) |
+| `amplitude` | Oscillation amplitude (LIDS units) |
+| `offset` | Inactivity level at bout start |
+| `slope_per_60min` | Linear trend in inactivity across the bout |
+| `phase_rad` | Phase at bout start (`0` = LIDS peak at onset) |
+| `pearson_r`, `p_value`, `mri` | Fit quality and the Munich Rhythmicity Index |
+| `passes_quality_filter` | `TRUE` if the bout clears the Winnebeck/Hammad quality bar |
+
+```{r quality-summary}
+mean(lids_bouts$passes_quality_filter)
+summary(lids_bouts$period_min[lids_bouts$passes_quality_filter])
+```
+
+---
+
+## Under the hood: a clean synthetic example
+
+Because a real recording's LIDS fit is noisy, it helps to see the method on
+a signal built to have a known answer first: a 60-minute sloped cosine with
+a little noise, the kind of ultradian cycle Hammad et al. (2026) report in
+infants.
+
+```{r synthetic-signal}
+set.seed(1)
+t    <- seq(0, 300, by = 1)                                 # 5 h, 1-min epochs
+true_period <- 60
+lids_clean  <- 85 + 15 * cos(2 * pi * t / true_period) -
+  0.05 * t + rnorm(length(t), sd = 1.5)
+
+if (has_ggplot2) {
+  ggplot(data.frame(t = t, lids = lids_clean), aes(t, lids)) +
+    geom_line(colour = "#4A3F6B") +
+    labs(x = "Minutes since bout onset", y = "LIDS",
+         title = "Synthetic LIDS profile (period = 60 min)") +
+    theme_minimal(base_size = 12)
+}
+```
+
+`fit_lids()` recovers the period, amplitude, and slope directly from this
+profile:
+
+```{r fit-synthetic}
+fit <- fit_lids(lids_clean, period_range = c(30, 120), period_step = 1)
+fit[c("period_min", "amplitude", "offset", "slope_per_60min", "pearson_r", "mri")]
+```
+
+### From activity to LIDS: `lids_transform()`
+
+In practice you start from raw activity counts, not a pre-built LIDS
+profile. `lids_transform()` applies the `100/(1+x)` non-linear transform and
+smooths the result -- higher activity means lower inactivity, and smoothing
+suppresses epoch-to-epoch noise so the underlying oscillation is fittable.
+
+```{r transform-demo}
+set.seed(2)
+activity <- pmax(0, 30 + 20 * sin(2 * pi * t / true_period) + rnorm(length(t), sd = 8))
+
+lids_gaussian <- lids_transform(activity, method = "gaussian")   # Hammad et al. 2026
+lids_mva      <- lids_transform(activity, method = "mva")        # Winnebeck et al. 2018
+
+if (has_ggplot2) {
+  df <- data.frame(
+    t = rep(t, 2),
+    lids = c(lids_gaussian, lids_mva),
+    method = rep(c("gaussian", "mva"), each = length(t))
+  )
+  ggplot(df, aes(t, lids, colour = method)) +
+    geom_line() +
+    scale_colour_manual(values = c(gaussian = "#C25E2A", mva = "#4A3F6B")) +
+    labs(x = "Minutes since bout onset", y = "LIDS", colour = "Smoothing",
+         title = "Gaussian (Hammad 2026) vs. moving-average (Winnebeck 2018) smoothing") +
+    theme_minimal(base_size = 12)
+}
+```
+
+Both methods track the same underlying oscillation; Gaussian smoothing
+(the default) is slightly less aggressive at suppressing sharp transients,
+which matters more for the shorter cycles and higher amplitudes seen in
+infants than for adults.
+
+---
+
+## Where bouts come from
+
+`compute_lids()`'s `bout_source` argument controls how sleep bouts are
+identified:
+
+- **`"state"`** (used automatically above, since `result$data` already has
+  a `state` column) -- contiguous `state == 1` runs from an existing zeitR
+  pipeline result. This is almost always what you want if you've already
+  run [`run_pipeline()`](../reference/run_pipeline.html) or
+  [`run_pipeline_native()`](../reference/run_pipeline_native.html).
+- **`"roenneberg"`** -- ignores any `state` column and runs the standalone
+  [`detect_lids_bouts()`](../reference/detect_lids_bouts.html) relative-
+  immobility detector directly on raw activity, reproducing
+  Winnebeck/Hammad's own bout-detection method rather than zeitR's
+  Crespo/Vallim pipelines. Use this for activity data you haven't run
+  through either pipeline.
+- **`"auto"`** (the default) picks `"state"` if available, `"roenneberg"`
+  otherwise.
+
+```{r bout-source-raw}
+bouts <- detect_lids_bouts(
+  result$data$datetime, result$data$activity,
+  duration_range = c(3, 12)
+)
+nrow(bouts)
+head(bouts)
+```
+
+---
+
+## Quality filtering
+
+Not every bout yields a clean ultradian fit -- a device removed mid-sleep,
+an unusually short or fragmented bout, or genuine absence of rhythmicity
+can all produce a poor fit. `compute_lids()` flags (rather than silently
+drops) bouts failing the Winnebeck/Hammad quality bar:
+
+```{r quality-filter}
+table(lids_bouts$passes_quality_filter)
+
+lids_bouts[!lids_bouts$passes_quality_filter,
+           c("bout_id", "duration_h", "pearson_r", "p_value", "offset")]
+```
+
+Adjust the thresholds directly if the defaults (`min_r = 0.4`, `max_p =
+0.05`, `offset_bounds = c(1, 99)`) don't suit your data:
+
+```{r quality-adjust, eval = FALSE}
+compute_lids(result, min_r = 0.3, max_p = 0.1)
+```
+
+---
+
+## Study-level summaries
+
+For a whole cohort, `study_lids_metrics()` reduces each participant's
+quality-filtered bouts to one row -- median and IQR period, amplitude,
+offset, and slope -- ready for `syncR::sync()` the same way
+`study_sleep_metrics()` and `study_summary()` already are.
+
+```{r study-level, eval = FALSE}
+results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo")
+study_lids_metrics(results, min_bouts = 3)
+```
+
+---
+
+## Next steps
+
+- `?compute_lids` -- full argument reference, `bout_source` details, and
+  the quality-filter rationale
+- `?fit_lids`, `?lids_transform` -- the underlying cosine fit and
+  smoothing, if you need to build a custom pipeline around them
+- `?detect_lids_bouts` -- the standalone bout detector, including what
+  differs from the Winnebeck/Hammad notebook it was ported from
+- Winnebeck et al. (2018), *Current Biology* 28(1), 49-59.e5,
+  <https://doi.org/10.1016/j.cub.2017.11.063>
+- Hammad et al. (2026), *SLEEP* -- infant ultradian cycle lengthening,
+  <https://zenodo.org/records/18199381>
