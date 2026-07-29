@@ -201,7 +201,7 @@ fit_lids <- function(lids,
   best <- NULL
   for (period in periods) {
     X <- cbind(cos(2 * pi * t / period), sin(2 * pi * t / period), 1, t)
-    coefs <- tryCatch(qr.solve(X, lids), error = function(e) NULL)
+    coefs <- tryCatch(unname(qr.solve(X, lids)), error = function(e) NULL)
     if (is.null(coefs)) next
 
     alpha <- coefs[1]; beta <- coefs[2]; b <- coefs[3]; s <- coefs[4]
@@ -228,10 +228,10 @@ fit_lids <- function(lids,
 
   if (is.null(best)) zeitr_abort("Cosine fit failed for all candidate periods.")
 
-  best$p_value <- tryCatch(
+  best$p_value <- suppressWarnings(tryCatch(
     stats::cor.test(lids, best$fitted)$p.value,
     error = function(e) NA_real_
-  )
+  ))
   best$fitted <- NULL
   best
 }

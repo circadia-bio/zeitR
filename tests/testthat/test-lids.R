@@ -167,7 +167,8 @@ test_that("compute_lids() bout_source = 'auto' picks 'state' when present, 'roen
   expect_equal(nrow(r1), 0L)
 
   # no state column -> falls through to roenneberg detection
-  r2 <- compute_lids(d_raw, duration_range = c(3, 6), main_window = c("17:00", "09:00"))
+  r2 <- compute_lids(d_raw, duration_range = c(3, 6),
+                      bout_args = list(main_window = c("17:00", "09:00")))
   expect_true(is.data.frame(r2))
 })
 
@@ -223,7 +224,12 @@ test_that("study_lids_metrics() summarises quality-filtered bouts per participan
 
 test_that("study_lids_metrics() skips non-zeitr_result entries and errors on empty input", {
   expect_error(study_lids_metrics(list()), "non-empty list")
-  expect_warning(out <- study_lids_metrics(list(not_a_result = data.frame(x = 1))),
-                 "not a")
+  expect_warning(
+    expect_warning(
+      out <- study_lids_metrics(list(not_a_result = data.frame(x = 1))),
+      "No valid results"
+    ),
+    "not a"
+  )
   expect_equal(nrow(out), 0L)
 })
