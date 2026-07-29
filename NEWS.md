@@ -1,3 +1,37 @@
+## zeitR (development version)
+
+### ✨ New features
+
+* New LIDS (Locomotor Inactivity During Sleep) module -- `lids_transform()`,
+  `fit_lids()`, `detect_lids_bouts()`, `compute_lids()`, and
+  `study_lids_metrics()` -- porting the ultradian-rhythm methodology of
+  Winnebeck et al. (2018, *Current Biology*) and its infant extension in
+  Hammad et al. (2026, *SLEEP*, <https://zenodo.org/records/18199381>).
+  `lids_transform()` applies the `100/(1+x)` non-linear transform plus
+  Gaussian (Hammad 2026, default) or moving-average (Winnebeck 2018 /
+  `pyActigraphy`) smoothing; `fit_lids()` scans candidate periods
+  (30-180 min by default) with an OLS sloped-cosine fit, selecting the
+  period with the highest Munich Rhythmicity Index. `compute_lids()` is the
+  main entry point: it extracts sleep bouts either from an existing zeitR
+  pipeline's `state` column (`bout_source = "state"`) or via the new
+  standalone `detect_lids_bouts()` Roenneberg relative-immobility detector
+  (`bout_source = "roenneberg"`, for raw activity that hasn't been run
+  through `run_pipeline()`/`run_pipeline_native()`), fits each bout, and
+  applies the Winnebeck/Hammad quality filter (`pearson_r`, `p_value`,
+  offset bounds). `study_lids_metrics()` is the batch/`syncR::sync()`-ready
+  counterpart, summarising each participant's quality-filtered bouts
+  (median +/- IQR period, amplitude, offset, slope) into one row, alongside
+  `study_sleep_metrics()` and `study_summary()`.
+
+  Ported from a prototype R notebook draft by Mario Leocadio-Miguel (itself
+  adapted from an older MATLAB script); one bug in that draft is fixed here
+  -- its bout-fusing step was truncated mid-statement
+  (`fused.a...`) and would not have run as written; see
+  `?detect_lids_bouts` for the full reimplementation
+  (`.fuse_bouts()`). Not yet validated against `pyActigraphy`'s `LIDS`
+  class or an external reference dataset -- treat results accordingly
+  until a parity check is run.
+
 ## zeitR 0.1.6  (2026-07)
 
 ### ✨ New features

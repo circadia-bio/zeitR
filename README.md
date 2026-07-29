@@ -72,6 +72,11 @@ Beyond the two pipelines, zeitR also estimates energy expenditure and classifies
 - 📏 **`circ_sd_h()`** — circular SD for clock-time variables
 - 🏷️ **`label_states()`** — convert integer epoch states to a human-readable factor
 - ⚙️ **`acttrust_params()`** — device parameter preset for the ActTrust actigraph
+- 🌀 **`lids_transform()`** — LIDS non-linear inactivity transform + Gaussian/moving-average smoothing
+- 📐 **`fit_lids()`** — sloped-cosine fit scanning candidate ultradian periods (Munich Rhythmicity Index)
+- 🌙 **`detect_lids_bouts()`** — standalone Roenneberg relative-immobility sleep-bout detector for raw activity
+- 🔄 **`compute_lids()`** — full LIDS pipeline: bout extraction, transform, fit, and quality filtering
+- 🗂️ **`study_lids_metrics()`** — participant-level ultradian cycle-length/amplitude/offset summary across a whole study
 
 ---
 
@@ -161,6 +166,32 @@ already produce, rather than a pyActigraphy-style scoring algorithm -- see
 `?compute_sri` for the off-wrist gap-interpolation rules and why this
 approach showed substantially better agreement with manual reference
 scoring in validation.
+
+### LIDS -- ultradian sleep-cycle dynamics
+
+```r
+result     <- run_pipeline_native("recordings/P001.txt", tz = "America/Sao_Paulo")
+lids_bouts <- compute_lids(result)
+
+lids_bouts[lids_bouts$passes_quality_filter,
+           c("bout_id", "period_min", "amplitude", "offset", "pearson_r")]
+#>   bout_id period_min amplitude offset pearson_r
+#>         1         92      12.4   88.1      0.67
+#>         2         88      10.9   85.3      0.71
+
+# Study-level: median cycle length, amplitude, offset, slope per participant
+results <- run_pipeline_native_batch("recordings/", tz = "America/Sao_Paulo")
+study_lids_metrics(results)
+```
+
+Ports Winnebeck et al. (2018) and its infant extension in Hammad et al.
+(2026, *SLEEP*): the `100/(1+x)` LIDS transform, Gaussian or
+moving-average smoothing, and a sloped-cosine period scan selected by the
+Munich Rhythmicity Index. Bouts come either from an existing zeitR
+pipeline's `state` column or from the standalone `detect_lids_bouts()`
+relative-immobility detector for raw activity -- see `vignette("lids")` and
+`?compute_lids` before using this in a real analysis; **not yet validated**
+against `pyActigraphy`'s `LIDS` class or an external reference dataset.
 
 ### Device configuration
 
@@ -264,6 +295,18 @@ caveats.
 
 Published coefficients and count-based cut-points for ActTrust/GT3X+, hip/wrist, are in `pa_equations()` -- see `?pa_equations` for important generalisability caveats before applying these outside the source study's population (single lab-treadmill validation, N=56, healthy adults 18-35).
 
+### LIDS ultradian rhythm (`compute_lids()`)
+
+| Variable | Definition |
+|---|---|
+| `period_min` | Estimated ultradian cycle length (minutes) at peak Munich Rhythmicity Index |
+| `amplitude` | Oscillation amplitude (LIDS units) |
+| `offset` | Inactivity level at bout start |
+| `slope_per_60min` | Linear trend in inactivity across the bout (LIDS units/hour) |
+| `phase_rad` | Phase at bout start (radians; `0` = LIDS peak at onset) |
+| `pearson_r`, `p_value`, `mri` | Cosine-fit quality and the Munich Rhythmicity Index |
+| `passes_quality_filter` | `TRUE` if the bout clears the Winnebeck/Hammad quality bar (`pearson_r >= 0.4`, `p_value <= 0.05`, `1 < offset < 99` by default) |
+
 ---
 
 ## 🔬 Algorithms
@@ -277,6 +320,7 @@ Published coefficients and count-based cut-points for ActTrust/GT3X+, hip/wrist,
 | Episode classification | Vallim JRSV rule set (Fixes 25, 26a/b/c, 27, 29) | Vallim (2024) | ActTrust ✓ |
 | Sleep summary | Day-type metric split (overall / workday / free day) | Vallim (2024) | ActTrust ✓ |
 | Chronotype | CPD, MSW, MSF, MSFsc, SJL | Roenneberg et al. | ActTrust ✓ |
+| Ultradian sleep cycles | LIDS sloped-cosine fit (MRI period scan) | Winnebeck et al. (2018); Hammad et al. (2026) | Not yet validated |
 
 The CSPD pipeline has been validated epoch-for-epoch (0 / 76,196 mismatches) against the Condor circadiaBase Python reference. The Vallim pipeline has been validated at the classification level: all 52 main nights on the ActTrust validation recording classified identically to Julia Vallim's Python reference notebook. R is now the reference implementation for Fix 26c (fragment recovery), which correctly uses Cole-Kripke epoch scoring and proper temperature/light column names that were mismatched in the Python original.
 
@@ -306,6 +350,7 @@ zeitR/
 │   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── pa_intensity.R        # pa_equations(), estimate_ee(), classify_pa_intensity/counts()
 │   ├── raw_accelerometry.R   # compute_activity_counts()
+│   ├── lids.R                # lids_transform(), fit_lids(), detect_lids_bouts(), compute_lids(), study_lids_metrics()
 │   ├── plot_actogram.R       # plot_actogram*(), actogram_colours()
 │   ├── circ_utils.R          # circ_mean_h(), circ_sd_h()
 │   ├── params.R              # acttrust_params()
@@ -326,7 +371,8 @@ zeitR/
 │   ├── vallim-pipeline.Rmd   # Vallim pipeline walkthrough
 │   ├── holidays.Rmd          # classifying weekends/public holidays
 │   ├── physical-activity.Rmd # PA intensity from ActTrust/GT3X+ counts
-│   └── raw-accelerometry.Rmd # PIM/TAT/ZCM from raw triaxial acceleration
+│   ├── raw-accelerometry.Rmd # PIM/TAT/ZCM from raw triaxial acceleration
+│   └── lids.Rmd              # ultradian sleep-cycle dynamics (LIDS)
 ├── tests/testthat/
 ├── inst/extdata/             # validation fixtures
 ├── DESCRIPTION
