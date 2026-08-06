@@ -34,19 +34,24 @@ test_that("compute_npcra() recovers exact IS/L5/M10/RA for a perfectly repeating
   expect_gte(result$IV, 0)
 })
 
-test_that("compute_npcra() L5/M10 onset times land within the expected blocks", {
+test_that("compute_npcra() L5/M10 onset times are exact for a perfectly repeating profile", {
   d      <- make_npcra_fixture()
   result <- compute_npcra(d)
 
-  # L5 (5h window) must start somewhere in the 10h rest block (00:00-09:00,
-  # since a 5h window starting at 09:00 would run past 10:00)
-  l5_onset_h <- as.integer(substr(result$L5_onset, 1, 2))
-  expect_true(l5_onset_h >= 0L && l5_onset_h <= 5L)
+  # Onset is the END of the winning window (matches the production Python's
+  # right-labelled pandas rolling().mean() convention -- see .lmx_window()),
+  # NOT the start. Ties across the 6 identical trimmed days are broken by
+  # which.min()/which.max() picking the FIRST occurrence, so the earliest
+  # fully-qualifying window on day 2 (the first day after the default D+1
+  # trim) wins deterministically.
+  #
+  # L5: earliest 5h window fully inside the 00:00-10:00 rest block is
+  # [00:00, 05:00) -> onset (window end) = 05:00.
+  expect_equal(result$L5_onset, "05:00")
 
-  # M10 (10h window) must start somewhere in the 14h active block
-  # (10:00-13:00, since a 10h window must fit before 24:00)
-  m10_onset_h <- as.integer(substr(result$M10_onset, 1, 2))
-  expect_true(m10_onset_h >= 10L && m10_onset_h <= 14L)
+  # M10: earliest 10h window fully inside the 10:00-24:00 active block is
+  # [10:00, 20:00) -> onset (window end) = 20:00.
+  expect_equal(result$M10_onset, "20:00")
 })
 
 test_that("compute_npcra() excludes off-wrist epochs when a state column is present", {
