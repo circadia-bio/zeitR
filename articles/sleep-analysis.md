@@ -279,13 +279,13 @@ npcra |>
 
 | Variable | Value | Description |
 |:---|---:|:---|
-| IS | 0.2149 | Interdaily stability (0–1; higher = more consistent rhythm) |
-| IV | 0.9995 | Intradaily variability (≥0; higher = more fragmented rhythm) |
-| RA | 0.9414 | Relative amplitude (0–1; contrast between M10 and L5) |
-| L5 | 116.4156 | Mean activity during the least-active 5 h window |
-| L5_onset | 01:00 | Clock time of the L5 window onset (hh:mm) |
-| M10 | 3855.6968 | Mean activity during the most-active 10 h window |
-| M10_onset | 08:00 | Clock time of the M10 window onset (hh:mm) |
+| IS | 0.224 | Interdaily stability (0–1; higher = more consistent rhythm) |
+| IV | 0.9987 | Intradaily variability (≥0; higher = more fragmented rhythm) |
+| RA | 1 | Relative amplitude (0–1; contrast between M10 and L5) |
+| L5 | 0 | Mean activity during the least-active 5 h window |
+| L5_onset | 18:10 | Clock time of the L5 window onset (hh:mm) |
+| M10 | 10372.8833 | Mean activity during the most-active 10 h window |
+| M10_onset | 17:50 | Clock time of the M10 window onset (hh:mm) |
 | n_days | 52.38 | Recording duration in days |
 | n_epochs | 75426 | Total number of epochs |
 

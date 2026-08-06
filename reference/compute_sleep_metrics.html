@@ -104,7 +104,7 @@ pipeline_functions_fix27.py."><meta property="og:image" content="https://zeitr.c
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -149,7 +149,7 @@ pipeline_functions_fix27.py."><meta property="og:image" content="https://zeitr.c
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Compute sleep metrics split by day type</h1>
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.7/R/sleep_metrics.R" class="external-link"><code>R/sleep_metrics.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/R/sleep_metrics.R" class="external-link"><code>R/sleep_metrics.R</code></a></small>
       <div class="d-none name"><code>compute_sleep_metrics.Rd</code></div>
     </div>
 
@@ -238,7 +238,7 @@ workday, <code>fd</code> = free day):</p><dl><dt><code>n_overall</code>, <code>n
 
 <dt><code>sleep_onset_h</code>, <code>sleep_offset_h</code></dt>
 <dd><p>Circular mean onset and
-arithmetic mean offset in decimal hours.</p></dd>
+offset in decimal hours.</p></dd>
 
 <dt><code>fpr_tib_h</code></dt>
 <dd><p>Mean TBT in hours.</p></dd>
@@ -261,9 +261,11 @@ arithmetic mean offset in decimal hours.</p></dd>
 <dt><code>tst_24h_h</code></dt>
 <dd><p>Same as <code>tst_h</code> (24-h TST for main sleep only).</p></dd>
 
-<dt><code>dp_midsleep_min</code>, <code>dp_tst_min</code></dt>
-<dd><p>SD of mid-sleep and TST in
-minutes.</p></dd>
+<dt><code>dp_midsleep_min</code></dt>
+<dd><p>Circular SD of mid-sleep, in minutes.</p></dd>
+
+<dt><code>dp_tst_min</code></dt>
+<dd><p>Plain SD of TST, in minutes.</p></dd>
 
 
 </dl><p>Workday and free-day metrics carry the suffix <code>_wd</code> and <code>_fd</code>.</p>
@@ -279,12 +281,15 @@ one of the days in <code>free_days</code> or matches an entry in <code>holidays<
 is determined via the ISO 8601 weekday number (<code>format(date, "%u")</code>) rather
 than <code><a href="https://rdrr.io/r/base/weekday.POSIXt.html" class="external-link">weekdays()</a></code>, which is locale-dependent. All remaining nights are
 <strong>workday</strong> nights.</p>
-<p><code>sleep_onset_h</code> uses a circular mean (values &gt;= 12 h are shifted by -24 h
-before averaging, then wrapped to [0, 24)). <code>sleep_offset_h</code> uses a plain
-arithmetic mean.</p>
+<p>Both <code>sleep_onset_h</code> and <code>sleep_offset_h</code> use a circular mean, treating
+clock hours as angles on a 24-hour circle so values near midnight from
+opposite sides average correctly (e.g. 23:30 and 00:30 average to
+00:00, not 12:00).</p>
 <p><code>fps_h</code> (free period sleep) equals <code>fpr_tib_h - (latencia_min + inertia_min) / 60</code> – TBT net of sleep onset latency and sleep inertia.</p>
-<p><code>dp_midsleep_min</code> and <code>dp_tst_min</code> are standard deviations of per-night
-mid-sleep (minutes) and TST (minutes), respectively.</p>
+<p><code>dp_midsleep_min</code> is the circular SD (R-bar mean-resultant-length
+formula) of per-night mid-sleep, in minutes – matching production
+Python's <code>_std_circular_h()</code> exactly, not a plain SD. <code>dp_tst_min</code> is a
+plain SD of per-night TST, in minutes.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

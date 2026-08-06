@@ -106,8 +106,9 @@ except `nights` additionally contains:
 
 - `bed_time`, `get_up_time`:
 
-  POSIXct – from JRSV bts/gts convention (last sleep epoch for get-up,
-  not first wake epoch).
+  POSIXct – `bed_time` is the first sleep epoch, `get_up_time` is the
+  first wake epoch (matches the Python reference's `bts`/`gts`
+  convention exactly).
 
 The `is_nap` column is retained for backwards compatibility
 (`is_nap == (sleep_type == "secondary")`).

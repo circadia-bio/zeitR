@@ -106,7 +106,7 @@ Silva Vallim and ported from her condor pipeline (Fixes 25, 26a/b/c, 27, 29)."><
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -151,7 +151,7 @@ Silva Vallim and ported from her condor pipeline (Fixes 25, 26a/b/c, 27, 29)."><
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Run the Vallim native actigraphy sleep analysis pipeline</h1>
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.7/R/pipeline.R" class="external-link"><code>R/pipeline.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/R/pipeline.R" class="external-link"><code>R/pipeline.R</code></a></small>
       <div class="d-none name"><code>run_pipeline_native.Rd</code></div>
     </div>
 
@@ -244,8 +244,9 @@ except <code>nights</code> additionally contains:</p><dl><dt><code>sleep_type</c
 <dd><p><code>character</code> – <code>"main"</code> or <code>"secondary"</code>.</p></dd>
 
 <dt><code>bed_time</code>, <code>get_up_time</code></dt>
-<dd><p>POSIXct – from JRSV bts/gts convention
-(last sleep epoch for get-up, not first wake epoch).</p></dd>
+<dd><p>POSIXct – <code>bed_time</code> is the first
+sleep epoch, <code>get_up_time</code> is the first wake epoch (matches the
+Python reference's <code>bts</code>/<code>gts</code> convention exactly).</p></dd>
 
 
 </dl><p>The <code>is_nap</code> column is retained for backwards compatibility

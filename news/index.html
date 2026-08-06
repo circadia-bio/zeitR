@@ -98,7 +98,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -143,9 +143,34 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.7/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.1.7.9000" id="zeitr-0179000-development">zeitR 0.1.7.9000 (development)<a class="anchor" aria-label="anchor" href="#zeitr-0179000-development"></a></h2>
+<div class="section level3">
+<h3 id="bug-bug-fixes-0-1-7-9000">🐛 Bug fixes<a class="anchor" aria-label="anchor" href="#bug-bug-fixes-0-1-7-9000"></a></h3>
+<ul><li><p><strong><code><a href="../reference/run_pipeline_native.html">run_pipeline_native()</a></code> / <code><a href="../reference/extract_sleep_episodes.html">extract_sleep_episodes()</a></code></strong>: <code>gts</code> (get-up time) was reading <code>stamps_ow[gt0]</code> – the <em>last sleep</em> epoch – one epoch early. Root cause of a systematic -1 epoch shift in <code>sleep_offset_h</code> and every downstream metric derived from it, first spotted as an exact mode/median of -1 minute across more than half of a 383-participant EPISONO comparison against the Python reference. Fixed to <code>stamps_ow[gt0 + 1L]</code> (the <em>first wake</em> epoch), matching Python’s <code>stamps[gt]</code> exactly. Verified against a real execution of Python’s <code>SleepPipeline</code> on real cohort data: all 7 nights’ <code>bts</code>/<code>gts</code> now match to the second.</p></li>
+<li><p><strong><code><a href="../reference/compute_npcra.html">compute_npcra()</a></code></strong>: <code>L5_onset</code>/<code>M10_onset</code> and the <code>L5</code>/<code>M10</code> values themselves were computed from the coarse 24-value hourly-mean profile (Gonçalves et al. 2014), which can only ever land on the hour and gave a measurably different value than production. Both turned out to be superseded in the actual Python reference by inline notebook code (<code>_lmx_ow()</code>/<code>_nonparam_metrics()</code>, Cell 16 of <code>vs_condor_py_pipeline_fix29_jrsv.ipynb</code>), not the shared <code>pipeline_functions.py</code>. Onset is now the wall-clock time-of-day (<code>ts - ts.normalize()</code>, wrapped at 24 h) of a rolling-mean search over a 10-min-resampled series, run globally over the whole recording – matching production exactly, including the value itself, not just the onset resolution.</p></li>
+<li>
+<p><strong><code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> / <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code></strong>: <code>.mean_circ_h()</code> used a “shift values &gt;= 12 h by -24, then plain-average” shortcut that is <em>not</em> mathematically equivalent to the true atan2-based circular mean production Python actually uses – confirmed to diverge by a real execution even with zero midnight wraparound (7.689325 h vs 7.665164 h for one participant’s <code>sleep_offset_h</code>). Now the real atan2 formula, which also corrects <code>sleep_onset_h</code>, <code>MSF</code>, <code>MSW</code>, <code>MSFsc</code>, <code>SJL</code>, <code>SJLa</code>, and <code>CPD</code> – everything that calls this shared helper. <code>sleep_offset_h</code> itself also switches from a plain mean to this circular mean (it always should have used one; Python’s <code>_mean_circular_h_offset()</code> is byte-identical to <code>_mean_circular_h()</code> despite the different name). <code>dp_midsleep_min</code> switches from a plain SD to a proper circular SD (R-bar mean-resultant-length formula, matching Python’s <code>_std_circular_h()</code>) – confirmed this was a <strong>regression</strong>, not a pre-existing gap: the plain-SD value matched neither Python’s current output nor the <em>old</em> pre-fix reference value, while the circular-SD value matched the old reference almost exactly. <code>sjla_h</code> in <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> is now clamped to <code>[-12, 12]</code> before <code><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs()</a></code>, matching Python exactly – silently wrong before whenever free-day and workday mid-sleep straddle midnight in opposite directions (no effect on any case checked so far).</p>
+<p>All four fixes verified against a real execution of the actual Python notebook cells (5, 7, and 16 – not the superseded shared <code>.py</code> file) on real EPISONO cohort data: every <code><a href="../reference/compute_sleep_metrics.html">compute_sleep_metrics()</a></code> and <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> output now matches to 6 decimal places.</p>
+</li>
+<li><p><strong><code><a href="../reference/classify_sleep_episodes.html">classify_sleep_episodes()</a></code></strong>: removed the classification-stage “Fix 25” filter (exclude episodes starting at/after noon on the recording’s last calendar day), which used to run as the function’s very first step. Checked the actual production Python (Cell 3 of the fix29 notebook – the real classification logic, not the superseded shared <code>pipeline_functions.py</code>): it has no equivalent step at the classification stage at all. Fix 25 only exists later, specific to the CPD calculation (<code>nights_to_df()</code> in Cell 5/7), which <code><a href="../reference/compute_cpd_metrics.html">compute_cpd_metrics()</a></code> already mirrors correctly. Applying it during classification too meant R excluded real, complete sleep episodes before they ever got a chance to be classified as <code>"main"</code>, whenever one simply happened to start on the recording’s last calendar day – a likely contributor to the cohort-wide <code>n_main</code> mismatch reported against the Python reference (78.1% of participants matching). <code>.recover_fragmented_episodes()</code> (Fix 26c) keeps its own independent last-day-noon guard; <code>test-fix26c.R</code>’s existing interaction test already confirmed that guard alone is sufficient, evidence the outer filter was redundant on top of it, not just misplaced.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="books-documentation-0-1-7-9000">📚 Documentation<a class="anchor" aria-label="anchor" href="#books-documentation-0-1-7-9000"></a></h3>
+<ul><li>New <code>.zenodo.json</code> for GitHub-Zenodo release archiving, mirroring <code>CITATION.cff</code>/<code>DESCRIPTION</code> authorship.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="wrench-other-changes-0-1-7-9000">🔧 Other changes<a class="anchor" aria-label="anchor" href="#wrench-other-changes-0-1-7-9000"></a></h3>
+<ul><li>
+<code>.gitignore</code>: participant data under <code>dev/</code> (raw device exports, Python-derived per-participant fixtures) is now excluded, scoped so it doesn’t affect intentional package fixtures in <code>inst/extdata/</code>.</li>
+<li>
+<code>.Rbuildignore</code>: <code>CITATION.cff</code> and the new <code>.zenodo.json</code> excluded from R CMD check (both are GitHub/Zenodo conventions, not R package structure).</li>
+<li>Scrubbed <code>SUBJECT_NAME</code>/<code>SUBJECT_DATE_OF_BIRTH</code> from <code>input1.txt</code> (both the root copy and the <code>inst/extdata/</code> package fixture) – real personal data from the vendor’s own sample file, publicly visible in this public repo.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.7" id="zeitr-017-2026-08">zeitR 0.1.7 (2026-08)<a class="anchor" aria-label="anchor" href="#zeitr-017-2026-08"></a></h2>
 <div class="section level3">

@@ -116,7 +116,7 @@ excluded before metric computation.
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -161,7 +161,7 @@ excluded before metric computation.
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>Compute CPD, MSF, MSW, MSFsc, SJL, and SJLa</h1>
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.7/R/sleep_metrics.R" class="external-link"><code>R/sleep_metrics.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/R/sleep_metrics.R" class="external-link"><code>R/sleep_metrics.R</code></a></small>
       <div class="d-none name"><code>compute_cpd_metrics.Rd</code></div>
     </div>
 
@@ -265,9 +265,10 @@ as the original function signature).</p></li>
 </ul><p>Mid-sleep is computed per night as:
 $$\text{MS} = \left(\text{SO} + \frac{\text{offset} - \text{onset}}{2}\right) \bmod 24$$
 where onset = bts + SOL and offset = gts - SOI (both in decimal hours).</p>
-<p><strong>MSW</strong> and <strong>MSF</strong> use the circular mean of per-night mid-sleep values
-(values &gt;= 12 h shifted by -24 before averaging, then wrapped to [0, 24)),
-matching <code>calculate_msf()</code> / <code>calculate_msw()</code> from the fix29 notebook.
+<p><strong>MSW</strong> and <strong>MSF</strong> use the circular mean of per-night mid-sleep values,
+treating clock hours as angles on a 24-hour circle so values near
+midnight from opposite sides average correctly, matching <code>calculate_msf()</code>
+/ <code>calculate_msw()</code> from the fix29 notebook.
 <strong>MSFsc</strong> adjusts MSF by the free-day-eve sleep onset and the weighted
 weekly mean sleep duration when free-day duration exceeds weekday duration.
 <strong>CPD</strong> is the RMS distance of each night's mid-sleep from MSFsc in the

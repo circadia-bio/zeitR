@@ -128,7 +128,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -188,7 +188,7 @@
       <img src="../logo.svg" class="logo" alt=""><h1>Classifying free days: weekends and public holidays</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/v0.1.7/vignettes/holidays.Rmd" class="external-link"><code>vignettes/holidays.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/circadia-bio/zeitR/blob/main/vignettes/holidays.Rmd" class="external-link"><code>vignettes/holidays.Rmd</code></a></small>
       <div class="d-none name"><code>holidays.Rmd</code></div>
     </div>
 
@@ -379,7 +379,7 @@ MSF, MSW, and SJL.</p>
 <span><span class="co">#&gt; MSF                       03:26   03:26</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"SJL               %10.1f min   %.1f min\n"</span>,</span>
 <span>            <span class="va">cpd_we</span><span class="op">$</span><span class="va">sjl_min</span>, <span class="va">cpd_all</span><span class="op">$</span><span class="va">sjl_min</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; SJL                     28.1 min   28.1 min</span></span>
+<span><span class="co">#&gt; SJL                     28.0 min   28.0 min</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"CPD               %10.1f min   %.1f min\n"</span>,</span>
 <span>            <span class="va">cpd_we</span><span class="op">$</span><span class="va">cpd_min</span>, <span class="va">cpd_all</span><span class="op">$</span><span class="va">cpd_min</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; CPD                     58.0 min   58.0 min</span></span></code></pre></div>
@@ -549,9 +549,9 @@ up automatically:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"Free days (Sat+Sun+Mon):    %d\n"</span>, <span class="va">cpd_mon</span><span class="op">$</span><span class="va">n_free_days</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Free days (Sat+Sun+Mon):    23</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"SJL (Sat+Sun):        %.1f min\n"</span>, <span class="va">cpd_all</span><span class="op">$</span><span class="va">sjl_min</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; SJL (Sat+Sun):        28.1 min</span></span>
+<span><span class="co">#&gt; SJL (Sat+Sun):        28.0 min</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"SJL (Sat+Sun+Mon):    %.1f min\n"</span>, <span class="va">cpd_mon</span><span class="op">$</span><span class="va">sjl_min</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; SJL (Sat+Sun+Mon):    27.2 min</span></span></code></pre></div>
+<span><span class="co">#&gt; SJL (Sat+Sun+Mon):    27.1 min</span></span></code></pre></div>
 <p><code>free_days</code> and <code>holidays</code> are additive: a
 night is a free-day night if the get-up date falls on any day in
 <code>free_days</code> <strong>or</strong> matches any entry in

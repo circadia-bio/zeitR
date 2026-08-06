@@ -1,9 +1,12 @@
 # Non-parametric circadian rhythm analysis (NPCRA)
 
 Computes the standard non-parametric circadian rhythm analysis variables
-from an actigraphy recording, following Gonçalves et al. (2014) and Van
-Someren et al. (1999). All variables are derived from the 24-hour
-average activity profile built from **hourly means** (p = 24).
+from an actigraphy recording. `IS` and `IV` follow Gonçalves et al.
+(2014) and Van Someren et al. (1999), derived from the 24-hour average
+activity profile built from **hourly means** (p = 24). `L5`/`M10` and
+their onsets follow a different convention – see below – matching the
+notebook this package's Vallim-pipeline comparisons were validated
+against.
 
 ## Usage
 
@@ -79,12 +82,14 @@ The following variables are computed:
 - `IS`:
 
   **Interdaily stability** — consistency of the 24 h rest-activity
-  pattern across days (range 0–1; higher = more stable).
+  pattern across days (range 0–1; higher = more stable). From the
+  hourly-mean profile (p = 24).
 
 - `IV`:
 
   **Intradaily variability** — fragmentation of the rest-activity rhythm
-  (\>= 0; higher = more fragmented).
+  (\>= 0; higher = more fragmented). From the hourly-mean profile (p =
+  24).
 
 - `RA`:
 
@@ -93,19 +98,23 @@ The following variables are computed:
 
 - `L5`:
 
-  Mean activity during the least active 5 consecutive hours.
+  Mean activity during the least active 5-hour window, found by a
+  rolling mean over a 10-min-resampled series, searched globally across
+  the whole recording (not the p = 24 hourly profile used for IS/IV).
 
 - `L5_onset`:
 
-  Clock time of the L5 window onset (hh:mm).
+  Wall-clock time ("HH:MM") of the *end* of the least-active window –
+  the time of day, wrapped at 24 h regardless of which calendar day the
+  window actually falls on.
 
 - `M10`:
 
-  Mean activity during the most active 10 consecutive hours.
+  As `L5`, for the most active 10-hour window.
 
 - `M10_onset`:
 
-  Clock time of the M10 window onset (hh:mm).
+  As `L5_onset`, for the most-active window.
 
 ## References
 

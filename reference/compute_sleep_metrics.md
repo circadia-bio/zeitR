@@ -90,7 +90,7 @@ A named list with metrics for three groups (`overall`, `wd` = workday,
 
 - `sleep_onset_h`, `sleep_offset_h`:
 
-  Circular mean onset and arithmetic mean offset in decimal hours.
+  Circular mean onset and offset in decimal hours.
 
 - `fpr_tib_h`:
 
@@ -120,9 +120,13 @@ A named list with metrics for three groups (`overall`, `wd` = workday,
 
   Same as `tst_h` (24-h TST for main sleep only).
 
-- `dp_midsleep_min`, `dp_tst_min`:
+- `dp_midsleep_min`:
 
-  SD of mid-sleep and TST in minutes.
+  Circular SD of mid-sleep, in minutes.
+
+- `dp_tst_min`:
+
+  Plain SD of TST, in minutes.
 
 Workday and free-day metrics carry the suffix `_wd` and `_fd`.
 
@@ -143,16 +147,19 @@ Day-of-week is determined via the ISO 8601 weekday number
 [`weekdays()`](https://rdrr.io/r/base/weekday.POSIXt.html), which is
 locale-dependent. All remaining nights are **workday** nights.
 
-`sleep_onset_h` uses a circular mean (values \>= 12 h are shifted by -24
-h before averaging, then wrapped to \[0, 24)). `sleep_offset_h` uses a
-plain arithmetic mean.
+Both `sleep_onset_h` and `sleep_offset_h` use a circular mean, treating
+clock hours as angles on a 24-hour circle so values near midnight from
+opposite sides average correctly (e.g. 23:30 and 00:30 average to 00:00,
+not 12:00).
 
 `fps_h` (free period sleep) equals
 `fpr_tib_h - (latencia_min + inertia_min) / 60` – TBT net of sleep onset
 latency and sleep inertia.
 
-`dp_midsleep_min` and `dp_tst_min` are standard deviations of per-night
-mid-sleep (minutes) and TST (minutes), respectively.
+`dp_midsleep_min` is the circular SD (R-bar mean-resultant-length
+formula) of per-night mid-sleep, in minutes – matching production
+Python's `_std_circular_h()` exactly, not a plain SD. `dp_tst_min` is a
+plain SD of per-night TST, in minutes.
 
 ## See also
 

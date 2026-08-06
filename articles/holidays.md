@@ -226,7 +226,7 @@ cat(sprintf("MSF               %13s   %s\n",
 #> MSF                       03:26   03:26
 cat(sprintf("SJL               %10.1f min   %.1f min\n",
             cpd_we$sjl_min, cpd_all$sjl_min))
-#> SJL                     28.1 min   28.1 min
+#> SJL                     28.0 min   28.0 min
 cat(sprintf("CPD               %10.1f min   %.1f min\n",
             cpd_we$cpd_min, cpd_all$cpd_min))
 #> CPD                     58.0 min   58.0 min
@@ -380,9 +380,9 @@ cat(sprintf("Free days (Sat+Sun):        %d\n", cpd_all$n_free_days))
 cat(sprintf("Free days (Sat+Sun+Mon):    %d\n", cpd_mon$n_free_days))
 #> Free days (Sat+Sun+Mon):    23
 cat(sprintf("SJL (Sat+Sun):        %.1f min\n", cpd_all$sjl_min))
-#> SJL (Sat+Sun):        28.1 min
+#> SJL (Sat+Sun):        28.0 min
 cat(sprintf("SJL (Sat+Sun+Mon):    %.1f min\n", cpd_mon$sjl_min))
-#> SJL (Sat+Sun+Mon):    27.2 min
+#> SJL (Sat+Sun+Mon):    27.1 min
 ```
 
 `free_days` and `holidays` are additive: a night is a free-day night if
