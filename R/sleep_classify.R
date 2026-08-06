@@ -694,10 +694,28 @@ classify_sleep_episodes <- function(
   if (tbt_before < min_frag_h * 60.0 || tbt_after < min_frag_h * 60.0)
     return(list(row))
 
+  # Fix 29e: split-episode cutpoints get NA sol/soi, not a real 0.0.
+  # Confirmed against the actual production Python's own report of this
+  # exact symptom -- "latencia_min e inertia_min coincidem em 74-95% dos
+  # casos, mas com diferencas maximas de ate 397 minutos e correlacao de
+  # Pearson proxima de zero... compativel com o Fix 29e, que grava NaN nos
+  # pontos de corte de episodios divididos" (relatorio_validacao.docx).
+  # A cutpoint isn't a real sleep onset/offset measurement -- the split is
+  # an artificial division of one continuous episode, so SOL/SOI at that
+  # boundary are undefined, not zero. Writing a real 0.0 here previously
+  # meant these nights dragged latencia_min/inertia_min averages down as
+  # if sleep had started/ended instantly, instead of being excluded from
+  # the average the way pandas' default skipna=True mean() excludes NaN.
+  # circ_mean_h()/circ_sd_h() (circ_utils.R) already drop NA internally, so
+  # onset_h/offset_h/mid_sleep derived from an NA sol/soi don't need any
+  # extra handling downstream; only the plain mean()/sd() call sites
+  # aggregating sol/soi directly needed na.rm = TRUE added to match --
+  # sleep_metrics.R's .group_metrics() (latencia_min/inertia_min) and
+  # compute_cpd_metrics() (sd_f/sd_w/cpd_s).
   r_bef     <- row; r_bef$gts <- anchor; r_bef$tbt <- tbt_before
-  r_bef$sol <- 0.0; r_bef$soi <- 0.0
+  r_bef$sol <- NA_real_; r_bef$soi <- NA_real_
   r_aft     <- row; r_aft$bts <- anchor; r_aft$tbt <- tbt_after
-  r_aft$sol <- 0.0; r_aft$soi <- 0.0
+  r_aft$sol <- NA_real_; r_aft$soi <- NA_real_
 
   if (verbose)
     cli::cli_inform(

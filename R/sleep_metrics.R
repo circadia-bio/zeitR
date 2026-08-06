@@ -32,6 +32,17 @@
 #                 [-12, 12] before abs(), matching Cell 7 exactly --
 #                 previously wrong whenever free-day and workday mid-sleep
 #                 straddle midnight in opposite directions.
+#   fix-29e-na  : latencia_min/inertia_min (and sd_f/sd_w/cpd_s in
+#                 compute_cpd_metrics()) now skip NA sol/soi/mid_sleep
+#                 values via na.rm = TRUE. Split-episode cutpoints
+#                 (.split_episode_by_activity(), sleep_classify.R) write
+#                 NA there now, not a real 0.0 (Fix 29e) -- a cutpoint
+#                 isn't a real onset/offset measurement, so counting it as
+#                 zero dragged these averages down for any night that had
+#                 a 14-16h episode split. Matches the report's own
+#                 diagnosis of this exact symptom (high per-participant
+#                 agreement with occasional large outliers, near-zero
+#                 Pearson correlation on latencia_min/inertia_min).
 #   fix-truncate: compute_cpd_metrics() drops episodes starting after noon on
 #                 the last recording day (truncated by end of file), matching
 #                 the nights_to_df() filter added in the fix29 notebook.
@@ -319,8 +330,8 @@ compute_sleep_metrics.default <- function(x,
                setNames(rep(NA_real_, length(nms)), nms)))
     }
     tbt_h       <- mean(sub$tbt) / 60
-    lat_min     <- mean(sub$sol)
-    inertia_min <- mean(sub$soi)
+    lat_min     <- mean(sub$sol, na.rm = TRUE)   # Fix 29e: split cutpoints are
+    inertia_min <- mean(sub$soi, na.rm = TRUE)   # NA, not 0.0 -- see .split_episode_by_activity()
 
     vals <- c(
       nrow(sub),
@@ -506,8 +517,8 @@ compute_cpd_metrics.default <- function(x,
   msf_h <- circ_mean_h(df$mid_sleep[we])
   msw_h <- circ_mean_h(df$mid_sleep[wd])
 
-  sd_f    <- mean((df$sleep_offset[we] - df$sleep_onset[we]) %% 24)
-  sd_w    <- mean((df$sleep_offset[wd] - df$sleep_onset[wd]) %% 24)
+  sd_f    <- mean((df$sleep_offset[we] - df$sleep_onset[we]) %% 24, na.rm = TRUE)
+  sd_w    <- mean((df$sleep_offset[wd] - df$sleep_onset[wd]) %% 24, na.rm = TRUE)
   sd_week <- (5 * sd_w + 2 * sd_f) / 7
   so_f    <- circ_mean_h(df$sleep_onset[eve])
 
@@ -519,7 +530,12 @@ compute_cpd_metrics.default <- function(x,
   half  <- 12 * 3600; full <- 24 * 3600
   x_i   <- ifelse(x_i < -half, x_i + full, ifelse(x_i > half, x_i - full, x_i))
   y_i   <- c(0, -diff(ms_s))
-  cpd_s <- mean(sqrt(x_i^2 + y_i^2))
+  # Fix 29e: split cutpoints leave mid_sleep NA for that night (sol/soi are
+  # NA there, not 0.0 -- see .split_episode_by_activity()), which
+  # propagates into both x_i and y_i (diff() spreads a single NA to the
+  # entries on both sides of it). na.rm = TRUE keeps that one night's gap
+  # from NA-ing out cpd_s for the whole participant.
+  cpd_s <- mean(sqrt(x_i^2 + y_i^2), na.rm = TRUE)
 
   sjla_h <- msf_h - msw_h
   # Clamp to [-12, 12] before taking abs() -- matches Cell 7's

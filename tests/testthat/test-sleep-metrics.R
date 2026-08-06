@@ -158,3 +158,70 @@ test_that("compute_cpd_metrics(): sjla_h is clamped to [-12, 12] before abs()", 
   # difference itself -- confirm the function's output is NOT that.
   expect_false(isTRUE(all.equal(result$sjla_h, raw_diff, tolerance = 1e-4)))
 })
+
+test_that("compute_sleep_metrics(): latencia_min/inertia_min skip NA sol/soi from split-episode cutpoints (Fix 29e)", {
+  # A split-episode cutpoint (.split_episode_by_activity(), sleep_classify.R)
+  # writes NA sol/soi now, not a real 0.0 -- a cutpoint isn't a genuine
+  # onset/offset measurement. This confirms the aggregation side: an NA
+  # night should be excluded from the average (matching pandas' default
+  # skipna = TRUE mean()), not silently turn the whole average into NA, and
+  # not get treated as a real zero either (the old bug this replaced).
+  nd <- data.frame(
+    is_nap      = rep(FALSE, 3L),
+    bed_time    = as.POSIXct(c("2024-01-01 22:00:00", "2024-01-02 22:00:00",
+                               "2024-01-03 22:00:00"), tz = "UTC"),
+    get_up_time = as.POSIXct(c("2024-01-02 07:00:00", "2024-01-03 07:00:00",
+                               "2024-01-04 07:00:00"), tz = "UTC"),
+    tbt  = rep(420.0, 3L),   # 7h, over min_tib_h default (5h)
+    tst  = rep(400.0, 3L),
+    sol  = c(5.0, NA, 10.0),   # night 2's episode was split -> NA cutpoint
+    soi  = c(3.0, NA, 8.0),
+    waso = rep(20.0, 3L),
+    eff  = rep(0.9,  3L)
+  )
+
+  result <- suppressWarnings(compute_sleep_metrics(nd, tz = "UTC"))
+
+  expect_false(is.na(result$latencia_min))
+  expect_false(is.na(result$inertia_min))
+  expect_equal(result$latencia_min, mean(c(5.0, 10.0)))    # 7.5, NOT mean(c(5,0,10))=5
+  expect_equal(result$inertia_min,  mean(c(3.0, 8.0)))     # 5.5, NOT mean(c(3,0,8))=3.67
+})
+
+test_that("compute_cpd_metrics(): a single NA-cutpoint night doesn't NA out the whole participant's CPD", {
+  # Same Fix 29e scenario, but checking it doesn't cascade through
+  # sd_f/sd_w/cpd_s and NA out results for nights that had nothing to do
+  # with the split. One workday night (NightD) has NA sol/soi -> NA
+  # mid_sleep; msw_h/sd_w/cpd_s must still come out finite, computed from
+  # the remaining valid nights only.
+  nd <- data.frame(
+    is_nap      = rep(FALSE, 4L),
+    bed_time    = as.POSIXct(c("2024-01-05 22:00:00",   # Fri -> Sat (free, eve)
+                               "2024-01-06 22:00:00",   # Sat -> Sun (free, eve)
+                               "2024-01-08 23:00:00",   # Mon (workday)
+                               "2024-01-09 23:00:00"),  # Tue (workday, split cutpoint)
+                             tz = "UTC"),
+    get_up_time = as.POSIXct(c("2024-01-06 06:00:00",
+                               "2024-01-07 06:00:00",
+                               "2024-01-09 07:00:00",
+                               "2024-01-10 07:00:00"),
+                             tz = "UTC"),
+    tbt  = rep(300.0, 4L),
+    tst  = rep(280.0, 4L),
+    sol  = c(0.0, 0.0, 0.0, NA),
+    soi  = c(0.0, 0.0, 0.0, NA),
+    waso = rep(10.0, 4L),
+    eff  = rep(0.9,  4L)
+  )
+
+  result <- suppressWarnings(compute_cpd_metrics(nd, tz = "UTC"))
+
+  expect_false(is.na(result$msw_h))
+  expect_false(is.na(result$msf_h))
+  expect_false(is.na(result$msfsc_h))
+  expect_false(is.na(result$cpd_s))
+
+  # msw_h should come from the one valid workday night only (NightC, Mon):
+  # onset 23h, offset 7h -> mid_sleep = 3h exactly.
+  expect_equal(result$msw_h, 3, tolerance = 1e-8)
+})
