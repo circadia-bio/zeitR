@@ -1,9 +1,12 @@
 #' Non-parametric circadian rhythm analysis (NPCRA)
 #'
 #' Computes the standard non-parametric circadian rhythm analysis variables
-#' from an actigraphy recording. `IS` and `IV` follow Gonçalves et al. (2014)
-#' and Van Someren et al. (1999), derived from the 24-hour average activity
-#' profile built from **hourly means** (p = 24). `L5`/`M10` and their onsets
+#' from an actigraphy recording. `IS` and `IV` are computed from the
+#' hourly-mean activity profile (p = 24), matching pyActigraphy's actual
+#' `_interdaily_stability()`/`_intradaily_variability()` (not the
+#' population-variance formula in Gonçalves et al. 2014 or Van Someren et
+#' al. 1999's own text -- the real implementation uses sample variance,
+#' ddof = 1; see Details). `L5`/`M10` and their onsets
 #' follow a different convention -- see below -- matching the notebook this
 #' package's Vallim-pipeline comparisons were validated against.
 #'
@@ -28,6 +31,21 @@
 #'   \item{`M10`}{As `L5`, for the most active 10-hour window.}
 #'   \item{`M10_onset`}{As `L5_onset`, for the most-active window.}
 #' }
+#'
+#' @details
+#' `IS`/`IV` build a 1h-resampled series `X` first: missing hourly bins get
+#' a real zero (matching Python's `s_1h = s.resample('1h').mean().fillna(0)`),
+#' not silent omission. `X` is grouped by hour-of-day into the p = 24 hourly
+#' profile `Xh`. Both variables then use **sample variance** (divide by
+#' n - 1, matching pandas' `.var()` default) rather than the population
+#' variance (divide by n) that the classic Witting/Van Someren/Gonçalves
+#' formulas describe on paper:
+#' \deqn{IS = \frac{\sum_h(\bar{X}_h-\bar{X})^2/(p-1)}{\sum_i(X_i-\bar{X})^2/(N-1)}}
+#' \deqn{IV = \frac{\sum_i(X_i-X_{i-1})^2/(N-1)}{\sum_i(X_i-\bar{X})^2/(N-1)}}
+#' with `N` the number of hourly bins in the (zero-filled) recording and `p`
+#' the number of hour-of-day groups present (24 for any recording spanning a
+#' full day). The two formulas share the same denominator, matching
+#' pyActigraphy's `d_1h = data.var()` being computed once and reused for both.
 #'
 #' @param x A `zeitr_recording` as returned by [read_actigraphy()], or a
 #'   data frame / tibble with at least `datetime` and `activity` columns.
@@ -166,10 +184,12 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-#' Core NPCRA computation (per Gonçalves et al. 2014)
+#' Core NPCRA computation, matching pyActigraphy's actual IS/IV implementation
 #'
-#' All variables are computed on the hourly-clustered series (p = 24),
-#' matching the formulas in Equations (1) and (2) of the reference paper.
+#' All variables are computed on the zero-filled, hourly-resampled series
+#' (p = 24). IS/IV use sample variance (ddof = 1) -- see [compute_npcra()]'s
+#' Details for the exact formulas and why this differs from the classic
+#' Witting/Van Someren/Gonçalves population-variance formula on paper.
 #'
 #' @noRd
 .npcra_core <- function(datetimes, activity, epoch_s, L5_hours, M10_hours,
@@ -179,41 +199,60 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   n_raw      <- length(activity)
   epochs_per_day <- 24 * 3600 / epoch_s
 
-  # ── Cluster epochs into hourly means ────────────────────────────────────────
-  # date × hour-of-day gives each epoch a unique slot; mean within slot.
-  local_date  <- as.Date(format(datetimes, "%Y-%m-%d", tz = tz))
-  hour_of_day <- as.integer(format(datetimes, "%H", tz = tz))
+  # ── Build the 1h-resampled series ────────────────────────────────────────
+  # Matches Python's `s_1h = s_isiv.resample('1h').mean().fillna(0)` (Cell 16):
+  # missing hourly bins get a real zero, not silent omission. This is the
+  # SAME series (and the same convention) `.lmx_window()` already applies
+  # for M10/L5 at 10-min resolution -- IS/IV previously used tapply(), which
+  # just dropped a missing hour from N/p entirely instead of zero-filling it.
+  #
+  # bin_times is built from sort(unique(hour_start)) directly -- NOT by
+  # reconstructing timestamps from tapply()'s factor-level names via
+  # as.POSIXct(names(...)). That round-trip is a real trap:
+  # format.POSIXct() silently drops the time-of-day for exact midnight
+  # ("2024-01-02" instead of "2024-01-02 00:00:00"), and tapply()'s default
+  # character-conversion of a POSIXct grouping variable hits this for every
+  # midnight bin. as.POSIXct() parsing that resulting MIXED vector of
+  # date-only and full-datetime strings back in one vectorised call
+  # mis-parsed multiple distinct days down to the same timestamp (silently,
+  # no error) -- corrupting N and every IS/IV value derived from it.
+  # Confirmed by direct execution: this bug alone took a 6-day fixture's
+  # theoretical IS from 1.0362 down to 0.8782.
+  hour_start  <- as.POSIXct(format(datetimes, "%Y-%m-%d %H:00:00", tz = tz), tz = tz)
+  bin_times   <- sort(unique(hour_start))
+  bin_means   <- vapply(bin_times, function(ht) mean(activity[hour_start == ht], na.rm = TRUE), numeric(1L))
 
-  slot_key    <- paste(local_date, sprintf("%02d", hour_of_day))
-  slot_means  <- tapply(activity, slot_key, mean, na.rm = TRUE)
+  full_bins  <- seq(min(bin_times), max(bin_times), by = "hour")
+  X          <- rep(0.0, length(full_bins))   # missing bins -> 0, matches .fillna(0)
+  X[match(bin_times, full_bins)] <- as.double(bin_means)
+  N          <- length(X)
 
-  # Recover hour_of_day for each slot (last two chars of key)
-  slot_names  <- names(slot_means)
-  slot_hour   <- as.integer(substr(slot_names, nchar(slot_names) - 1L, nchar(slot_names)))
-  X           <- as.double(slot_means)   # hourly series, length N
-  N           <- length(X)
+  if (N < 2L) zeitr_abort("Fewer than 2 hourly slots after resampling.")
 
-  if (N < 2L) zeitr_abort("Fewer than 2 hourly slots after clustering.")
+  slot_hour  <- as.integer(format(full_bins, "%H", tz = tz))
 
   # ── 24-h mean profile (p = 24) ──────────────────────────────────────────────
-  p          <- 24L
   Xm         <- mean(X, na.rm = TRUE)
-  Xh         <- vapply(0L:(p - 1L), function(h) {
+  Xh         <- vapply(0L:23L, function(h) {
     vals <- X[slot_hour == h]
     if (length(vals) > 0L) mean(vals, na.rm = TRUE) else NA_real_
   }, numeric(1L))
+  p          <- sum(!is.na(Xh))   # number of hour-of-day groups actually present
+                                   # (== 24 for any recording spanning a full day)
 
-  # ── IS (Equation 2, Gonçalves 2014) ─────────────────────────────────────────
-  # IS = (N/p) * sum_h(Xh - Xm)^2 / sum_i(Xi - Xm)^2
-  IS_num <- (N / p) * sum((Xh - Xm)^2, na.rm = TRUE)
-  IS_den <- sum((X  - Xm)^2, na.rm = TRUE)
-  IS     <- if (IS_den > 0) IS_num / IS_den else NA_real_
+  # ── IS / IV: sample variance (ddof = 1), matching pyActigraphy's actual ────
+  # _interdaily_stability()/_intradaily_variability() (Cell 16), which call
+  # pandas' .var() -- ddof = 1 (divide by n-1) by default. NOT the
+  # population-variance (divide by n) formula their own docstrings and
+  # Gonçalves et al. (2014) describe; the real production code uses ddof=1.
+  # d_1h = Var(X) is the shared denominator for both IS and IV (matches
+  # Python's `d_1h = data.var()`, computed once and reused for both).
+  d_1h   <- sum((X  - Xm)^2, na.rm = TRUE) / (N - 1L)
+  d_24h  <- sum((Xh - Xm)^2, na.rm = TRUE) / (p - 1L)
+  c_1h   <- sum(diff(X)^2,   na.rm = TRUE) / (N - 1L)
 
-  # ── IV (Equation 1, Gonçalves 2014) ─────────────────────────────────────────
-  # IV = N * sum_i(Xi - Xi-1)^2 / ((N-1) * sum_i(Xi - Xm)^2)
-  IV_num <- N * sum(diff(X)^2, na.rm = TRUE)
-  IV_den <- (N - 1L) * IS_den
-  IV     <- if (IV_den > 0) IV_num / IV_den else NA_real_
+  IS     <- if (d_1h > 0) d_24h / d_1h else NA_real_
+  IV     <- if (d_1h > 0) c_1h  / d_1h else NA_real_
 
   # ── L5 and M10: rolling-mean search on a 10-min-resampled series ────────
   # Ported from the notebook's `_lmx_ow()`/`_nonparam_metrics()` (Cell 16 of

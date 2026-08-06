@@ -6,8 +6,10 @@
 #   00:00-10:00  activity = 0    (10h "rest" block)
 #   10:00-24:00  activity = 100  (14h "active" block)
 # Because the pattern is byte-identical every day, this gives exact,
-# hand-checkable values: IS = 1 (perfect between-day consistency), L5 = 0
-# (the least-active 5h window sits entirely inside the rest block), M10 = 100
+# hand-checkable values for L5/M10/RA -- and for IS, an exact value derived
+# from the ddof = 1 formula (see .theoretical_is_perfect() below; it is NOT
+# exactly 1, even for a perfectly repeating pattern). L5 = 0 (the
+# least-active 5h window sits entirely inside the rest block), M10 = 100
 # (the most-active 10h window sits entirely inside the active block), and
 # RA = (100 - 0) / (100 + 0) = 1.
 
@@ -22,11 +24,32 @@ make_npcra_fixture <- function(n_days = 7L) {
   tibble::tibble(datetime = dt, activity = activity)
 }
 
+# Theoretical IS for a perfectly repeating 24h profile over `n_days` full
+# days, under the ddof = 1 (sample variance) formula compute_npcra() now
+# uses to match pyActigraphy's actual _interdaily_stability(). Derived
+# algebraically: since X is just the 24-value profile Xh tiled n_days
+# times, Sum((X-Xm)^2) = n_days * Sum((Xh-Xm)^2) exactly, so the
+# Sum((Xh-Xm)^2) factor cancels in the IS ratio, leaving:
+#   IS = [1/(p-1)] / [n_days/(N-1)],  N = 24*n_days, p = 24
+# Notably this does NOT converge to 1 as n_days -> Inf -- it converges to
+# 24/23 ~= 1.0435. That's a real property of the ddof = 1 formula (the
+# p-1 vs N-1 denominators never fully cancel, even in the limit), not an
+# artifact of this fixture -- confirmed against real pyActigraphy source
+# (_interdaily_stability() calls pandas' .var(), ddof = 1 by default).
+.theoretical_is_perfect <- function(n_days) {
+  N <- 24 * n_days
+  p <- 24
+  (1 / (p - 1)) / (n_days / (N - 1))
+}
+
 test_that("compute_npcra() recovers exact IS/L5/M10/RA for a perfectly repeating profile", {
   d      <- make_npcra_fixture()
   result <- compute_npcra(d)
 
-  expect_equal(result$IS, 1)
+  # d has n_days = 7; default trim_to_d1 = TRUE removes one day -> 6 days
+  # remain. IS is no longer exactly 1 under ddof = 1 -- see
+  # .theoretical_is_perfect()'s comment above.
+  expect_equal(result$IS, round(.theoretical_is_perfect(6L), 4))
   expect_equal(result$L5, 0)
   expect_equal(result$M10, 100)
   expect_equal(result$RA, 1)
@@ -65,7 +88,9 @@ test_that("compute_npcra() excludes off-wrist epochs when a state column is pres
 
   result <- compute_npcra(d)
 
-  expect_equal(result$IS, 1)
+  # Off-wrist exclusion removes day 1 entirely (days 2-7 remain); the
+  # default D+1 trim then removes day 2 too, on top of that -> 5 days left.
+  expect_equal(result$IS, round(.theoretical_is_perfect(5L), 4))
   expect_equal(result$L5, 0)
   expect_equal(result$M10, 100)
 })
@@ -103,13 +128,15 @@ test_that("compute_npcra() errors with fewer than 2 epochs", {
 })
 
 test_that("compute_npcra(window_days = ...) splits into the expected number of windows", {
-  d      <- make_npcra_fixture(n_days = 6L)
+  # 7-day fixture; default trim_to_d1 removes 1 day -> 6 remain, dividing
+  # evenly into three clean 2-day windows (avoids a ragged final window).
+  d      <- make_npcra_fixture(n_days = 7L)
   result <- compute_npcra(d, window_days = 2)
 
   expect_true("window_start" %in% names(result))
   expect_equal(nrow(result), 3L)
-  # Each 2-day window should still show the perfect-repeat values
-  expect_equal(result$IS, rep(1, 3L))
+  # Each 2-day window should still show the perfect-repeat IS value.
+  expect_equal(result$IS, rep(round(.theoretical_is_perfect(2L), 4), 3L))
 })
 
 test_that("compute_npcra() trims to D+1 00:00 by default", {
@@ -124,8 +151,12 @@ test_that("compute_npcra() trims to D+1 00:00 by default", {
   expect_equal(result_notrim$n_days, 7)
 
   # The fixture repeats identically every day, so trimming one day off
-  # should not change IS/L5/M10/RA at all.
-  expect_equal(result_default$IS,  result_notrim$IS)
+  # should not change L5/M10/RA at all. IS DOES change slightly -- it's a
+  # function of n_days under the ddof = 1 formula (6 vs 7 days here), not a
+  # fixed constant -- so check both against the theoretical value rather
+  # than against each other.
+  expect_equal(result_default$IS, round(.theoretical_is_perfect(6L), 4))
+  expect_equal(result_notrim$IS,  round(.theoretical_is_perfect(7L), 4))
   expect_equal(result_default$L5,  result_notrim$L5)
   expect_equal(result_default$M10, result_notrim$M10)
   expect_equal(result_default$RA,  result_notrim$RA)
@@ -157,4 +188,31 @@ test_that("compute_npcra() respects a manually supplied epoch_s", {
   result_manual <- compute_npcra(d, epoch_s = 60)
   expect_equal(result_auto$IS, result_manual$IS)
   expect_equal(result_auto$n_epochs, result_manual$n_epochs)
+})
+
+test_that("compute_npcra() zero-fills a genuinely missing hourly bin, matching an explicit zero", {
+  # Regression coverage for the missing-hour fix: IS/IV used to build the
+  # hourly series via tapply(), which just DROPS a bin with no data at all
+  # (shrinking N/p) instead of inserting a real zero -- matching Python's
+  # `s_1h = s.resample('1h').mean().fillna(0)` (Cell 16). If a whole hour's
+  # epochs are off-wrist-excluded (genuinely missing from the data reaching
+  # .npcra_core()), the result should be IDENTICAL to that same hour having
+  # an explicit activity = 0 with no off-wrist exclusion at all -- both
+  # should zero-fill to the same X.
+  d_missing <- make_npcra_fixture(n_days = 3L)
+  hour      <- as.integer(format(d_missing$datetime, "%H", tz = "UTC"))
+  day       <- as.Date(d_missing$datetime, tz = "UTC")
+  target    <- day == as.Date("2024-01-02") & hour == 15L   # an "active" hour
+
+  d_missing$state <- 0L
+  d_missing$state[target] <- 4L   # off-wrist -> genuinely absent from binning
+
+  d_explicit_zero <- make_npcra_fixture(n_days = 3L)
+  d_explicit_zero$activity[target] <- 0.0   # present, just recorded as zero
+
+  result_missing <- compute_npcra(d_missing,       trim_to_d1 = FALSE)
+  result_zero     <- compute_npcra(d_explicit_zero, trim_to_d1 = FALSE)
+
+  expect_equal(result_missing$IS, result_zero$IS)
+  expect_equal(result_missing$IV, result_zero$IV)
 })
