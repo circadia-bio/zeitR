@@ -91,9 +91,10 @@ Mid-sleep is computed per night as:
 \deqn{\text{MS} = \left(\text{SO} + \frac{\text{offset} - \text{onset}}{2}\right) \bmod 24}
 where onset = bts + SOL and offset = gts - SOI (both in decimal hours).
 
-\strong{MSW} and \strong{MSF} use the circular mean of per-night mid-sleep values
-(values >= 12 h shifted by -24 before averaging, then wrapped to [0, 24)),
-matching \code{calculate_msf()} / \code{calculate_msw()} from the fix29 notebook.
+\strong{MSW} and \strong{MSF} use the circular mean of per-night mid-sleep values,
+treating clock hours as angles on a 24-hour circle so values near
+midnight from opposite sides average correctly, matching \code{calculate_msf()}
+/ \code{calculate_msw()} from the fix29 notebook.
 \strong{MSFsc} adjusts MSF by the free-day-eve sleep onset and the weighted
 weekly mean sleep duration when free-day duration exceeds weekday duration.
 \strong{CPD} is the RMS distance of each night's mid-sleep from MSFsc in the

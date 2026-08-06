@@ -59,8 +59,9 @@ A \code{zeitr_result} S3 object with the same structure as \code{\link[=run_pipe
 except \code{nights} additionally contains:
 \describe{
 \item{\code{sleep_type}}{\code{character} -- \code{"main"} or \code{"secondary"}.}
-\item{\code{bed_time}, \code{get_up_time}}{POSIXct -- from JRSV bts/gts convention
-(last sleep epoch for get-up, not first wake epoch).}
+\item{\code{bed_time}, \code{get_up_time}}{POSIXct -- \code{bed_time} is the first
+sleep epoch, \code{get_up_time} is the first wake epoch (matches the
+Python reference's \code{bts}/\code{gts} convention exactly).}
 }
 The \code{is_nap} column is retained for backwards compatibility
 (\code{is_nap == (sleep_type == "secondary")}).

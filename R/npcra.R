@@ -290,7 +290,7 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
 #' is intentionally not ported here. That branch is:
 #'   r = series.resample('10min').mean().fillna(0)
 #'   rolling = r.rolling(n_bins, min_periods=n_bins).mean()
-#'   idx = rolling.idxmin() / idxmax(); value = rolling[idx]
+#'   position = rolling.idxmin() (or idxmax()); value = rolling at that position
 #' i.e. a rolling MEAN over 10-min bins (not a sum), searched globally over
 #' the whole recording as received (`compute_npcra()`'s D+1 trim, if
 #' enabled, has already been applied upstream).

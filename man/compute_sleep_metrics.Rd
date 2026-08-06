@@ -64,7 +64,7 @@ workday, \code{fd} = free day):
 \describe{
 \item{\code{n_overall}, \code{n_wd}, \code{n_fd}}{Night counts.}
 \item{\code{sleep_onset_h}, \code{sleep_offset_h}}{Circular mean onset and
-arithmetic mean offset in decimal hours.}
+offset in decimal hours.}
 \item{\code{fpr_tib_h}}{Mean TBT in hours.}
 \item{\code{fps_h}}{Mean free period sleep (TBT - SOL - SOI) in hours.}
 \item{\code{tst_h}}{Mean TST in hours.}
@@ -72,8 +72,8 @@ arithmetic mean offset in decimal hours.}
 \item{\code{waso_min}}{Mean WASO in minutes.}
 \item{\code{sleep_eff_pct}}{Mean sleep efficiency in percent (0-100).}
 \item{\code{tst_24h_h}}{Same as \code{tst_h} (24-h TST for main sleep only).}
-\item{\code{dp_midsleep_min}, \code{dp_tst_min}}{SD of mid-sleep and TST in
-minutes.}
+\item{\code{dp_midsleep_min}}{Circular SD of mid-sleep, in minutes.}
+\item{\code{dp_tst_min}}{Plain SD of TST, in minutes.}
 }
 Workday and free-day metrics carry the suffix \verb{_wd} and \verb{_fd}.
 }
@@ -98,14 +98,17 @@ is determined via the ISO 8601 weekday number (\code{format(date, "\%u")}) rathe
 than \code{weekdays()}, which is locale-dependent. All remaining nights are
 \strong{workday} nights.
 
-\code{sleep_onset_h} uses a circular mean (values >= 12 h are shifted by -24 h
-before averaging, then wrapped to [0, 24)). \code{sleep_offset_h} uses a plain
-arithmetic mean.
+Both \code{sleep_onset_h} and \code{sleep_offset_h} use a circular mean, treating
+clock hours as angles on a 24-hour circle so values near midnight from
+opposite sides average correctly (e.g. 23:30 and 00:30 average to
+00:00, not 12:00).
 
 \code{fps_h} (free period sleep) equals \code{fpr_tib_h - (latencia_min + inertia_min) / 60} -- TBT net of sleep onset latency and sleep inertia.
 
-\code{dp_midsleep_min} and \code{dp_tst_min} are standard deviations of per-night
-mid-sleep (minutes) and TST (minutes), respectively.
+\code{dp_midsleep_min} is the circular SD (R-bar mean-resultant-length
+formula) of per-night mid-sleep, in minutes -- matching production
+Python's \verb{_std_circular_h()} exactly, not a plain SD. \code{dp_tst_min} is a
+plain SD of per-night TST, in minutes.
 }
 \examples{
 \dontrun{

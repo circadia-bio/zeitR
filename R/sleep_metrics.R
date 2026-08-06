@@ -209,12 +209,10 @@
 #' than `weekdays()`, which is locale-dependent. All remaining nights are
 #' **workday** nights.
 #'
-#' Both `sleep_onset_h` and `sleep_offset_h` use a circular mean (values
-#' >= 12 h are shifted by -24 h before averaging, then wrapped to [0, 24)).
-#' This matches the production Python's `_mean_circular_h()` for onset and
-#' `_mean_circular_h_offset()` for offset -- the two are byte-identical
-#' functions despite the different names, confirmed against a real
-#' execution of Cell 5, not just static source-reading.
+#' Both `sleep_onset_h` and `sleep_offset_h` use a circular mean, treating
+#' clock hours as angles on a 24-hour circle so values near midnight from
+#' opposite sides average correctly (e.g. 23:30 and 00:30 average to
+#' 00:00, not 12:00).
 #'
 #' `fps_h` (free period sleep) equals `fpr_tib_h - (latencia_min + inertia_min)
 #' / 60` -- TBT net of sleep onset latency and sleep inertia.
@@ -410,9 +408,10 @@ compute_sleep_metrics.default <- function(x,
 #' \deqn{\text{MS} = \left(\text{SO} + \frac{\text{offset} - \text{onset}}{2}\right) \bmod 24}
 #' where onset = bts + SOL and offset = gts - SOI (both in decimal hours).
 #'
-#' **MSW** and **MSF** use the circular mean of per-night mid-sleep values
-#' (values >= 12 h shifted by -24 before averaging, then wrapped to [0, 24)),
-#' matching `calculate_msf()` / `calculate_msw()` from the fix29 notebook.
+#' **MSW** and **MSF** use the circular mean of per-night mid-sleep values,
+#' treating clock hours as angles on a 24-hour circle so values near
+#' midnight from opposite sides average correctly, matching `calculate_msf()`
+#' / `calculate_msw()` from the fix29 notebook.
 #' **MSFsc** adjusts MSF by the free-day-eve sleep onset and the weighted
 #' weekly mean sleep duration when free-day duration exceeds weekday duration.
 #' **CPD** is the RMS distance of each night's mid-sleep from MSFsc in the
