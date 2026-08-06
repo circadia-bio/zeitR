@@ -1,28 +1,31 @@
 #' Non-parametric circadian rhythm analysis (NPCRA)
 #'
 #' Computes the standard non-parametric circadian rhythm analysis variables
-#' from an actigraphy recording, following Gonçalves et al. (2014) and Van
-#' Someren et al. (1999). All variables are derived from the 24-hour average
-#' activity profile built from **hourly means** (p = 24).
+#' from an actigraphy recording. `IS` and `IV` follow Gonçalves et al. (2014)
+#' and Van Someren et al. (1999), derived from the 24-hour average activity
+#' profile built from **hourly means** (p = 24). `L5`/`M10` and their onsets
+#' follow a different convention -- see below -- matching the notebook this
+#' package's Vallim-pipeline comparisons were validated against.
 #'
 #' The following variables are computed:
 #'
 #' \describe{
 #'   \item{`IS`}{**Interdaily stability** — consistency of the 24 h rest-activity
-#'     pattern across days (range 0--1; higher = more stable).}
+#'     pattern across days (range 0--1; higher = more stable). From the
+#'     hourly-mean profile (p = 24).}
 #'   \item{`IV`}{**Intradaily variability** — fragmentation of the
-#'     rest-activity rhythm (>= 0; higher = more fragmented).}
+#'     rest-activity rhythm (>= 0; higher = more fragmented). From the
+#'     hourly-mean profile (p = 24).}
 #'   \item{`RA`}{**Relative amplitude** — contrast between the most active
 #'     10 h window (M10) and least active 5 h window (L5) (range 0--1).}
-#'   \item{`L5`}{Mean activity during the least active 5 consecutive hours
-#'     (from the 24-h mean profile).}
-#'   \item{`L5_onset`}{Elapsed time ("H:MM:SS", not wrapped at 24 h) from the
-#'     first recorded day's midnight to the end of the least-active window,
-#'     located on a 10-min-resampled series -- mirrors the Python
-#'     reference's `_lmx()`/`_td_format()` exactly. NOT the same clock as
-#'     `L5` above, which stays on the coarser hourly profile.}
-#'   \item{`M10`}{Mean activity during the most active 10 consecutive hours
-#'     (from the 24-h mean profile).}
+#'   \item{`L5`}{Mean activity during the least active 5-hour window, found
+#'     by a rolling mean over a 10-min-resampled series, searched globally
+#'     across the whole recording (not the p = 24 hourly profile used for
+#'     IS/IV).}
+#'   \item{`L5_onset`}{Wall-clock time ("HH:MM") of the *end* of the
+#'     least-active window -- the time of day, wrapped at 24 h regardless of
+#'     which calendar day the window actually falls on.}
+#'   \item{`M10`}{As `L5`, for the most active 10-hour window.}
 #'   \item{`M10_onset`}{As `L5_onset`, for the most-active window.}
 #' }
 #'
@@ -212,23 +215,22 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   IV_den <- (N - 1L) * IS_den
   IV     <- if (IV_den > 0) IV_num / IV_den else NA_real_
 
-  # ── L5 and M10 from the 24-h mean profile ───────────────────────────────────
-  L5_result  <- .rolling_window_profile(Xh, L5_hours,  find_min = TRUE)
-  M10_result <- .rolling_window_profile(Xh, M10_hours, find_min = FALSE)
-
-  L5        <- L5_result$value
-  M10       <- M10_result$value
-
-  # Onset resolution: the *value* above stays on the p = 24 hourly profile
-  # (Goncalves et al. 2014), but the onset clock time is located on a
-  # 10-min-resampled series -- a faithful port of the Python reference's
-  # `_lmx()` -- so it isn't locked to whole hours the way the hourly profile
-  # would force it to be.
+  # ── L5 and M10: rolling-mean search on a 10-min-resampled series ────────
+  # Ported from the notebook's `_lmx_ow()`/`_nonparam_metrics()` (Cell 16 of
+  # vs_condor_py_pipeline_fix29_jrsv.ipynb), which supersedes the shared
+  # pipeline_functions.py's `_lmx()`/`compute_pyactigraphy_metrics()` and is
+  # what actually produced the report's numbers. This differs from the
+  # earlier Goncalves-profile approach in two ways: the value itself is a
+  # rolling MEAN over 10-min bins (not the p = 24 hourly-profile mean), and
+  # the search runs globally over the whole (D+1-trimmed) recording rather
+  # than a single 24-h profile.
   l5_lmx    <- .lmx_window(datetimes, activity, L5_hours,  find_min = TRUE)
   m10_lmx   <- .lmx_window(datetimes, activity, M10_hours, find_min = FALSE)
-  day0      <- as.POSIXct(format(as.Date(datetimes[1L], tz = tz), "%Y-%m-%d 00:00:00"), tz = tz)
-  L5_onset  <- .format_elapsed_hms(l5_lmx$onset  - day0)
-  M10_onset <- .format_elapsed_hms(m10_lmx$onset - day0)
+
+  L5        <- l5_lmx$value
+  M10       <- m10_lmx$value
+  L5_onset  <- .format_time_of_day(l5_lmx$onset)
+  M10_onset <- .format_time_of_day(m10_lmx$onset)
 
   # ── RA ───────────────────────────────────────────────────────────────────────
   RA <- if (!is.na(M10) && !is.na(L5) && (M10 + L5) > 0) {
@@ -253,6 +255,12 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
 
 #' Find least/most active window from the 24-h mean profile
 #'
+#' NOTE: no longer called from `.npcra_core()` -- `L5`/`M10`/onset are now
+#' computed by `.lmx_window()` (rolling mean on a 10-min-resampled series,
+#' matching the notebook's `_lmx_ow()`), which better matches the report's
+#' actual production numbers. Left in place in case anything else in the
+#' package or its tests calls it directly; safe to remove if not.
+#'
 #' @param profile numeric(24) — hourly mean activity profile (hours 0--23)
 #' @param window_hours integer window width in hours
 #' @param find_min logical; TRUE for L5, FALSE for M10
@@ -272,36 +280,33 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   list(value = window_means[onset + 1L], onset_hour = as.integer(onset))
 }
 
-#' Locate the least/most active window at 10-minute resolution
+#' Locate the least/most active window via a rolling mean at 10-minute
+#' resolution
 #'
-#' Faithful port of the Python reference's `_lmx()`: resamples `activity`
-#' into 10-minute bins (summed), then slides a trailing window of
-#' `period_hours` width across the *entire* recording (as received --
-#' `compute_npcra()`'s own D+1 trim, if enabled, has already been applied
-#' upstream), picking the window whose sum is smallest (L5) or largest
-#' (M10). This runs independently of the hourly-profile (p = 24) value
-#' calculation in `.rolling_window_profile()` -- it exists solely to locate
-#' the onset at the same minute resolution `pyActigraphy`'s `_lmx()` uses,
-#' rather than being locked to whole hours.
+#' Ports the notebook's `_lmx_ow()` (Cell 16 of
+#' `vs_condor_py_pipeline_fix29_jrsv.ipynb`), no-mask branch specifically --
+#' `_nonparam_metrics()` always calls it with `mask_series=None` for M10/L5
+#' ("replica Condor ActStudio"), so the off-wrist-run handling in `_lmx_ow()`
+#' is intentionally not ported here. That branch is:
+#'   r = series.resample('10min').mean().fillna(0)
+#'   rolling = r.rolling(n_bins, min_periods=n_bins).mean()
+#'   idx = rolling.idxmin() / idxmax(); value = rolling[idx]
+#' i.e. a rolling MEAN over 10-min bins (not a sum), searched globally over
+#' the whole recording as received (`compute_npcra()`'s D+1 trim, if
+#' enabled, has already been applied upstream).
 #'
-#' Mirrors `_lmx()`'s `idx` exactly: the returned `onset` is the timestamp
-#' at the *end* of the winning window (pandas' `rolling().sum()` labels
-#' each value at the window's right edge), not the window's start. This
-#' has NOT yet been validated against a `python_output`-derived fixture --
-#' do that before trusting `L5_onset`/`M10_onset` in production. In
-#' particular, `_td_format()` in the Python source formats elapsed time
-#' from day-zero midnight and does NOT wrap at 24 h, so if the global
-#' extremum window falls on a later day, the elapsed hours here can
-#' legitimately exceed 24 -- if the resulting values look implausibly
-#' large, check whether the actual production code (possibly patched
-#' inline in `vs_condor_py_pipeline_fix29_jrsv.ipynb` rather than in
-#' `pipeline_functions_fix27.py`) restricts the search window further.
+#' `min_periods = n_bins` means the first `n_bins - 1` positions (not yet a
+#' full window) are excluded from the search -- mirrored here by starting
+#' `ends` at `window_bins`, matching pandas' `rolling().dropna()`.
 #'
 #' @param datetimes POSIXct vector, native epoch resolution.
 #' @param activity numeric vector, same length as `datetimes`.
 #' @param period_hours numeric(1). Window width in hours (5 for L5, 10 for M10).
 #' @param find_min logical(1). TRUE for L5 (least active), FALSE for M10.
-#' @return list(onset = POSIXct, value = numeric).
+#' @return list(onset = POSIXct, value = numeric). `onset` is the timestamp
+#'   at the *end* of the winning window (pandas' `rolling().mean()` labels
+#'   each value at the window's right edge) -- format with
+#'   `.format_time_of_day()`, not as elapsed time.
 #' @noRd
 .lmx_window <- function(datetimes, activity, period_hours, find_min) {
   bin_min <- 10L
@@ -310,41 +315,41 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   t0      <- datetimes[1L]
   bin_idx <- as.integer(floor(as.numeric(difftime(datetimes, t0, units = "secs")) / bin_s))
 
-  binned   <- tapply(activity, bin_idx, sum, na.rm = TRUE)
-  bin_seq  <- as.integer(names(binned))
+  bin_mean <- tapply(activity, bin_idx, mean, na.rm = TRUE)
+  bin_seq  <- as.integer(names(bin_mean))
   full_idx <- seq(min(bin_seq), max(bin_seq))
-  vals     <- rep(0.0, length(full_idx))
-  vals[match(bin_seq, full_idx)] <- as.double(binned)
+  means    <- rep(0.0, length(full_idx))   # missing bins -> 0, matches .fillna(0)
+  means[match(bin_seq, full_idx)] <- as.double(bin_mean)
 
   window_bins <- as.integer(round(period_hours * 60 / bin_min))
-  n <- length(vals)
+  n <- length(means)
   if (window_bins > n) {
     return(list(onset = datetimes[length(datetimes)], value = NA_real_))
   }
 
   ends <- window_bins:n
-  roll <- vapply(ends, function(e) sum(vals[(e - window_bins + 1L):e]), numeric(1L))
+  roll <- vapply(ends, function(e) mean(means[(e - window_bins + 1L):e]), numeric(1L))
   best <- if (find_min) which.min(roll) else which.max(roll)
   end_bin <- ends[best]
 
-  # end of that bin, matching pandas' right-labelled rolling().sum()
+  # end of that bin, matching pandas' right-labelled rolling().mean()
   onset_time <- t0 + (full_idx[end_bin] + 1L) * bin_s
 
   list(onset = onset_time, value = roll[best])
 }
 
-#' Format an elapsed time (difftime) as "H:MM:SS", NOT wrapped at 24 h
+#' Format a POSIXct timestamp as wall-clock "HH:MM" (time-of-day)
 #'
-#' Port of the Python reference's `_td_format()`.
+#' Ports the notebook's onset formatting: `ts - ts.normalize()` in the
+#' Python source gives elapsed time since midnight of `ts`'s OWN calendar
+#' day (whichever day the winning window happens to land on) -- not the
+#' recording's first day. That is what makes the Python onset wrap at 24 h
+#' regardless of which day wins the global search; formatting `ts` directly
+#' as a clock time here has the identical effect.
 #' @noRd
-.format_elapsed_hms <- function(elapsed) {
-  total <- as.numeric(elapsed, units = "secs")
-  total <- as.integer(round(abs(total)))
-  h <- total %/% 3600L
-  r <- total %% 3600L
-  m <- r %/% 60L
-  s <- r %% 60L
-  sprintf("%d:%02d:%02d", h, m, s)
+.format_time_of_day <- function(ts) {
+  lt <- as.POSIXlt(ts)
+  sprintf("%02d:%02d", lt$hour, lt$min)
 }
 
 #' Convert an epoch-of-day index to "HH:MM" string
