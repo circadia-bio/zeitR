@@ -1,6 +1,20 @@
 # Changelog
 
-## zeitR (development version)
+## zeitR 0.1.7 (2026-08)
+
+### 🚀 CI
+
+- `R-CMD-check.yaml`’s matrix expanded to mirror axR’s coverage: devel
+  (ubuntu, windows), release (ubuntu, windows, macOS), and oldrel-1
+  (windows, macOS) – up from a release-only, three-platform matrix. New
+  `wasm-build` job (`r-wasm/actions/build-rwasm@v3`) catches
+  WebAssembly/webR build failures directly in this repo’s own CI, rather
+  than only discovering them after r-universe attempts its own wasm
+  build. Unlike axR, no `chmod +x configure cleanup` step or additional
+  `libudev-dev` install was needed for the new jobs themselves – zeitR
+  has no vendored C library with a `configure` script; the existing
+  `libudev-dev` step stays as-is, there only for axR as a `Suggests`
+  dependency.
 
 ### ✨ New features
 
