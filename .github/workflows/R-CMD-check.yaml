@@ -15,9 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: ubuntu-latest, r: 'release'}
-          - {os: macos-latest,  r: 'release'}
+          # devel: Linux, Windows
+          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
+          - {os: windows-latest, r: 'devel'}
+          # release: Linux, Windows, macOS
+          - {os: ubuntu-latest,  r: 'release'}
           - {os: windows-latest, r: 'release'}
+          - {os: macos-latest,   r: 'release'}
+          # oldrel: Windows, macOS
+          - {os: windows-latest, r: 'oldrel-1'}
+          - {os: macos-latest,   r: 'oldrel-1'}
 
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +41,7 @@ jobs:
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.config.r }}
+          http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
@@ -44,3 +52,21 @@ jobs:
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
+
+  # Catches build failures specific to the WebAssembly/webR target (e.g.
+  # r-universe's wasm build) directly in this repo's CI, rather than only
+  # discovering them after r-universe attempts its own build. Uses
+  # r-wasm/actions' build-rwasm action, which handles the Emscripten
+  # toolchain setup itself -- no special container/runner needed.
+  # https://github.com/r-wasm/actions
+  wasm-build:
+    runs-on: ubuntu-latest
+    name: WASM build (webR)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Wasm R package
+        uses: r-wasm/actions/build-rwasm@v3
+        with:
+          packages: "."
