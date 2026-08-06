@@ -50,6 +50,24 @@
   notebook cells (5, 7, and 16 -- not the superseded shared `.py` file) on
   real EPISONO cohort data: every `compute_sleep_metrics()` and
   `compute_cpd_metrics()` output now matches to 6 decimal places.
+* **`classify_sleep_episodes()`**: removed the classification-stage "Fix 25"
+  filter (exclude episodes starting at/after noon on the recording's last
+  calendar day), which used to run as the function's very first step.
+  Checked the actual production Python (Cell 3 of the fix29 notebook -- the
+  real classification logic, not the superseded shared
+  `pipeline_functions.py`): it has no equivalent step at the classification
+  stage at all. Fix 25 only exists later, specific to the CPD calculation
+  (`nights_to_df()` in Cell 5/7), which `compute_cpd_metrics()` already
+  mirrors correctly. Applying it during classification too meant R
+  excluded real, complete sleep episodes before they ever got a chance to
+  be classified as `"main"`, whenever one simply happened to start on the
+  recording's last calendar day -- a likely contributor to the cohort-wide
+  `n_main` mismatch reported against the Python reference (78.1% of
+  participants matching). `.recover_fragmented_episodes()` (Fix 26c) keeps
+  its own independent last-day-noon guard; `test-fix26c.R`'s existing
+  interaction test already confirmed that guard alone is sufficient,
+  evidence the outer filter was redundant on top of it, not just
+  misplaced.
 
 ### 📚 Documentation
 

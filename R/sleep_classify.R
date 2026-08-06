@@ -4,23 +4,38 @@
 # Source: pipeline_functions_fix27.py + vs_condor_py_pipeline_fix29_jrsv.ipynb
 #
 # Fixes ported:
-#   Fix 25  — exclude truncated episodes at recording end
 #   Fix 26a — adaptive nocturnal window (infer_nocturnal_window)
 #   Fix 26b — sleep-date collision fix (fix_sleep_date_collision)
 #   Fix 26c — fragmented episode recovery (recover_fragmented_episodes)
 #   Fix 27  — execution order audit + 14 h TBT ceiling
 #   Fix 29  — corrected split/exclude logic for long episodes
 #
-# R-side fix (no Python counterpart number; found investigating Julia's
-# Fix 29f report of "8 main nights on a 7-day recording"):
-#   .recover_fragmented_episodes() is given the same last-day-noon boundary
-#   as Fix 25, so it can no longer reconstruct an episode that Fix 25 just
-#   excluded as truncated by the end of the recording. Without this,
-#   Fix 25 removing an episode makes its date "uncovered", and Fix 26c would
-#   recover the same episode straight back from the same raw epochs.
+# Fix 25 (exclude truncated episodes at recording end) is NOT applied here.
+# It used to be, as classify_sleep_episodes()'s very first step -- removed
+# after checking the actual production Python (Cell 3 of the fix29
+# notebook, not the superseded shared pipeline_functions.py): Cell 3's real
+# classification logic has no such step at all. Fix 25 only exists later,
+# specific to the CPD calculation (nights_to_df() in Cell 5/7), which
+# compute_cpd_metrics() already mirrors correctly on the R side.
+# Applying it during classification too meant R was excluding real,
+# complete sleep episodes before they ever got a chance to be classified
+# as "main" -- whenever a genuine episode simply happened to start on the
+# recording's last calendar day -- and is a likely contributor to the
+# cohort-wide n_main mismatch reported against the Python reference
+# (78.1% of participants matching).
+#
+# .recover_fragmented_episodes() (Fix 26c) still carries its own
+# last-day-noon guard, independent of the (now-removed) classification-stage
+# Fix 25: a recovery candidate that would itself be truncated by the end of
+# the recording (no real wake-up observed) still shouldn't be manufactured
+# into a main night. test-fix26c.R's second test exercises this guard
+# directly, bypassing classify_sleep_episodes() entirely, and confirms the
+# guard alone is sufficient -- which is itself evidence the outer
+# classification-stage filter was redundant on top of it, not just
+# misplaced.
 #
 # Execution order in classify_sleep_episodes() follows Fix 27:
-#   Fix 25 -> Fix 26a -> Fix 29 / Rule 2 -> Fix 26c ->
+#   Fix 26a -> Fix 29 / Rule 2 -> Fix 26c ->
 #   Rules 3-5 -> Fix 26b -> Rule 6 -> Rule 7
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -137,7 +152,6 @@ extract_sleep_episodes <- function(data, wake_thresh = 60L) {
 #' `"main"` or `"secondary"`. The execution order follows Fix 27:
 #'
 #' \enumerate{
-#'   \item **Fix 25** -- exclude truncated episodes at the recording end.
 #'   \item **Fix 26a** -- infer adaptive nocturnal window from `int_temp`
 #'     and `light`. Falls back to `nocturnal_onset_start`/`nocturnal_onset_end`
 #'     if fewer than 2 candidate episodes pass the temperature and light filter.
@@ -237,17 +251,6 @@ classify_sleep_episodes <- function(
   epoch_s   <- as.numeric(names(sort(table(dd_v), decreasing = TRUE))[1L])
   epoch_min <- epoch_s / 60.0
   tz        <- attr(dt[1L], "tzone") %||% "UTC"
-
-  # ── Fix 25: exclude truncated episodes at recording end ──────────────────
-  last_date      <- as.Date(max(dt), tz = tz)
-  last_day_noon  <- as.POSIXct(paste0(format(last_date), " 12:00:00"), tz = tz)
-  keep           <- ep$bts < last_day_noon
-  n_trunc        <- sum(!keep)
-  if (n_trunc > 0L) {
-    if (verbose) cli::cli_inform("  [Fix 25] Removed {n_trunc} truncated episode(s) at recording end.")
-    ep <- ep[keep, , drop = FALSE]
-  }
-  if (nrow(ep) == 0L) return(.empty_classified())
 
   # ── Fix 26a: infer adaptive nocturnal window ──────────────────────────────
   noc <- .infer_nocturnal_window(
@@ -484,13 +487,16 @@ classify_sleep_episodes <- function(
   last_date  <- as.Date(max(dt), tz = tz)
   all_dates  <- seq(first_date, last_date, by = "day")
 
-  # Fix 25 boundary, mirrored here: a date can be "uncovered" precisely
-  # *because* its only candidate episode was excluded by Fix 25 for starting
-  # at/after noon on the recording's last calendar day (truncated by the end
-  # of the file, not a real wake-up). Without this check, the scan below
-  # would reconstruct that same excluded episode from the same raw epochs,
-  # silently undoing Fix 25 and reintroducing a biologically implausible
-  # extra main night (e.g. an 8th night on a 7-day recording).
+  # Recording-end boundary: a recovery candidate that would itself be
+  # truncated by the end of the recording (starts at/after noon on the
+  # last calendar day, with no real wake-up observed after it) must not be
+  # manufactured into a main night from partial data. This guard is now
+  # independent of any upstream filter -- classify_sleep_episodes() no
+  # longer excludes such episodes before classification (removed after
+  # confirming the actual production Python has no equivalent step at the
+  # classification stage; see the module header) -- but the boundary
+  # itself is still real: a genuinely truncated candidate here would still
+  # be wrong to recover.
   last_day_noon <- as.POSIXct(paste0(format(last_date), " 12:00:00"), tz = tz)
 
   new_eps <- list()
@@ -550,12 +556,13 @@ classify_sleep_episodes <- function(
       tbt_h <- as.numeric(difftime(ep_i$gts, ep_i$bts, units = "hours"))
       if (tbt_h < min_tib_h) next
 
-      # Fix 25 guard: don't recover an episode that Fix 25 would itself
-      # exclude (starts at/after noon on the recording's last calendar day).
+      # Recording-end guard: don't recover an episode that would itself
+      # be truncated by the end of the recording (starts at/after noon on
+      # the last calendar day).
       if (ep_i$bts >= last_day_noon) {
         if (verbose)
           cli::cli_inform(
-            "  [Fix 26c] Skipped recovery on {format(sd)} -- candidate starts at/after noon on the recording's last day (would be truncated, matching Fix 25)."
+            "  [Fix 26c] Skipped recovery on {format(sd)} -- candidate starts at/after noon on the recording's last day (would be truncated)."
           )
         next
       }
