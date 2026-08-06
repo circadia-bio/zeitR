@@ -99,7 +99,7 @@ extract_sleep_episodes <- function(data, wake_thresh = 60L) {
 
     out[[i]] <- list(
       bts  = stamps_ow[bt0 + 1L],   # first sleep epoch
-      gts  = stamps_ow[gt0],         # last sleep epoch (Julia's convention)
+      gts  = stamps_ow[gt0 + 1L],   # first wake epoch (matches Python's stamps[gt])
       tbt  = tbt  * epoch_min,
       tst  = max(0.0, tst * epoch_min),
       sol  = sol  * epoch_min,

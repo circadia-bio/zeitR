@@ -14,10 +14,16 @@
 #'     rest-activity rhythm (>= 0; higher = more fragmented).}
 #'   \item{`RA`}{**Relative amplitude** — contrast between the most active
 #'     10 h window (M10) and least active 5 h window (L5) (range 0--1).}
-#'   \item{`L5`}{Mean activity during the least active 5 consecutive hours.}
-#'   \item{`L5_onset`}{Clock time of the L5 window onset (hh:mm).}
-#'   \item{`M10`}{Mean activity during the most active 10 consecutive hours.}
-#'   \item{`M10_onset`}{Clock time of the M10 window onset (hh:mm).}
+#'   \item{`L5`}{Mean activity during the least active 5 consecutive hours
+#'     (from the 24-h mean profile).}
+#'   \item{`L5_onset`}{Elapsed time ("H:MM:SS", not wrapped at 24 h) from the
+#'     first recorded day's midnight to the end of the least-active window,
+#'     located on a 10-min-resampled series -- mirrors the Python
+#'     reference's `_lmx()`/`_td_format()` exactly. NOT the same clock as
+#'     `L5` above, which stays on the coarser hourly profile.}
+#'   \item{`M10`}{Mean activity during the most active 10 consecutive hours
+#'     (from the 24-h mean profile).}
+#'   \item{`M10_onset`}{As `L5_onset`, for the most-active window.}
 #' }
 #'
 #' @param x A `zeitr_recording` as returned by [read_actigraphy()], or a
@@ -211,9 +217,18 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   M10_result <- .rolling_window_profile(Xh, M10_hours, find_min = FALSE)
 
   L5        <- L5_result$value
-  L5_onset  <- sprintf("%02d:00", L5_result$onset_hour)
   M10       <- M10_result$value
-  M10_onset <- sprintf("%02d:00", M10_result$onset_hour)
+
+  # Onset resolution: the *value* above stays on the p = 24 hourly profile
+  # (Goncalves et al. 2014), but the onset clock time is located on a
+  # 10-min-resampled series -- a faithful port of the Python reference's
+  # `_lmx()` -- so it isn't locked to whole hours the way the hourly profile
+  # would force it to be.
+  l5_lmx    <- .lmx_window(datetimes, activity, L5_hours,  find_min = TRUE)
+  m10_lmx   <- .lmx_window(datetimes, activity, M10_hours, find_min = FALSE)
+  day0      <- as.POSIXct(format(as.Date(datetimes[1L], tz = tz), "%Y-%m-%d 00:00:00"), tz = tz)
+  L5_onset  <- .format_elapsed_hms(l5_lmx$onset  - day0)
+  M10_onset <- .format_elapsed_hms(m10_lmx$onset - day0)
 
   # ── RA ───────────────────────────────────────────────────────────────────────
   RA <- if (!is.na(M10) && !is.na(L5) && (M10 + L5) > 0) {
@@ -255,6 +270,81 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
 
   onset <- if (find_min) which.min(window_means) - 1L else which.max(window_means) - 1L
   list(value = window_means[onset + 1L], onset_hour = as.integer(onset))
+}
+
+#' Locate the least/most active window at 10-minute resolution
+#'
+#' Faithful port of the Python reference's `_lmx()`: resamples `activity`
+#' into 10-minute bins (summed), then slides a trailing window of
+#' `period_hours` width across the *entire* recording (as received --
+#' `compute_npcra()`'s own D+1 trim, if enabled, has already been applied
+#' upstream), picking the window whose sum is smallest (L5) or largest
+#' (M10). This runs independently of the hourly-profile (p = 24) value
+#' calculation in `.rolling_window_profile()` -- it exists solely to locate
+#' the onset at the same minute resolution `pyActigraphy`'s `_lmx()` uses,
+#' rather than being locked to whole hours.
+#'
+#' Mirrors `_lmx()`'s `idx` exactly: the returned `onset` is the timestamp
+#' at the *end* of the winning window (pandas' `rolling().sum()` labels
+#' each value at the window's right edge), not the window's start. This
+#' has NOT yet been validated against a `python_output`-derived fixture --
+#' do that before trusting `L5_onset`/`M10_onset` in production. In
+#' particular, `_td_format()` in the Python source formats elapsed time
+#' from day-zero midnight and does NOT wrap at 24 h, so if the global
+#' extremum window falls on a later day, the elapsed hours here can
+#' legitimately exceed 24 -- if the resulting values look implausibly
+#' large, check whether the actual production code (possibly patched
+#' inline in `vs_condor_py_pipeline_fix29_jrsv.ipynb` rather than in
+#' `pipeline_functions_fix27.py`) restricts the search window further.
+#'
+#' @param datetimes POSIXct vector, native epoch resolution.
+#' @param activity numeric vector, same length as `datetimes`.
+#' @param period_hours numeric(1). Window width in hours (5 for L5, 10 for M10).
+#' @param find_min logical(1). TRUE for L5 (least active), FALSE for M10.
+#' @return list(onset = POSIXct, value = numeric).
+#' @noRd
+.lmx_window <- function(datetimes, activity, period_hours, find_min) {
+  bin_min <- 10L
+  bin_s   <- bin_min * 60
+
+  t0      <- datetimes[1L]
+  bin_idx <- as.integer(floor(as.numeric(difftime(datetimes, t0, units = "secs")) / bin_s))
+
+  binned   <- tapply(activity, bin_idx, sum, na.rm = TRUE)
+  bin_seq  <- as.integer(names(binned))
+  full_idx <- seq(min(bin_seq), max(bin_seq))
+  vals     <- rep(0.0, length(full_idx))
+  vals[match(bin_seq, full_idx)] <- as.double(binned)
+
+  window_bins <- as.integer(round(period_hours * 60 / bin_min))
+  n <- length(vals)
+  if (window_bins > n) {
+    return(list(onset = datetimes[length(datetimes)], value = NA_real_))
+  }
+
+  ends <- window_bins:n
+  roll <- vapply(ends, function(e) sum(vals[(e - window_bins + 1L):e]), numeric(1L))
+  best <- if (find_min) which.min(roll) else which.max(roll)
+  end_bin <- ends[best]
+
+  # end of that bin, matching pandas' right-labelled rolling().sum()
+  onset_time <- t0 + (full_idx[end_bin] + 1L) * bin_s
+
+  list(onset = onset_time, value = roll[best])
+}
+
+#' Format an elapsed time (difftime) as "H:MM:SS", NOT wrapped at 24 h
+#'
+#' Port of the Python reference's `_td_format()`.
+#' @noRd
+.format_elapsed_hms <- function(elapsed) {
+  total <- as.numeric(elapsed, units = "secs")
+  total <- as.integer(round(abs(total)))
+  h <- total %/% 3600L
+  r <- total %% 3600L
+  m <- r %/% 60L
+  s <- r %% 60L
+  sprintf("%d:%02d:%02d", h, m, s)
 }
 
 #' Convert an epoch-of-day index to "HH:MM" string
