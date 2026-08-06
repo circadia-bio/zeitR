@@ -1,4 +1,4 @@
-## zeitR (development version)
+## zeitR 0.1.7  (2026-08)
 
 ### 🚀 CI
 

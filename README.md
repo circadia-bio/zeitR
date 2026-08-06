@@ -423,7 +423,7 @@ If you use zeitR in your research, please cite it:
   author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},
   title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},
   year    = {2026},
-  version = {0.1.6},
+  version = {0.1.7},
   doi     = {10.5281/zenodo.21315925},
   url     = {https://github.com/circadia-bio/zeitR}
 }
