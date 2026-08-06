@@ -3,8 +3,13 @@
 
 # ---- Shared fixture ---------------------------------------------------------
 # Reuses the same perfectly-repeating 24h profile as test-npcra.R (see there
-# for why IS = 1, L5 = 0, M10 = 100, RA = 1 exactly), wrapped in a
-# zeitr_recording so study_summary()'s per-participant dispatch is exercised.
+# for why L5 = 0, M10 = 100, RA = 1 exactly). IS is close to but not exactly
+# 1 -- compute_npcra()'s IS uses sample variance (ddof = 1, matching
+# pyActigraphy's actual implementation), which for a perfectly repeating
+# profile equals (24n-1)/(23n) for an n-day recording, not exactly 1 -- see
+# test-npcra.R's .theoretical_is_perfect() for the derivation. Recordings
+# are wrapped in a zeitr_recording so study_summary()'s per-participant
+# dispatch is exercised.
 
 make_recording <- function(participant_id, n_days = 3L) {
   t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
@@ -30,9 +35,12 @@ test_that("study_summary() computes one row per participant with correct NPCRA v
 
   result <- study_summary(study)
 
+  # n_days = 3 (default); trim_to_d1 removes 1 day -> 2 remain.
+  expected_is <- round((24 * 2 - 1) / (23 * 2), 4)
+
   expect_equal(nrow(result), 2L)
   expect_equal(sort(result$participant_id), c("P001", "P002"))
-  expect_true(all(result$IS == 1))
+  expect_true(all(result$IS == expected_is))
   expect_true(all(result$L5 == 0))
   expect_true(all(result$M10 == 100))
   expect_true(all(result$RA == 1))

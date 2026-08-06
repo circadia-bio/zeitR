@@ -1,3 +1,92 @@
+## zeitR 0.1.7.9000  (development)
+
+### 🐛 Bug fixes
+
+* **`run_pipeline_native()` / `extract_sleep_episodes()`**: `gts` (get-up
+  time) was reading `stamps_ow[gt0]` -- the *last sleep* epoch -- one epoch
+  early. Root cause of a systematic -1 epoch shift in `sleep_offset_h` and
+  every downstream metric derived from it, first spotted as an exact
+  mode/median of -1 minute across more than half of a 383-participant
+  EPISONO comparison against the Python reference. Fixed to
+  `stamps_ow[gt0 + 1L]` (the *first wake* epoch), matching Python's
+  `stamps[gt]` exactly. Verified against a real execution of Python's
+  `SleepPipeline` on real cohort data: all 7 nights' `bts`/`gts` now match
+  to the second.
+* **`compute_npcra()`**: `L5_onset`/`M10_onset` and the `L5`/`M10` values
+  themselves were computed from the coarse 24-value hourly-mean profile
+  (Gonçalves et al. 2014), which can only ever land on the hour and gave a
+  measurably different value than production. Both turned out to be
+  superseded in the actual Python reference by inline notebook code
+  (`_lmx_ow()`/`_nonparam_metrics()`, Cell 16 of
+  `vs_condor_py_pipeline_fix29_jrsv.ipynb`), not the shared
+  `pipeline_functions.py`. Onset is now the wall-clock time-of-day
+  (`ts - ts.normalize()`, wrapped at 24 h) of a rolling-mean search over a
+  10-min-resampled series, run globally over the whole recording --
+  matching production exactly, including the value itself, not just the
+  onset resolution.
+* **`compute_sleep_metrics()` / `compute_cpd_metrics()`**: `.mean_circ_h()`
+  used a "shift values >= 12 h by -24, then plain-average" shortcut that is
+  *not* mathematically equivalent to the true atan2-based circular mean
+  production Python actually uses -- confirmed to diverge by a real
+  execution even with zero midnight wraparound (7.689325 h vs 7.665164 h
+  for one participant's `sleep_offset_h`). Now the real atan2 formula,
+  which also corrects `sleep_onset_h`, `MSF`, `MSW`, `MSFsc`, `SJL`, `SJLa`,
+  and `CPD` -- everything that calls this shared helper.
+  `sleep_offset_h` itself also switches from a plain mean to this circular
+  mean (it always should have used one; Python's
+  `_mean_circular_h_offset()` is byte-identical to `_mean_circular_h()`
+  despite the different name). `dp_midsleep_min` switches from a plain SD
+  to a proper circular SD (R-bar mean-resultant-length formula, matching
+  Python's `_std_circular_h()`) -- confirmed this was a **regression**, not
+  a pre-existing gap: the plain-SD value matched neither Python's current
+  output nor the *old* pre-fix reference value, while the circular-SD value
+  matched the old reference almost exactly. `sjla_h` in
+  `compute_cpd_metrics()` is now clamped to `[-12, 12]` before `abs()`,
+  matching Python exactly -- silently wrong before whenever free-day and
+  workday mid-sleep straddle midnight in opposite directions (no effect on
+  any case checked so far).
+
+  All four fixes verified against a real execution of the actual Python
+  notebook cells (5, 7, and 16 -- not the superseded shared `.py` file) on
+  real EPISONO cohort data: every `compute_sleep_metrics()` and
+  `compute_cpd_metrics()` output now matches to 6 decimal places.
+* **`classify_sleep_episodes()`**: removed the classification-stage "Fix 25"
+  filter (exclude episodes starting at/after noon on the recording's last
+  calendar day), which used to run as the function's very first step.
+  Checked the actual production Python (Cell 3 of the fix29 notebook -- the
+  real classification logic, not the superseded shared
+  `pipeline_functions.py`): it has no equivalent step at the classification
+  stage at all. Fix 25 only exists later, specific to the CPD calculation
+  (`nights_to_df()` in Cell 5/7), which `compute_cpd_metrics()` already
+  mirrors correctly. Applying it during classification too meant R
+  excluded real, complete sleep episodes before they ever got a chance to
+  be classified as `"main"`, whenever one simply happened to start on the
+  recording's last calendar day -- a likely contributor to the cohort-wide
+  `n_main` mismatch reported against the Python reference (78.1% of
+  participants matching). `.recover_fragmented_episodes()` (Fix 26c) keeps
+  its own independent last-day-noon guard; `test-fix26c.R`'s existing
+  interaction test already confirmed that guard alone is sufficient,
+  evidence the outer filter was redundant on top of it, not just
+  misplaced.
+
+### 📚 Documentation
+
+* New `.zenodo.json` for GitHub-Zenodo release archiving, mirroring
+  `CITATION.cff`/`DESCRIPTION` authorship.
+
+### 🔧 Other changes
+
+* `.gitignore`: participant data under `dev/` (raw device exports,
+  Python-derived per-participant fixtures) is now excluded, scoped so it
+  doesn't affect intentional package fixtures in `inst/extdata/`.
+* `.Rbuildignore`: `CITATION.cff` and the new `.zenodo.json` excluded from
+  R CMD check (both are GitHub/Zenodo conventions, not R package
+  structure).
+* Scrubbed `SUBJECT_NAME`/`SUBJECT_DATE_OF_BIRTH` from `input1.txt` (both
+  the root copy and the `inst/extdata/` package fixture) -- real personal
+  data from the vendor's own sample file, publicly visible in this public
+  repo.
+
 ## zeitR 0.1.7  (2026-08)
 
 ### 🚀 CI

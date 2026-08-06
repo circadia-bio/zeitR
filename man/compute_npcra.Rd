@@ -54,24 +54,33 @@ A tibble with columns \code{participant_id}, \code{window_start} (if
 }
 \description{
 Computes the standard non-parametric circadian rhythm analysis variables
-from an actigraphy recording, following Gonçalves et al. (2014) and Van
-Someren et al. (1999). All variables are derived from the 24-hour average
-activity profile built from \strong{hourly means} (p = 24).
+from an actigraphy recording. \code{IS} and \code{IV} follow Gonçalves et al. (2014)
+and Van Someren et al. (1999), derived from the 24-hour average activity
+profile built from \strong{hourly means} (p = 24). \code{L5}/\code{M10} and their onsets
+follow a different convention -- see below -- matching the notebook this
+package's Vallim-pipeline comparisons were validated against.
 }
 \details{
 The following variables are computed:
 
 \describe{
 \item{\code{IS}}{\strong{Interdaily stability} — consistency of the 24 h rest-activity
-pattern across days (range 0--1; higher = more stable).}
+pattern across days (range 0--1; higher = more stable). From the
+hourly-mean profile (p = 24).}
 \item{\code{IV}}{\strong{Intradaily variability} — fragmentation of the
-rest-activity rhythm (>= 0; higher = more fragmented).}
+rest-activity rhythm (>= 0; higher = more fragmented). From the
+hourly-mean profile (p = 24).}
 \item{\code{RA}}{\strong{Relative amplitude} — contrast between the most active
 10 h window (M10) and least active 5 h window (L5) (range 0--1).}
-\item{\code{L5}}{Mean activity during the least active 5 consecutive hours.}
-\item{\code{L5_onset}}{Clock time of the L5 window onset (hh:mm).}
-\item{\code{M10}}{Mean activity during the most active 10 consecutive hours.}
-\item{\code{M10_onset}}{Clock time of the M10 window onset (hh:mm).}
+\item{\code{L5}}{Mean activity during the least active 5-hour window, found
+by a rolling mean over a 10-min-resampled series, searched globally
+across the whole recording (not the p = 24 hourly profile used for
+IS/IV).}
+\item{\code{L5_onset}}{Wall-clock time ("HH:MM") of the \emph{end} of the
+least-active window -- the time of day, wrapped at 24 h regardless of
+which calendar day the window actually falls on.}
+\item{\code{M10}}{As \code{L5}, for the most active 10-hour window.}
+\item{\code{M10_onset}}{As \code{L5_onset}, for the most-active window.}
 }
 }
 \examples{

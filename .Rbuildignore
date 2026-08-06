@@ -1,8 +1,10 @@
 ^\.github$
+^\.zenodo\.json$
 ^\.Rprofile$
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
+^CITATION\.cff$
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$

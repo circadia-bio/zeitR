@@ -58,3 +58,15 @@ src/*.dll
 /doc/
 /Meta/
 ID0003.txt
+
+# Participant data -- never commit, regardless of where it lands.
+# Scoped to dev/ specifically -- intentional package fixtures belong in
+# inst/extdata/ and should be added deliberately, not swept up here.
+# Raw device exports:
+dev/ID*.txt
+dev/input*.txt
+# Python-derived per-participant fixtures (real timestamps/durations):
+dev/*python_nights.csv
+dev/*python_epochs.csv
+dev/*python_output.csv
+dev/*python_estimates.csv

@@ -7,8 +7,42 @@
 #   fix-locale  : .is_free_day() uses format(d, "%u") (ISO 8601 weekday number)
 #                 instead of weekdays() to avoid locale-dependent day names
 #                 (e.g. "sabado" on pt_BR vs "Saturday" on en_US).
-#   fix-circular: MSF and MSW use .mean_circ_h() (circular mean) instead of
-#                 plain mean(), matching calculate_msf/msw in the fix29 notebook.
+#   fix-circular: MSF, MSW, so_f, sleep_onset_h, and sleep_offset_h all use
+#                 the package's own circ_mean_h() (circ_utils.R, Fix 20)
+#                 instead of a plain mean(), matching calculate_msf/msw in
+#                 the fix29 notebook. This file used to carry its own
+#                 internal duplicate (.mean_circ_h()), which had drifted
+#                 into a "shift values >= 12h by -24, then plain-average"
+#                 shortcut -- NOT mathematically equivalent to the true
+#                 atan2-based circular mean, confirmed to diverge by real
+#                 execution even with zero midnight wraparound (7.689325h
+#                 vs 7.665164h for one participant's sleep_offset_h).
+#                 Removed the duplicate; every call site now goes straight
+#                 to circ_mean_h() so the two can't drift apart again.
+#   fix-circ-sd : dp_midsleep_min uses the package's own circ_sd_h()
+#                 (circ_utils.R, Fix 24; R-bar mean-resultant-length
+#                 formula), not a plain sd() -- matches Cell 5's
+#                 _std_circular_h() exactly. Same duplicate-then-drift
+#                 history as fix-circular above: the plain-SD value matched
+#                 neither Python's current output nor the OLD (pre-fix)
+#                 zeitR_results.csv reference, while circ_sd_h() matched the
+#                 old reference almost exactly -- this was a regression at
+#                 some point, not a pre-existing gap.
+#   fix-sjla-clamp: compute_cpd_metrics()'s sjla_h is now clamped to
+#                 [-12, 12] before abs(), matching Cell 7 exactly --
+#                 previously wrong whenever free-day and workday mid-sleep
+#                 straddle midnight in opposite directions.
+#   fix-29e-na  : latencia_min/inertia_min (and sd_f/sd_w/cpd_s in
+#                 compute_cpd_metrics()) now skip NA sol/soi/mid_sleep
+#                 values via na.rm = TRUE. Split-episode cutpoints
+#                 (.split_episode_by_activity(), sleep_classify.R) write
+#                 NA there now, not a real 0.0 (Fix 29e) -- a cutpoint
+#                 isn't a real onset/offset measurement, so counting it as
+#                 zero dragged these averages down for any night that had
+#                 a 14-16h episode split. Matches the report's own
+#                 diagnosis of this exact symptom (high per-participant
+#                 agreement with occasional large outliers, near-zero
+#                 Pearson correlation on latencia_min/inertia_min).
 #   fix-truncate: compute_cpd_metrics() drops episodes starting after noon on
 #                 the last recording day (truncated by end of file), matching
 #                 the nights_to_df() filter added in the fix29 notebook.
@@ -23,17 +57,19 @@
     as.numeric(format(x, "%S", tz = tz)) / 3600
 }
 
-# Mirrors _mean_circular_h (fix27/fix29): values >= 12h shifted by -24 before
-# averaging, then wrapped to [0, 24).  Handles midnight wrap without
-# trigonometry; equivalent to fix29's sin/cos approach for typical sleep times.
-.mean_circ_h <- function(h) {
-  s <- ifelse(h >= 12, h - 24, h)
-  mean(s, na.rm = TRUE) %% 24
-}
-
-# Circular SD in hours (analogous to circ_sd_h but without the 2*pi scaling)
-# Kept for reference; sd() used directly in compute_sleep_metrics.
-# .sd_circ_h <- function(h) { s <- ifelse(h >= 12, h - 24, h); sd(s, na.rm = TRUE) }
+# True circular mean and SD are provided by the package's own exported
+# circ_mean_h()/circ_sd_h() (circ_utils.R, Fix 20 / Fix 24 in the JRSV
+# pipeline) -- there is deliberately no internal duplicate here any more.
+# There used to be one (.mean_circ_h()/.sd_circ_h()), reimplementing the
+# same atan2/R-bar math independently; it drifted out of sync with
+# circ_mean_h() at some point into a "shift values >= 12h by -24, then
+# plain-average" shortcut that is NOT mathematically equivalent to the true
+# circular mean (circ_mean_h()'s own docstring already documents exactly
+# this failure mode -- "badly biased estimates when times straddle noon").
+# Confirmed diverging by a real Python execution even with zero midnight
+# wraparound (7.689325h vs 7.665164h for one participant's
+# sleep_offset_h). Calling circ_mean_h()/circ_sd_h() directly here removes
+# the duplicate so the two can't drift apart again.
 
 # Mirrors _midsleep
 .midsleep <- function(onset_h, offset_h) {
@@ -161,15 +197,18 @@
 #' than `weekdays()`, which is locale-dependent. All remaining nights are
 #' **workday** nights.
 #'
-#' `sleep_onset_h` uses a circular mean (values >= 12 h are shifted by -24 h
-#' before averaging, then wrapped to [0, 24)). `sleep_offset_h` uses a plain
-#' arithmetic mean.
+#' Both `sleep_onset_h` and `sleep_offset_h` use a circular mean, treating
+#' clock hours as angles on a 24-hour circle so values near midnight from
+#' opposite sides average correctly (e.g. 23:30 and 00:30 average to
+#' 00:00, not 12:00).
 #'
 #' `fps_h` (free period sleep) equals `fpr_tib_h - (latencia_min + inertia_min)
 #' / 60` -- TBT net of sleep onset latency and sleep inertia.
 #'
-#' `dp_midsleep_min` and `dp_tst_min` are standard deviations of per-night
-#' mid-sleep (minutes) and TST (minutes), respectively.
+#' `dp_midsleep_min` is the circular SD (R-bar mean-resultant-length
+#' formula) of per-night mid-sleep, in minutes -- matching production
+#' Python's `_std_circular_h()` exactly, not a plain SD. `dp_tst_min` is a
+#' plain SD of per-night TST, in minutes.
 #'
 #' @param x A `zeitr_result` object **or** a `tibble` of nightly sleep
 #'   statistics as returned by [run_pipeline_native()] or [run_pipeline()].
@@ -199,7 +238,7 @@
 #'   \describe{
 #'     \item{`n_overall`, `n_wd`, `n_fd`}{Night counts.}
 #'     \item{`sleep_onset_h`, `sleep_offset_h`}{Circular mean onset and
-#'       arithmetic mean offset in decimal hours.}
+#'       offset in decimal hours.}
 #'     \item{`fpr_tib_h`}{Mean TBT in hours.}
 #'     \item{`fps_h`}{Mean free period sleep (TBT - SOL - SOI) in hours.}
 #'     \item{`tst_h`}{Mean TST in hours.}
@@ -207,8 +246,8 @@
 #'     \item{`waso_min`}{Mean WASO in minutes.}
 #'     \item{`sleep_eff_pct`}{Mean sleep efficiency in percent (0-100).}
 #'     \item{`tst_24h_h`}{Same as `tst_h` (24-h TST for main sleep only).}
-#'     \item{`dp_midsleep_min`, `dp_tst_min`}{SD of mid-sleep and TST in
-#'       minutes.}
+#'     \item{`dp_midsleep_min`}{Circular SD of mid-sleep, in minutes.}
+#'     \item{`dp_tst_min`}{Plain SD of TST, in minutes.}
 #'   }
 #'   Workday and free-day metrics carry the suffix `_wd` and `_fd`.
 #'
@@ -291,13 +330,17 @@ compute_sleep_metrics.default <- function(x,
                setNames(rep(NA_real_, length(nms)), nms)))
     }
     tbt_h       <- mean(sub$tbt) / 60
-    lat_min     <- mean(sub$sol)
-    inertia_min <- mean(sub$soi)
+    lat_min     <- mean(sub$sol, na.rm = TRUE)   # Fix 29e: split cutpoints are
+    inertia_min <- mean(sub$soi, na.rm = TRUE)   # NA, not 0.0 -- see .split_episode_by_activity()
 
     vals <- c(
       nrow(sub),
-      .mean_circ_h(onset_sub),         # sleep_onset_h
-      mean(offset_sub, na.rm = TRUE),  # sleep_offset_h
+      circ_mean_h(onset_sub),   # sleep_onset_h
+      circ_mean_h(offset_sub),  # sleep_offset_h -- circular mean, matches
+                                 # Cell 5's _mean_circular_h_offset(), which is
+                                 # byte-identical to _mean_circular_h() despite
+                                 # the different name (verified against a real
+                                 # execution, not just the source)
       tbt_h,                           # fpr_tib_h
       tbt_h - (lat_min + inertia_min) / 60,  # fps_h
       mean(sub$tst) / 60,              # tst_h
@@ -306,7 +349,10 @@ compute_sleep_metrics.default <- function(x,
       mean(sub$waso),                  # waso_min
       mean(sub$eff) * 100,             # sleep_eff_pct
       mean(sub$tst) / 60,              # tst_24h_h (same as tst_h for main-only)
-      stats::sd(mid_sub, na.rm = TRUE) * 60,   # dp_midsleep_min
+      circ_sd_h(mid_sub) * 60,                  # dp_midsleep_min -- circular SD
+                                                 # (R-bar formula), matches
+                                                 # Cell 5's _std_circular_h()
+                                                 # exactly; NOT a plain SD
       stats::sd(sub$tst, na.rm = TRUE)         # dp_tst_min
     )
     n_sfx <- if (sfx == "") "n_overall" else paste0("n_", sfx)
@@ -350,9 +396,10 @@ compute_sleep_metrics.default <- function(x,
 #' \deqn{\text{MS} = \left(\text{SO} + \frac{\text{offset} - \text{onset}}{2}\right) \bmod 24}
 #' where onset = bts + SOL and offset = gts - SOI (both in decimal hours).
 #'
-#' **MSW** and **MSF** use the circular mean of per-night mid-sleep values
-#' (values >= 12 h shifted by -24 before averaging, then wrapped to [0, 24)),
-#' matching `calculate_msf()` / `calculate_msw()` from the fix29 notebook.
+#' **MSW** and **MSF** use the circular mean of per-night mid-sleep values,
+#' treating clock hours as angles on a 24-hour circle so values near
+#' midnight from opposite sides average correctly, matching `calculate_msf()`
+#' / `calculate_msw()` from the fix29 notebook.
 #' **MSFsc** adjusts MSF by the free-day-eve sleep onset and the weighted
 #' weekly mean sleep duration when free-day duration exceeds weekday duration.
 #' **CPD** is the RMS distance of each night's mid-sleep from MSFsc in the
@@ -467,13 +514,13 @@ compute_cpd_metrics.default <- function(x,
 
   # MSF and MSW: circular mean to handle midnight wrap correctly.
   # Mirrors calculate_msf() / calculate_msw() from the fix29 notebook.
-  msf_h <- .mean_circ_h(df$mid_sleep[we])
-  msw_h <- .mean_circ_h(df$mid_sleep[wd])
+  msf_h <- circ_mean_h(df$mid_sleep[we])
+  msw_h <- circ_mean_h(df$mid_sleep[wd])
 
-  sd_f    <- mean((df$sleep_offset[we] - df$sleep_onset[we]) %% 24)
-  sd_w    <- mean((df$sleep_offset[wd] - df$sleep_onset[wd]) %% 24)
+  sd_f    <- mean((df$sleep_offset[we] - df$sleep_onset[we]) %% 24, na.rm = TRUE)
+  sd_w    <- mean((df$sleep_offset[wd] - df$sleep_onset[wd]) %% 24, na.rm = TRUE)
   sd_week <- (5 * sd_w + 2 * sd_f) / 7
-  so_f    <- .mean_circ_h(df$sleep_onset[eve])
+  so_f    <- circ_mean_h(df$sleep_onset[eve])
 
   msfsc_h <- if (sd_f <= sd_w) (so_f + sd_f / 2) %% 24 else (so_f + sd_week / 2) %% 24
   msfsc_s <- msfsc_h * 3600
@@ -483,10 +530,22 @@ compute_cpd_metrics.default <- function(x,
   half  <- 12 * 3600; full <- 24 * 3600
   x_i   <- ifelse(x_i < -half, x_i + full, ifelse(x_i > half, x_i - full, x_i))
   y_i   <- c(0, -diff(ms_s))
-  cpd_s <- mean(sqrt(x_i^2 + y_i^2))
+  # Fix 29e: split cutpoints leave mid_sleep NA for that night (sol/soi are
+  # NA there, not 0.0 -- see .split_episode_by_activity()), which
+  # propagates into both x_i and y_i (diff() spreads a single NA to the
+  # entries on both sides of it). na.rm = TRUE keeps that one night's gap
+  # from NA-ing out cpd_s for the whole participant.
+  cpd_s <- mean(sqrt(x_i^2 + y_i^2), na.rm = TRUE)
 
-  sjl_h  <- abs(msf_h - msw_h)
   sjla_h <- msf_h - msw_h
+  # Clamp to [-12, 12] before taking abs() -- matches Cell 7's
+  # `if sjla_h > 12: sjla_h -= 24 / if sjla_h < -12: sjla_h += 24` exactly.
+  # Doesn't change anything when |msf_h - msw_h| <= 12 (the common case),
+  # but without it sjl_h/sjla_h are wrong whenever free-day and workday
+  # mid-sleep straddle midnight in opposite directions.
+  if (sjla_h > 12)  sjla_h <- sjla_h - 24
+  if (sjla_h < -12) sjla_h <- sjla_h + 24
+  sjl_h  <- abs(sjla_h)
 
   list(
     n_nights_cpd = nrow(df),
