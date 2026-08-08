@@ -1,0 +1,14 @@
+name: Notify website of Zenodo release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-website-doi:
+    uses: circadia-bio/website/.github/workflows/zenodo-doi-lookup.yml@main
+    with:
+      package-name: "zeitR"
+      repo: "zeitR"
+    secrets:
+      website-pat: ${{ secrets.WEBSITE_PAT }}
