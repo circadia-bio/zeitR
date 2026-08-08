@@ -4,37 +4,35 @@
   "creators": [
     {
       "name": "França, Lucas",
-      "affiliation": "Northumbria University, Circadia Lab",
+      "affiliation": "Northumbria University",
       "orcid": "0000-0003-0853-1319"
     },
     {
       "name": "Leocadio-Miguel, Mario",
-      "affiliation": "Northumbria University, Circadia Lab",
+      "affiliation": "Northumbria University",
       "orcid": "0000-0002-7248-3529"
     },
     {
       "name": "Vallim, Julia Ribeiro da Silva",
-      "affiliation": "Universidade Federal de São Paulo",
       "orcid": "0000-0001-8708-8479"
     }
   ],
+  "license": "MIT",
   "upload_type": "software",
   "access_right": "open",
-  "license": "MIT",
   "keywords": [
     "actigraphy",
-    "sleep",
     "circadian rhythm",
+    "sleep",
     "chronobiology",
-    "wearable sensors",
     "R package",
-    "non-parametric circadian rhythm analysis"
+    "Circadia Lab"
   ],
   "related_identifiers": [
     {
       "identifier": "https://github.com/circadia-bio/zeitR",
       "relation": "isSupplementTo",
-      "scheme": "url"
+      "resource_type": "software"
     }
   ]
 }
