@@ -20,6 +20,11 @@
   "license": "MIT",
   "upload_type": "software",
   "access_right": "open",
+  "communities": [
+    {
+      "identifier": "circadia-lab"
+    }
+  ],
   "keywords": [
     "actigraphy",
     "circadian rhythm",
