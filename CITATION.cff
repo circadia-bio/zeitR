@@ -1,22 +1,27 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-type: software
 title: "zeitR: Actigraphy Data Parsing and Analysis for R"
-version: 0.1.7
-doi: 10.5281/zenodo.21315925
-url: "https://github.com/circadia-bio/zeitR"
-repository-code: "https://github.com/circadia-bio/zeitR"
-license: "MIT"
+type: software
+version: 0.1.7.9000
 authors:
-  - family-names: França
-    given-names: Lucas
+  - family-names: "França"
+    given-names: "Lucas"
     orcid: "https://orcid.org/0000-0003-0853-1319"
-    affiliation: "Northumbria University, Circadia Lab"
-  - family-names: Leocadio-Miguel
-    given-names: Mario
+    affiliation: "Northumbria University"
+  - family-names: "Leocadio-Miguel"
+    given-names: "Mario"
     orcid: "https://orcid.org/0000-0002-7248-3529"
-    affiliation: "Northumbria University, Circadia Lab"
-  - family-names: Vallim
+    affiliation: "Northumbria University"
+  - family-names: "Vallim"
     given-names: "Julia Ribeiro da Silva"
     orcid: "https://orcid.org/0000-0001-8708-8479"
-    affiliation: "Universidade Federal de São Paulo"
+license: MIT
+repository-code: "https://github.com/circadia-bio/zeitR"
+url: "https://zeitr.circadia-lab.uk"
+keywords:
+  - actigraphy
+  - circadian rhythm
+  - sleep
+  - chronobiology
+  - R package
+  - Circadia Lab
