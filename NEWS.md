@@ -1,5 +1,19 @@
 ## zeitR 0.1.7.9000  (development)
 
+### ✨ New features
+
+* **`compute_npcra()`** gains `ISm`/`IVm` -- the mean of `IS`/`IV` computed
+  at every divisor of 1440 minutes between 1-60 min (22 resolutions),
+  matching Cell 16's `_ISm_IVm_FREQS` loop exactly (`vs_condor_py_pipeline_
+  fix30_jrsv.ipynb`). Unlike the main `IS`/`IV`, missing bins at each
+  resolution are omitted rather than zero-filled, and a resolution is only
+  excluded from the average if it has 1 or fewer valid bins -- if the
+  underlying formula itself degenerates (e.g. zero variance) at some
+  resolution, that value is still averaged in, exactly matching Python's
+  `try/except` wrapping the per-frequency block rather than the returned
+  value. Refactored the existing hourly IS/IV computation into a shared
+  `.is_iv_at_resolution()` helper so both share one implementation.
+
 ### 🐛 Bug fixes
 
 * **`run_pipeline_native()` / `extract_sleep_episodes()`**: `gts` (get-up
@@ -50,24 +64,41 @@
   notebook cells (5, 7, and 16 -- not the superseded shared `.py` file) on
   real EPISONO cohort data: every `compute_sleep_metrics()` and
   `compute_cpd_metrics()` output now matches to 6 decimal places.
-* **`classify_sleep_episodes()`**: removed the classification-stage "Fix 25"
-  filter (exclude episodes starting at/after noon on the recording's last
-  calendar day), which used to run as the function's very first step.
-  Checked the actual production Python (Cell 3 of the fix29 notebook -- the
-  real classification logic, not the superseded shared
-  `pipeline_functions.py`): it has no equivalent step at the classification
-  stage at all. Fix 25 only exists later, specific to the CPD calculation
-  (`nights_to_df()` in Cell 5/7), which `compute_cpd_metrics()` already
-  mirrors correctly. Applying it during classification too meant R
-  excluded real, complete sleep episodes before they ever got a chance to
-  be classified as `"main"`, whenever one simply happened to start on the
-  recording's last calendar day -- a likely contributor to the cohort-wide
-  `n_main` mismatch reported against the Python reference (78.1% of
-  participants matching). `.recover_fragmented_episodes()` (Fix 26c) keeps
-  its own independent last-day-noon guard; `test-fix26c.R`'s existing
-  interaction test already confirmed that guard alone is sufficient,
-  evidence the outer filter was redundant on top of it, not just
-  misplaced.
+* **`classify_sleep_episodes()`**: reinstated the classification-stage
+  truncation filter (exclude episodes starting at/after noon on the
+  recording's last calendar day) as **Fix 29f**, after incorrectly
+  removing it earlier in this same development cycle. That removal was
+  based on the fix29 notebook's Cell 3, which genuinely has no
+  classification-stage truncation filter -- but fix30 (the actual current
+  production notebook, obtained after the removal) shows Python re-added
+  exactly this filter, with its own comment explaining a real, confirmed
+  bug: an 8th spurious "night" out of a 7-day recording (ID_0138, a
+  same-day 19:23->23:56 artifact miscounted as a valid main night).
+  Consistent with this, removing the filter did not improve the
+  cohort-wide `n_main` match rate against the real Python reference at
+  all (stayed at ~77-78%), since Python's real pipeline has the same
+  filter all along. Reinstated with fix30's exact mechanics: the "last
+  day" reference is `max(gts)` among the episodes themselves, not the raw
+  epoch data's last timestamp (these usually coincide but can diverge).
+  `.recover_fragmented_episodes()` (Fix 26c) keeps its own separate
+  last-day-noon guard (based on the raw epoch data), independently
+  necessary since it constructs new candidates from raw epoch scanning
+  that this filter never sees.
+* **`compute_npcra()`**: no longer excludes off-wrist epochs (`state == 4`)
+  by default before computing any NPCRA variable. Checked the actual
+  production Python (Cell 16 of `vs_condor_py_pipeline_fix30_jrsv.ipynb`):
+  every NPCRA variable (`IS`, `IV`, `M10`, `L5`, `RA`) comes from
+  `_nonparam_metrics()`, always called with `mask_series=None` --
+  off-wrist periods' raw device readings are used as-is, never deleted.
+  Real-cohort validation against Julia's Python reference (383
+  participants) showed catastrophic (near-zero or negative) ICC on M10/L5
+  onset across all three channels (pim/light/temp) -- far worse than
+  everything else in the comparison; `IS`/`IV` were comparatively fine
+  (0.90-0.97 ICC), consistent with deleting epochs (creating index gaps)
+  mattering far more for a winner-take-all window search than for a
+  summary statistic averaged over the whole recording. New
+  `exclude_offwrist` argument (default `FALSE`, matching Python) restores
+  the previous behaviour as an opt-in.
 
 ### 📚 Documentation
 

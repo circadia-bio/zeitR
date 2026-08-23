@@ -1,7 +1,7 @@
 # ── Vallim pipeline: native sleep episode extraction and classification ─────────
 # R port of Julia Ribeiro da Silva Vallim's (JRSV) condor_pipeline post-processing
 # rules. Codename: Vallim.
-# Source: pipeline_functions_fix27.py + vs_condor_py_pipeline_fix29_jrsv.ipynb
+# Source: pipeline_functions_fix27.py + vs_condor_py_pipeline_fix30_jrsv.ipynb
 #
 # Fixes ported:
 #   Fix 26a — adaptive nocturnal window (infer_nocturnal_window)
@@ -9,33 +9,34 @@
 #   Fix 26c — fragmented episode recovery (recover_fragmented_episodes)
 #   Fix 27  — execution order audit + 14 h TBT ceiling
 #   Fix 29  — corrected split/exclude logic for long episodes
+#   Fix 29f — exclude truncated episodes at recording end, applied during
+#             classification itself (not just the CPD calculation)
 #
-# Fix 25 (exclude truncated episodes at recording end) is NOT applied here.
-# It used to be, as classify_sleep_episodes()'s very first step -- removed
-# after checking the actual production Python (Cell 3 of the fix29
-# notebook, not the superseded shared pipeline_functions.py): Cell 3's real
-# classification logic has no such step at all. Fix 25 only exists later,
-# specific to the CPD calculation (nights_to_df() in Cell 5/7), which
-# compute_cpd_metrics() already mirrors correctly on the R side.
-# Applying it during classification too meant R was excluding real,
-# complete sleep episodes before they ever got a chance to be classified
-# as "main" -- whenever a genuine episode simply happened to start on the
-# recording's last calendar day -- and is a likely contributor to the
-# cohort-wide n_main mismatch reported against the Python reference
-# (78.1% of participants matching).
+# History: this file's Fix 29f used to be called "Fix 25" and was removed
+# earlier, based on the fix29 notebook's Cell 3 -- which genuinely has no
+# classification-stage truncation filter. That removal was wrong: fix30
+# (the actual current production notebook, not fix29) re-adds exactly this
+# filter as "Fix 29f", with its own comment explaining a real, confirmed
+# bug it fixes (ID_0138: an 8th spurious "night" out of a 7-day recording,
+# a same-day 19:23->23:56 artifact miscounted as a valid main night).
+# Consistent with this: removing the filter did not improve the
+# cohort-wide n_main match rate at all against the Python reference
+# (stayed at ~77-78%), since Python's real pipeline has the same filter
+# all along. Reinstated, this time matching fix30's exact mechanics (the
+# "last day" reference is max(gts) among the episodes themselves, not the
+# raw epoch data's last timestamp -- see Fix 29f's own comment below for
+# why that distinction matters).
 #
-# .recover_fragmented_episodes() (Fix 26c) still carries its own
-# last-day-noon guard, independent of the (now-removed) classification-stage
-# Fix 25: a recovery candidate that would itself be truncated by the end of
-# the recording (no real wake-up observed) still shouldn't be manufactured
-# into a main night. test-fix26c.R's second test exercises this guard
-# directly, bypassing classify_sleep_episodes() entirely, and confirms the
-# guard alone is sufficient -- which is itself evidence the outer
-# classification-stage filter was redundant on top of it, not just
-# misplaced.
+# .recover_fragmented_episodes() (Fix 26c) carries its own separate
+# last-day-noon guard (based on the raw epoch data's last timestamp, not
+# episode gts) -- this is NOT redundant with Fix 29f: Fix 29f filters the
+# INITIAL episode list before Fix 26c ever runs, but Fix 26c constructs
+# entirely NEW candidate episodes from raw epoch scanning, which Fix 29f
+# never sees. Both guards are independently necessary, protecting
+# different code paths.
 #
 # Execution order in classify_sleep_episodes() follows Fix 27:
-#   Fix 26a -> Fix 29 / Rule 2 -> Fix 26c ->
+#   Fix 29f -> Fix 26a -> Fix 29 / Rule 2 -> Fix 26c ->
 #   Rules 3-5 -> Fix 26b -> Rule 6 -> Rule 7
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -152,6 +153,11 @@ extract_sleep_episodes <- function(data, wake_thresh = 60L) {
 #' `"main"` or `"secondary"`. The execution order follows Fix 27:
 #'
 #' \enumerate{
+#'   \item **Fix 29f** -- exclude episodes starting at/after noon on the
+#'     latest classified night's calendar date (`max(gts)`), before any
+#'     other classification step. Prevents a spurious end-of-recording
+#'     artifact (device removed mid-day, not a real night) from being
+#'     counted as a valid main night.
 #'   \item **Fix 26a** -- infer adaptive nocturnal window from `int_temp`
 #'     and `light`. Falls back to `nocturnal_onset_start`/`nocturnal_onset_end`
 #'     if fewer than 2 candidate episodes pass the temperature and light filter.
@@ -251,6 +257,38 @@ classify_sleep_episodes <- function(
   epoch_s   <- as.numeric(names(sort(table(dd_v), decreasing = TRUE))[1L])
   epoch_min <- epoch_s / 60.0
   tz        <- attr(dt[1L], "tzone") %||% "UTC"
+
+  # ── Fix 29f: exclude truncated episodes at recording end, before ──────
+  # classification (Step 1, before Fix 26a) ─────────────────────────────────────
+  # Reinstated after being incorrectly removed earlier: that removal was
+  # based on the fix29 notebook's Cell 3, which genuinely has no
+  # classification-stage truncation filter -- but fix30 (the actual
+  # current production notebook) re-adds exactly this filter as "Fix 29f",
+  # with its own comment explaining why: "Fix 25 / Fix 29c excluded
+  # truncated end-of-recording episodes only inside the CPD/chronotype
+  # calculation..., not here, in the main classification itself. That let
+  # a spurious last-night artifact... still be counted as a valid 'main'
+  # night in n_main... Confirmed on ID_0138: both R and Python classified
+  # an 8th 'night' out of a 7-day recording, spanning 19:23->23:56 on the
+  # same calendar day (TBT ~4.5h, get-up time 23:56 -- not a real
+  # wake-up)." Consistent with this: removing the filter earlier did not
+  # improve the cohort-wide n_main match rate at all (stayed at ~77-78%),
+  # since Python's real pipeline has the same filter all along.
+  #
+  # Mechanically different from the version removed earlier: the "last
+  # day" reference is max(gts) among the episodes themselves (Python:
+  # `pd.to_datetime(nights_data['gts']).max().normalize()`), NOT the raw
+  # epoch data's last timestamp. These usually coincide but can diverge if
+  # the recording continues well past the final wake-up.
+  last_day_all  <- as.Date(max(ep$gts), tz = tz)
+  noon_last_day <- as.POSIXct(paste0(format(last_day_all), " 12:00:00"), tz = tz)
+  truncated_all <- ep$bts >= noon_last_day
+  if (any(truncated_all)) {
+    if (verbose)
+      cli::cli_inform("  [Fix 29f] Excluded {sum(truncated_all)} truncated episode(s) at end of recording (before classification).")
+    ep <- ep[!truncated_all, , drop = FALSE]
+  }
+  if (nrow(ep) == 0L) return(.empty_classified())
 
   # ── Fix 26a: infer adaptive nocturnal window ──────────────────────────────
   noc <- .infer_nocturnal_window(
@@ -490,13 +528,13 @@ classify_sleep_episodes <- function(
   # Recording-end boundary: a recovery candidate that would itself be
   # truncated by the end of the recording (starts at/after noon on the
   # last calendar day, with no real wake-up observed after it) must not be
-  # manufactured into a main night from partial data. This guard is now
-  # independent of any upstream filter -- classify_sleep_episodes() no
-  # longer excludes such episodes before classification (removed after
-  # confirming the actual production Python has no equivalent step at the
-  # classification stage; see the module header) -- but the boundary
-  # itself is still real: a genuinely truncated candidate here would still
-  # be wrong to recover.
+  # manufactured into a main night from partial data. This guard is
+  # independent of classify_sleep_episodes()'s own Fix 29f filter (which
+  # uses max(gts) among episodes, not the raw epoch data's last
+  # timestamp, and only filters the INITIAL episode list, before this
+  # function ever runs) -- both are needed, since this function
+  # constructs entirely new candidates from raw epoch scanning that Fix
+  # 29f never sees.
   last_day_noon <- as.POSIXct(paste0(format(last_date), " 12:00:00"), tz = tz)
 
   new_eps <- list()
