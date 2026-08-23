@@ -2,6 +2,34 @@
 
 ### ✨ New features
 
+* New `compute_cosinor()` -- Cosinor rhythmometry (Cornelissen 2014):
+  fits a single-harmonic cosine model with a FIXED period (default 24h)
+  to an activity/light/temperature signal, returning the acrophase (peak
+  time), MESOR, and amplitude. Ports pyActigraphy's actual `Cosinor` class
+  (`pyActigraphy/analysis/cosinor.py`) as it's really used in the
+  reference notebook (Cell 16's `_fit_cosinor()`, which locks `Period`
+  rather than fitting it -- its own comment explains why: a free period
+  let the optimizer converge anywhere from 0.23h to 91.75h, making the
+  acrophase/period meaningless). With the period locked, the model is
+  linear in disguise (a standard cosinor-regression trick): expanding
+  `cos(ωx+φ) = cosφ·cos(ωx) - sinφ·sin(ωx)` turns the fit into an
+  ordinary linear regression, solved here via `qr.solve()` rather than
+  needing to replicate pyActigraphy's actual nonlinear optimizer
+  (`lmfit`'s Levenberg-Marquardt). Verified by direct execution that this
+  closed-form OLS solution matches `lmfit`'s real fit to floating-point
+  precision when the period is locked -- not an approximation. Also
+  reproduces the notebook's own documented sign-flip fix exactly (the
+  model's peak occurs at `t_peak = -φ/ω`; the notebook's prior,
+  unnegated version gave the anti-peak/trough, offset ~12h from the true
+  peak) and its `acrophase_time_neg` convention (`[-12, 12]`, matching the
+  `_om10_neg`/`_ol5_neg` pattern used elsewhere in the same notebook for
+  circular-safe clock-time comparison).
+
+  Implemented as a new standalone function rather than folded into
+  `compute_npcra()` (which is how Cell 16 bundles it) -- a simpler design
+  to scope given the size of everything else ported this session; could
+  be integrated into `compute_npcra()`'s output later if that shape is
+  preferred.
 * **`compute_sri()`** gains `algo = "sadeh"`, `"ck"`, `"scripps"`, and
   `"roenneberg"`: alternatives to the default `"vallim"` (state-column-
   based) SRI, scoring raw `activity` via the Sadeh et al. (1994),
