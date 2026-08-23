@@ -93,10 +93,12 @@
 #' sleep-onset runs at least 30 min long), then an iterative
 #' correlation-based bout-cleaning loop (each candidate onset is tested
 #' against a family of triangular "sleep bout ending at position i"
-#' templates over the following 12h, accepting the first clear correlation
-#' peak as the bout's offset). Shares the two-step SRI aggregation and
-#' lack of off-wrist handling with the other three raw-activity algorithms
-#' above. No rescoring step (rescoring is specific to `CK()`).
+#' templates over the following 12h, accepting the HIGHEST correlation
+#' peak as the bout's offset -- not simply the first qualifying one; see
+#' `?.find_highest_peak_idx` for a real version mismatch this caught).
+#' Shares the two-step SRI aggregation and lack of off-wrist handling
+#' with the other three raw-activity algorithms above. No rescoring step
+#' (rescoring is specific to `CK()`).
 #'
 #' @param x A `zeitr_recording`/`zeitr_result`, or a data frame / tibble with
 #'   at least `datetime` and `state` columns (`algo = "vallim"`) or
@@ -637,9 +639,8 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #'     of the raw `sw` values against a family of triangular "sleep bout
 #'     ending at position i" templates over the next
 #'     `max_test_period_min` epochs, and returns the position of the
-#'     FIRST clear correlation peak (a Pearson correlation strictly
-#'     greater than the following `r_consec_below_min + 1` values) as the
-#'     accepted sleep offset -- or `NA` if no such peak exists.
+#'     HIGHEST correlation peak (see `.find_highest_peak_idx()`) as the
+#'     accepted sleep offset -- or `NA` if no qualifying peak exists.
 #' }
 #'
 #' Main loop: walks the seeds in order. Any seed already consumed by a
@@ -790,9 +791,8 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #' exactly: correlates `sw_window` against a family of `m` triangular
 #' "sleep bout ending at position i" templates (`m = min(win_size_test,
 #' length(sw_window))`; template row `i` is `1` for positions `1..i`, `0`
-#' after), then finds the position of the first clear correlation peak
-#' (Pearson correlation strictly greater than the following `n_succ`
-#' values).
+#' after), then finds the position of the HIGHEST correlation peak (see
+#' `.find_highest_peak_idx()`).
 #'
 #' @param sw_window Binary (or `NA`-containing) vector, the candidate bout
 #'   window starting at the seed position.
@@ -809,7 +809,7 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
   test_data   <- sw_window[seq_len(m)]
   test_series <- outer(seq_len(m), seq_len(m), function(i, j) as.numeric(j <= i))
   corr <- .correlation_series(test_data, test_series)
-  .find_first_peak_idx(corr, n_succ = n_succ)
+  .find_highest_peak_idx(corr, n_succ = n_succ)
 }
 
 #' Pearson correlation, clipped to `[-1, 1]`
@@ -836,27 +836,64 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 
 #' `TRUE` if `x[1]` is strictly greater than every other element of `x`
 #'
-#' Ports pyActigraphy's `is_a_peak()` exactly.
+#' Ports pyActigraphy's `is_a_peak()` exactly, including its numpy-NaN
+#' comparison semantics: `NaN > y` is `False` in numpy (never `NaN`), so a
+#' window containing a `NaN` correlation value (possible from `.pearsonr()`
+#' on a zero-variance window) simply fails the peak test rather than
+#' propagating a missing value. R's own `NA > y` gives `NA`, not `FALSE`,
+#' which would otherwise crash the `if()` in `.find_highest_peak_idx()`'s
+#' calling loop -- handled explicitly here to match.
 #' @noRd
 .is_a_peak <- function(x) {
-  all(x[1L] > x[-1L])
+  cmp <- x[1L] > x[-1L]
+  cmp[is.na(cmp)] <- FALSE
+  all(cmp)
 }
 
-#' Position of the first rolling-window peak
+#' Position of the highest rolling-window peak
 #'
-#' Ports pyActigraphy's `find_first_peak_idx()` exactly: slides a window
-#' of size `n_succ` across `x`, returning the 1-indexed position of the
-#' first window whose first element exceeds every other element in that
-#' window (`.is_a_peak()`). `NA` if `x` is shorter than `n_succ`, or no
-#' such window is found.
+#' Ports pyActigraphy's `find_highest_peak_idx()` exactly (from the
+#' `artvalencio/pyActigraphy` fork -- confirmed via the Docker image's
+#' `jupyter/Dockerfile`, which installs `pip install git+https://
+#' github.com/artvalencio/pyActigraphy` specifically, NOT the official
+#' `ghammad/pyActigraphy` repo. An earlier version of this port matched
+#' the official repo's `find_first_peak_idx()` instead -- a genuinely
+#' different algorithm (stops at the FIRST qualifying local peak, not the
+#' best one), confirmed wrong by a real end-to-end comparison against 4
+#' real participant recordings: `find_first_peak_idx()` fragmented long
+#' sleep bouts into several short ones, each stopping at a locally-good-
+#' enough peak, while the real reference finds one long, best-fit bout.
+#'
+#' Two precise differences from `find_first_peak_idx()`, both confirmed
+#' against the actual fork source, not assumed from the name alone:
+#' \itemize{
+#'   \item The internal window size is `n_succ + 1`, not `n_succ` --
+#'     `find_first_peak_idx()` uses `rolling_window(x, n_succ)` directly.
+#'   \item Among all positions satisfying `.is_a_peak()`, picks the one
+#'     with the maximum value -- not simply the first qualifying position.
+#'     Ties are broken by re-searching the WHOLE array (not just the
+#'     peak candidates) for the first occurrence of that maximum value,
+#'     matching the source's own `np.where(x == np.max(x[peak_candidate_
+#'     idx]))[0][0]` exactly (irrelevant in practice for continuous
+#'     correlation values, but reproduced faithfully regardless).
+#' }
+#' `NA` if no position satisfies `.is_a_peak()` at all (including when
+#' `n_succ + 1 > length(x)`, which would make the peak-candidate search
+#' window search space empty).
 #' @noRd
-.find_first_peak_idx <- function(x, n_succ) {
-  n <- length(x)
-  if (n_succ > n) return(NA_integer_)
-  for (i in seq_len(n - n_succ + 1L)) {
-    if (.is_a_peak(x[i:(i + n_succ - 1L)])) return(i)
+.find_highest_peak_idx <- function(x, n_succ) {
+  n   <- length(x)
+  win <- n_succ + 1L
+  if (win > n) return(NA_integer_)
+
+  peak_candidates <- integer(0L)
+  for (i in seq_len(n - win + 1L)) {
+    if (.is_a_peak(x[i:(i + win - 1L)])) peak_candidates <- c(peak_candidates, i)
   }
-  NA_integer_
+  if (length(peak_candidates) == 0L) return(NA_integer_)
+
+  max_val <- max(x[peak_candidates])
+  which(x == max_val)[1L]
 }
 
 #' Find runs of `x == target` of at least `min_length`, as 1-indexed

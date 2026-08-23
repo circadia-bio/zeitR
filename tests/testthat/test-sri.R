@@ -390,14 +390,18 @@ test_that(".pearsonr() matches pyActigraphy's real pearsonr() on simple cases", 
   expect_equal(.pearsonr(c(1,2,3,4), c(2,4,6,8)), 1.0, tolerance = 1e-8)
 })
 
-test_that(".find_first_peak_idx() matches pyActigraphy's real find_first_peak_idx() exactly", {
-  # Position 3 (1-indexed) is a clear peak over the next 2 values.
-  x <- c(1, 2, 5, 1, 1, 3, 4)
-  expect_equal(.find_first_peak_idx(x, n_succ = 3L), 3L)
+test_that(".find_highest_peak_idx() matches pyActigraphy's real find_highest_peak_idx() exactly", {
+  # Position 3 (1-indexed) is a LOCAL peak over the next 2 values, but
+  # position 6 (value 9) is the GLOBAL highest among all qualifying
+  # peaks -- find_highest_peak_idx() must return 6, not 3 (which is what
+  # the WRONG find_first_peak_idx() would have returned; this exact
+  # example is verified against a direct run of the real function).
+  x <- c(1, 2, 5, 1, 1, 9, 3, 3, 3)
+  expect_equal(.find_highest_peak_idx(x, n_succ = 2L), 6L)
 
   # No peak long enough -> NA.
   x2 <- c(1, 2, 3, 4, 5)
-  expect_true(is.na(.find_first_peak_idx(x2, n_succ = 3L)))
+  expect_true(is.na(.find_highest_peak_idx(x2, n_succ = 3L)))
 })
 
 test_that(".roenneberg_score() matches pyActigraphy's real roenneberg() exactly on a deterministic fixture", {

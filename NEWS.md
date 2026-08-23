@@ -42,7 +42,7 @@
   `pyActigraphy/sleep/scoring/roenneberg.py`'s `roenneberg()` and its
   sub-functions; `pyActigraphy/sleep/scoring/sri.py`'s `sri()`;
   `pyActigraphy/sleep/scoring/utils.py`'s Webster rescoring rules,
-  `pearsonr()`, `correlation_series()`, `find_first_peak_idx()`), not
+  `pearsonr()`, `correlation_series()`, `find_highest_peak_idx()`), not
   reconstructed from documentation. All four share two precise details
   that differ from the `"vallim"` path, both intentional and documented:
   the SRI aggregation itself is a two-step average (per time-of-day slot
@@ -81,8 +81,10 @@
   threshold categorization, seed-finding (candidate sleep-onset runs at
   least 30 min long), then an iterative correlation-based bout-cleaning
   loop -- each candidate onset tested against a family of triangular
-  "sleep bout ending at position i" templates over the following 12h,
-  accepting the first clear correlation peak as the bout's offset.
+  'sleep bout ending at position i' templates over the following 12h,
+  accepting the HIGHEST correlation peak as the bout's offset (see the
+  bug fix below -- an earlier version of this port accepted the FIRST
+  qualifying peak instead, a genuinely different, wrong algorithm).
   `.consecutive_values()` (shared with Webster rescoring) needed a real
   `NA`-safety fix for this caller specifically: Roenneberg's categorized
   series can genuinely contain `NA` (trend undefined at the edges), and
@@ -106,6 +108,41 @@
   `.is_iv_at_resolution()` helper so both share one implementation.
 
 ### 🐛 Bug fixes
+
+* **`compute_sri(algo = "roenneberg")`**: was ported against the wrong
+  pyActigraphy source. The peak-finding step used `find_first_peak_idx()`
+  (from a local clone of the official `ghammad/pyActigraphy` repo) --
+  correct-looking, well-sourced code, but the wrong fork: the actual
+  Docker image the reference notebook runs in
+  (`circadiaBase_Docker/jupyter/Dockerfile`) installs `pip install
+  git+https://github.com/artvalencio/pyActigraphy` specifically, whose
+  `roenneberg.py` uses `find_highest_peak_idx()` instead -- a genuinely
+  different algorithm (picks the single best-correlated peak across the
+  whole search window, not just the first qualifying one it encounters),
+  with two further precise differences confirmed against that fork's
+  actual source: the internal peak-testing window is `n_succ + 1`, not
+  `n_succ`, and ties are broken by re-searching the whole correlation
+  array (not just the peak candidates) for the first occurrence of the
+  maximum value.
+
+  Caught by a real end-to-end comparison against 4 real participant
+  recordings: `find_first_peak_idx()` fragmented long sleep bouts into
+  several short ones, each stopping at a locally-good-enough peak, while
+  the real reference correctly finds one long, best-fit bout -- every
+  other algorithm ported this session (Sadeh, CK, Scripps, Cosinor)
+  matched the real Python reference exactly on the same 4 recordings, an
+  important signal that this was a real, isolated bug rather than a
+  systemic issue with the whole batch of new algorithms. After the fix,
+  all four `SRI_*` variants plus `acrophase_time`/`MESOR`/`amplitude`
+  match a real execution of the actual reference environment exactly, on
+  all 4 recordings.
+
+  `.is_a_peak()` also needed a `NA`-safety fix surfaced by this same
+  investigation: a `NaN` correlation value (possible from `.pearsonr()`
+  on a zero-variance window) crashed R's `if()` in the calling loop,
+  since R's `NA > y` gives `NA` rather than numpy's `NaN > y` giving
+  `False` -- the same category of R/numpy comparison-semantics gap hit
+  several times already this session, handled the same way each time.
 
 * **`detect_offwrist_bimodal()`**: three separate bugs in the border-refinement
   and forbidden-zone logic, found via a real off-wrist divergence on
