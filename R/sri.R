@@ -85,14 +85,27 @@
 #' and no Webster rescoring step (pyActigraphy's `Scripps()` doesn't call
 #' `rescore()`, unlike `CK()`).
 #'
+#' `algo = "roenneberg"` derives sleep/wake via pyActigraphy's native
+#' Roenneberg et al. algorithm (`roenneberg()`) -- by far the most
+#' involved of the four: trend extraction (a 24h centered rolling mean,
+#' allowing a partial window down to 12h at the recording's edges), a
+#' 15%-of-trend threshold categorization, seed-finding (candidate
+#' sleep-onset runs at least 30 min long), then an iterative
+#' correlation-based bout-cleaning loop (each candidate onset is tested
+#' against a family of triangular "sleep bout ending at position i"
+#' templates over the following 12h, accepting the first clear correlation
+#' peak as the bout's offset). Shares the two-step SRI aggregation and
+#' lack of off-wrist handling with the other three raw-activity algorithms
+#' above. No rescoring step (rescoring is specific to `CK()`).
+#'
 #' @param x A `zeitr_recording`/`zeitr_result`, or a data frame / tibble with
 #'   at least `datetime` and `state` columns (`algo = "vallim"`) or
-#'   `datetime` and `activity` columns (`algo = "sadeh"`, `"ck"`, or
-#'   `"scripps"`). For `state`: `state == 1` or `state == 7` is treated as
-#'   sleep, `state == 4` as off-wrist (missing), and any other value as
-#'   wake -- matching the coding already used across zeitR's pipeline
-#'   output ([run_pipeline()], [run_pipeline_native()],
-#'   [export_hypnogram()]).
+#'   `datetime` and `activity` columns (`algo = "sadeh"`, `"ck"`,
+#'   `"scripps"`, or `"roenneberg"`). For `state`: `state == 1` or
+#'   `state == 7` is treated as sleep, `state == 4` as off-wrist (missing),
+#'   and any other value as wake -- matching the coding already used
+#'   across zeitR's pipeline output ([run_pipeline()],
+#'   [run_pipeline_native()], [export_hypnogram()]).
 #' @param epoch_s `numeric(1)`. Epoch duration in seconds. If `NULL`
 #'   (default), estimated automatically from the median inter-epoch interval.
 #' @param max_gap_min `numeric(1)`. Off-wrist gaps of this many minutes or
@@ -101,9 +114,9 @@
 #'   used when `algo = "vallim"`.
 #' @param algo `character(1)`. Which sleep/wake source and SRI aggregation
 #'   to use: `"vallim"` (default, uses the pipeline's own `state` column),
-#'   `"sadeh"`, `"ck"`, or `"scripps"` (all three score raw `activity`).
-#'   See Details for the precise differences beyond just the scoring
-#'   algorithm.
+#'   `"sadeh"`, `"ck"`, `"scripps"`, or `"roenneberg"` (all four score raw
+#'   `activity`). See Details for the precise differences beyond just the
+#'   scoring algorithm.
 #'
 #' @return A tibble with columns `participant_id`, `sri`, `n_pairs` (number
 #'   of valid 24h-apart epoch comparisons used; `NA` for `algo != "vallim"`,
@@ -137,7 +150,7 @@
 #' compute_sri(result, algo = "sadeh")
 #' }
 compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
-  algo <- match.arg(algo, c("vallim", "sadeh", "ck", "scripps"))
+  algo <- match.arg(algo, c("vallim", "sadeh", "ck", "scripps", "roenneberg"))
 
   # ── Extract epochs tibble and participant_id ──────────────────────────────
   if (inherits(x, "zeitr_result")) {
@@ -159,8 +172,10 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
     .compute_sri_sadeh(epochs, participant_id, epoch_s)
   } else if (algo == "ck") {
     .compute_sri_ck(epochs, participant_id, epoch_s)
-  } else {
+  } else if (algo == "scripps") {
     .compute_sri_scripps(epochs, participant_id, epoch_s)
+  } else {
+    .compute_sri_roenneberg(epochs, participant_id, epoch_s)
   }
 }
 
@@ -509,6 +524,341 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
   ifelse(is.na(D), 0L, as.integer(D < threshold))
 }
 
+# ── Internal: algo = "roenneberg" (native pyActigraphy Roenneberg, raw-activity-based) ──
+
+#' @noRd
+.compute_sri_roenneberg <- function(epochs, participant_id, epoch_s) {
+  required <- c("datetime", "activity")
+  missing  <- setdiff(required, names(epochs))
+  if (length(missing) > 0L) {
+    zeitr_abort("Missing required column(s): {.val {missing}}")
+  }
+
+  datetimes <- as.POSIXct(epochs$datetime)
+  activity  <- as.double(epochs$activity)
+
+  ord <- order(datetimes)
+  datetimes <- datetimes[ord]
+  activity  <- activity[ord]
+
+  n <- length(activity)
+  if (n < 2L) zeitr_abort("Need at least 2 epochs to compute SRI.")
+
+  tz <- attr(datetimes, "tzone") %||% "UTC"
+
+  if (is.null(epoch_s)) {
+    diffs   <- as.numeric(diff(datetimes), units = "secs")
+    epoch_s <- stats::median(diffs[diffs > 0], na.rm = TRUE)
+  }
+
+  lag_epochs <- round(24 * 3600 / epoch_s)
+  if (lag_epochs >= n) {
+    zeitr_warn("Recording spans less than 24 h; {.fn compute_sri} returns NA.")
+    return(tibble::tibble(
+      participant_id = participant_id,
+      sri             = NA_real_,
+      n_pairs         = NA_integer_,
+      n_epochs        = n
+    ))
+  }
+
+  # Convert pyActigraphy's default time-string parameters to epoch counts
+  # at this recording's native resolution, matching
+  # `int(pd.Timedelta(period) / data.index.freq)` exactly.
+  epoch_min           <- epoch_s / 60
+  trend_period_min     <- round(24 * 60 / epoch_min)   # '24h'
+  min_trend_period_min <- round(12 * 60 / epoch_min)   # '12h'
+  min_seed_period_min  <- round(30 / epoch_min)         # '30Min'
+  max_test_period_min  <- round(12 * 60 / epoch_min)   # '12h'
+  r_consec_below_min   <- round(30 / epoch_min)         # '30Min'
+
+  scoring <- .roenneberg_score(
+    activity,
+    trend_period_min     = trend_period_min,
+    min_trend_period_min = min_trend_period_min,
+    threshold             = 0.15,
+    min_seed_period_min  = min_seed_period_min,
+    max_test_period_min  = max_test_period_min,
+    r_consec_below_min   = r_consec_below_min
+  )
+
+  # Cell 16 calls this with bin_threshold=False -- in Python, `False is not
+  # None` is True, triggering re-binarization via `ts > threshold`(=False,
+  # i.e. 0). A no-op on Roenneberg's already-{0,1} output (`x > 0` on a
+  # {0,1} vector reproduces it exactly) -- so passing NULL here (no
+  # re-binarization at all) gives the identical numeric result.
+  sri_val <- .sri_pyactigraphy(datetimes, scoring, tz = tz, threshold = NULL)
+
+  tibble::tibble(
+    participant_id = participant_id,
+    sri             = round(sri_val, 4),
+    n_pairs         = NA_integer_,
+    n_epochs        = n
+  )
+}
+
+#' pyActigraphy-native Roenneberg algorithm for sleep/wake scoring
+#'
+#' Ports pyActigraphy's `roenneberg()` exactly (`pyActigraphy/sleep/
+#' scoring/roenneberg.py`) -- by far the most involved of the four SRI
+#' scoring algorithms ported here: trend extraction, threshold
+#' categorization, seed-finding, then iterative correlation-based bout
+#' cleaning. All parameters (`trend_period_min`, etc.) are pre-converted to
+#' epoch counts at the recording's native resolution by the caller,
+#' matching Python's `int(pd.Timedelta(period) / data.index.freq)`
+#' exactly. Operates entirely on integer epoch POSITIONS rather than
+#' datetime-index lookups (`.loc`/`.iloc`/`.get_loc()` in the Python
+#' source) -- equivalent given a regularly-spaced recording, which the
+#' whole algorithm already assumes via `data.index.freq`.
+#'
+#' Sub-steps, each individually verified against a real Python execution
+#' before assembly (see this session's transcript for the verification
+#' scripts if they need to be re-run):
+#' \itemize{
+#'   \item `.roenneberg_trend()`: centered rolling mean with
+#'     `min_periods < window size` -- i.e. a partial window at the edges
+#'     still produces a value once at least `min_trend_period_min` epochs
+#'     are available, not just a full-or-nothing window like Sadeh/CK/
+#'     Scripps. For an EVEN window size `W` (guaranteed here: 24h/12h in
+#'     minutes is always even for any whole-minute epoch), pandas' actual
+#'     centered convention puts the extra element on the LEFT:
+#'     `floor(W/2)` epochs before, self, `W - 1 - floor(W/2)` after --
+#'     verified against real pandas output, not assumed from
+#'     documentation.
+#'   \item `.roenneberg_categorize()`: `sw = 1` (sleep) where
+#'     `activity <= threshold * trend`, else `0`; `NA` wherever the trend
+#'     itself is `NA` (edges shorter than `min_trend_period_min`).
+#'   \item `.roenneberg_seeds()`: candidate sleep-onset positions -- start
+#'     of every run of `sw == 1` at least `min_seed_period_min` long.
+#'     Reuses `.consecutive_values()`, which needed the `NA`-safety fix
+#'     above specifically for this caller (`sw` can genuinely contain
+#'     `NA`, unlike Webster rescoring's always-clean input).
+#'   \item `.clean_sleep_bout()`: for a candidate seed, tests correlation
+#'     of the raw `sw` values against a family of triangular "sleep bout
+#'     ending at position i" templates over the next
+#'     `max_test_period_min` epochs, and returns the position of the
+#'     FIRST clear correlation peak (a Pearson correlation strictly
+#'     greater than the following `r_consec_below_min + 1` values) as the
+#'     accepted sleep offset -- or `NA` if no such peak exists.
+#' }
+#'
+#' Main loop: walks the seeds in order. Any seed already consumed by a
+#' previously-accepted bout is skipped; anything scored `1` between the
+#' last accepted bout's end and the next candidate seed is reset to wake
+#' (`0`) -- these were `sw == 1` runs too short to be their own seed, or
+#' left over from a seed that failed the correlation test. Everything
+#' before the first seed, and everything after the last accepted bout's
+#' offset, is also forced to wake. Any remaining `NA` (trend undefined at
+#' the very edges) resolves to wake in the final output, since this
+#' function's return value feeds directly into `.sri_pyactigraphy()`,
+#' which expects a clean `{0, 1}` series.
+#'
+#' @param activity numeric vector of raw activity counts, one per epoch.
+#' @param trend_period_min,min_trend_period_min,min_seed_period_min,
+#'   max_test_period_min,r_consec_below_min Epoch counts (already
+#'   converted from pyActigraphy's default time-string parameters at this
+#'   recording's native resolution).
+#' @param threshold `numeric(1)`. Fraction of the trend used as the
+#'   sleep/wake threshold. Default `0.15`.
+#' @return Integer vector, same length as `activity`: `1` = sleep,
+#'   `0` = wake.
+#' @noRd
+.roenneberg_score <- function(activity, trend_period_min, min_trend_period_min,
+                              threshold, min_seed_period_min,
+                              max_test_period_min, r_consec_below_min) {
+  n <- length(activity)
+
+  trend <- .roenneberg_trend(activity, win_size = trend_period_min,
+                             min_win_size = min_trend_period_min)
+  sw    <- .roenneberg_categorize(activity, trend, threshold)
+
+  seeds <- .roenneberg_seeds(sw, win_size_seed = min_seed_period_min)
+  if (length(seeds) == 0L) {
+    return(rep(0L, n))   # no candidate sleep bout at all -- everything wake
+  }
+
+  # Score all potential sleep epochs (1) before the first seed as wake (0).
+  if (seeds[1L] > 1L) {
+    idx <- 1L:(seeds[1L] - 1L)
+    sw[idx][!is.na(sw[idx]) & sw[idx] == 1L] <- 0L
+  }
+
+  sot    <- list()   # list of c(onset, offset) integer position pairs
+  n_succ <- r_consec_below_min + 1L
+
+  for (seed in seeds) {
+    if (length(sot) > 0L && seed < sot[[length(sot)]][2L]) next
+
+    if (length(sot) > 0L) {
+      lo <- sot[[length(sot)]][2L] + 1L
+      hi <- seed - 1L
+      if (hi >= lo) {
+        idx <- lo:hi
+        sw[idx][!is.na(sw[idx]) & sw[idx] == 1L] <- 0L
+      }
+    }
+
+    sleep_onset <- seed
+    # Python: uncleaned_binary_data = sw.loc[onset : onset + max_test_period]
+    # (inclusive both ends), then _test_sleep_bout() immediately truncates
+    # to .iloc[:win_size] (max_test_period_min epochs) -- so the net window
+    # is exactly max_test_period_min epochs starting at onset, clipped to
+    # the recording's end if shorter.
+    window_end <- min(n, sleep_onset + max_test_period_min - 1L)
+    sw_window  <- sw[sleep_onset:window_end]
+
+    offset_rel <- .clean_sleep_bout(sw_window, win_size_test = max_test_period_min,
+                                    n_succ = n_succ)
+
+    if (!is.na(offset_rel)) {
+      sleep_offset <- sleep_onset + offset_rel - 1L
+      sw[sleep_onset:sleep_offset] <- 1L
+      sot[[length(sot) + 1L]] <- c(sleep_onset, sleep_offset)
+    }
+  }
+
+  # Score all potential sleep epochs (1) after the last accepted bout's
+  # offset as wake (0).
+  if (length(sot) > 0L) {
+    last_offset <- sot[[length(sot)]][2L]
+    if (last_offset < n) {
+      idx <- (last_offset + 1L):n
+      sw[idx][!is.na(sw[idx]) & sw[idx] == 1L] <- 0L
+    }
+  }
+
+  sw[is.na(sw)] <- 0L
+  as.integer(sw)
+}
+
+#' Centered rolling mean with `min_periods < window size` (partial windows
+#' allowed at the edges)
+#'
+#' Ports pyActigraphy's `_extract_trend()` exactly. For an EVEN `win_size`
+#' `W`, the theoretical (uncapped) window for position `i` is
+#' `[i - floor(W/2), i + W - 1 - floor(W/2)]` -- confirmed against real
+#' pandas `.rolling(W, center=True).mean()` output, not assumed (pandas
+#' puts the extra element on the LEFT for even windows, not documented
+#' explicitly anywhere obvious). At the edges, this window is clipped to
+#' `[1, n]`; if the resulting count of available epochs is at least
+#' `min_win_size`, the mean is computed over just those -- otherwise `NA`.
+#' @noRd
+.roenneberg_trend <- function(x, win_size, min_win_size) {
+  n      <- length(x)
+  before <- win_size %/% 2L
+  after  <- win_size - 1L - before
+  cs     <- c(0, cumsum(x))
+  out    <- rep(NA_real_, n)
+  for (i in seq_len(n)) {
+    lo  <- max(1L, i - before)
+    hi  <- min(n, i + after)
+    cnt <- hi - lo + 1L
+    if (cnt >= min_win_size) {
+      out[i] <- (cs[hi + 1L] - cs[lo]) / cnt
+    }
+  }
+  out
+}
+
+#' Roenneberg's sleep/wake threshold categorization
+#'
+#' Ports pyActigraphy's `_sleep_wake_categorization()` exactly: `1`
+#' (sleep) where `x <= threshold * trend`, `0` otherwise, `NA` wherever
+#' `trend` itself is `NA`.
+#' @noRd
+.roenneberg_categorize <- function(x, trend, threshold) {
+  sw <- ifelse(x <= threshold * trend, 1L, 0L)
+  sw[is.na(trend)] <- NA_integer_
+  sw
+}
+
+#' Roenneberg's sleep-bout seed positions
+#'
+#' Ports pyActigraphy's `_find_sleep_bout_seeds()` exactly: the START
+#' position of every run of `sw == 1` at least `win_size_seed` epochs
+#' long.
+#' @noRd
+.roenneberg_seeds <- function(sw, win_size_seed) {
+  runs <- .consecutive_values(sw, target = 1L, min_length = win_size_seed)
+  if (nrow(runs) == 0L) return(integer(0))
+  unname(runs[, "start"])
+}
+
+#' Roenneberg's correlation-based sleep-bout offset test
+#'
+#' Ports pyActigraphy's `_test_sleep_bout()` + `_clean_sleep_bout()`
+#' exactly: correlates `sw_window` against a family of `m` triangular
+#' "sleep bout ending at position i" templates (`m = min(win_size_test,
+#' length(sw_window))`; template row `i` is `1` for positions `1..i`, `0`
+#' after), then finds the position of the first clear correlation peak
+#' (Pearson correlation strictly greater than the following `n_succ`
+#' values).
+#'
+#' @param sw_window Binary (or `NA`-containing) vector, the candidate bout
+#'   window starting at the seed position.
+#' @param win_size_test `integer(1)`. Maximum template/window size
+#'   (`max_test_period_min`).
+#' @param n_succ `integer(1)`. Number of subsequent values a peak must
+#'   exceed (`r_consec_below_min + 1`).
+#' @return `integer(1)` position (1-indexed, relative to the start of
+#'   `sw_window`) of the accepted sleep offset, or `NA` if no peak is
+#'   found.
+#' @noRd
+.clean_sleep_bout <- function(sw_window, win_size_test, n_succ) {
+  m <- min(win_size_test, length(sw_window))
+  test_data   <- sw_window[seq_len(m)]
+  test_series <- outer(seq_len(m), seq_len(m), function(i, j) as.numeric(j <= i))
+  corr <- .correlation_series(test_data, test_series)
+  .find_first_peak_idx(corr, n_succ = n_succ)
+}
+
+#' Pearson correlation, clipped to `[-1, 1]`
+#'
+#' Ports pyActigraphy's `pearsonr()` exactly (`pyActigraphy/sleep/
+#' scoring/utils.py`, numba-jitted there; plain R here).
+#' @noRd
+.pearsonr <- function(x, y) {
+  xm <- x - mean(x)
+  ym <- y - mean(y)
+  normxm <- sqrt(sum(xm^2))
+  normym <- sqrt(sum(ym^2))
+  r <- sum((xm / normxm) * (ym / normym))
+  max(min(r, 1.0), -1.0)
+}
+
+#' Correlation between `x` and each row of `Y`
+#'
+#' Ports pyActigraphy's `correlation_series()` exactly.
+#' @noRd
+.correlation_series <- function(x, Y) {
+  apply(Y, 1L, function(row) .pearsonr(x, row))
+}
+
+#' `TRUE` if `x[1]` is strictly greater than every other element of `x`
+#'
+#' Ports pyActigraphy's `is_a_peak()` exactly.
+#' @noRd
+.is_a_peak <- function(x) {
+  all(x[1L] > x[-1L])
+}
+
+#' Position of the first rolling-window peak
+#'
+#' Ports pyActigraphy's `find_first_peak_idx()` exactly: slides a window
+#' of size `n_succ` across `x`, returning the 1-indexed position of the
+#' first window whose first element exceeds every other element in that
+#' window (`.is_a_peak()`). `NA` if `x` is shorter than `n_succ`, or no
+#' such window is found.
+#' @noRd
+.find_first_peak_idx <- function(x, n_succ) {
+  n <- length(x)
+  if (n_succ > n) return(NA_integer_)
+  for (i in seq_len(n - n_succ + 1L)) {
+    if (.is_a_peak(x[i:(i + n_succ - 1L)])) return(i)
+  }
+  NA_integer_
+}
+
 #' Find runs of `x == target` of at least `min_length`, as 1-indexed
 #' inclusive `[start, end]` pairs
 #'
@@ -519,7 +869,14 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #' function's output on several test arrays, not derived from the source
 #' alone, given how easy an off-by-one error would be to introduce here.
 #'
-#' @param x integer/numeric vector.
+#' `NA` in `x` is treated as "not a match", matching numpy's
+#' `np.equal(NaN, target)` evaluating to `False` -- R's own `NA == target`
+#' would otherwise propagate `NA` into `targets`/`absdiff` and corrupt the
+#' whole computation. Harmless for Webster rescoring (`scoring` is always
+#' clean 0/1 there) but required for Roenneberg's categorized series,
+#' which can genuinely contain `NA` (where the trend is undefined).
+#'
+#' @param x integer/numeric vector, may contain `NA`.
 #' @param target Value to find runs of.
 #' @param min_length `integer(1)`. Minimum run length to include.
 #' @return A 2-column matrix (`start`, `end`), one row per qualifying run,
@@ -527,7 +884,7 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #' @noRd
 .consecutive_values <- function(x, target, min_length) {
   n <- length(x)
-  targets <- c(0L, as.integer(x == target), 0L)
+  targets <- c(0L, as.integer(!is.na(x) & x == target), 0L)
   absdiff <- abs(diff(targets))
   pos <- which(absdiff == 1L)
   if (length(pos) == 0L) return(matrix(integer(0), ncol = 2, dimnames = list(NULL, c("start", "end"))))

@@ -244,6 +244,20 @@ test_that(".consecutive_values() returns 0 rows when nothing qualifies", {
   expect_equal(nrow(runs), 0L)
 })
 
+test_that(".consecutive_values() treats NA as not-a-match, matching numpy's np.equal(NaN, target) == False", {
+  # Required for Roenneberg's seed-finding, where the categorized series
+  # can genuinely contain NA (trend undefined at the edges) -- R's own
+  # `NA == target` would otherwise propagate NA and corrupt the whole
+  # computation, unlike numpy's np.equal(NaN, x) which is simply False.
+  x <- c(1, 1, NA, 1, 1, 1, 0, 0)
+  # The NA breaks what would otherwise be one run of five 1's into two
+  # shorter runs (length 2 and length 3) -- neither should be silently
+  # merged across the NA, and NA itself should never count as a match.
+  runs <- .consecutive_values(x, target = 1, min_length = 2)
+  expect_equal(unname(runs[, "start"]), c(1L, 4L))
+  expect_equal(unname(runs[, "end"]),   c(2L, 6L))
+})
+
 test_that(".rescore_if_preceded() matches pyActigraphy exactly", {
   # 4 wake epochs then 1 isolated sleep epoch -> rescored to wake.
   x1 <- c(0,0,0,0,1,0,0,0,0)
@@ -344,4 +358,102 @@ test_that("compute_sri(algo = 'scripps') is wired correctly end to end", {
 test_that("compute_sri(algo = 'scripps') errors on missing activity column", {
   d <- make_sri_fixture()
   expect_error(compute_sri(d, algo = "scripps"), "Missing required column")
+})
+
+# ---- algo = "roenneberg" -------------------------------------------------
+# Regression coverage ported directly from pyActigraphy's real source
+# (pyActigraphy/sleep/scoring/roenneberg.py's roenneberg() and its
+# sub-functions, pyActigraphy/sleep/scoring/utils.py's pearsonr()/
+# correlation_series()/find_first_peak_idx()). By far the most involved
+# of the four scoring algorithms -- verified in stages: the trend's exact
+# centered-window edge behaviour, then the full pipeline end to end on a
+# deterministic (not random -- R and numpy don't share a RNG) synthetic
+# fixture with one clear 7h quiet period.
+
+test_that(".roenneberg_trend() matches pandas' exact centered-window/min_periods edge behaviour", {
+  # data = 0..19, win_size = 8 (even), min_win_size = 4. Verified against a
+  # direct run of pandas' actual .rolling(8, center=True, min_periods=4,
+  # closed='right').mean() on this exact input -- confirms pandas puts the
+  # extra element on the LEFT for even windows (4 before, self, 3 after in
+  # the interior), and that edge positions use whatever's available once
+  # the count reaches min_periods.
+  x <- 0:19
+  trend <- .roenneberg_trend(x, win_size = 8L, min_win_size = 4L)
+  expected <- c(1.5, 2.0, 2.5, 3.0, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5,
+                9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5, 16.0, 16.5, 17.0)
+  expect_equal(trend, expected, tolerance = 1e-8)
+})
+
+test_that(".pearsonr() matches pyActigraphy's real pearsonr() on simple cases", {
+  expect_equal(.pearsonr(c(1,2,3,4), c(1,2,3,4)), 1.0, tolerance = 1e-8)
+  expect_equal(.pearsonr(c(1,2,3,4), c(4,3,2,1)), -1.0, tolerance = 1e-8)
+  expect_equal(.pearsonr(c(1,2,3,4), c(2,4,6,8)), 1.0, tolerance = 1e-8)
+})
+
+test_that(".find_first_peak_idx() matches pyActigraphy's real find_first_peak_idx() exactly", {
+  # Position 3 (1-indexed) is a clear peak over the next 2 values.
+  x <- c(1, 2, 5, 1, 1, 3, 4)
+  expect_equal(.find_first_peak_idx(x, n_succ = 3L), 3L)
+
+  # No peak long enough -> NA.
+  x2 <- c(1, 2, 3, 4, 5)
+  expect_true(is.na(.find_first_peak_idx(x2, n_succ = 3L)))
+})
+
+test_that(".roenneberg_score() matches pyActigraphy's real roenneberg() exactly on a deterministic fixture", {
+  # Fully deterministic (no randomness -- R and numpy don't share a RNG,
+  # so a random fixture couldn't be reproduced identically in both
+  # languages): 2 days at 1-min epochs, a smooth baseline wiggle
+  # (40 + 5*sin(t*0.05)) with ONE clear 7h quiet period (1 + 0.3*sin(t*0.2))
+  # from minute 1380 to 1799 (0-indexed) -- day 1 23:00 to day 2 06:00.
+  # Verified against a direct run of pyActigraphy's actual roenneberg()
+  # on this exact array: exactly one detected bout, onset at minute 1380
+  # (R position 1381), offset at minute 1800 (R position 1801), value
+  # counts {sleep: 420, wake: 2460}.
+  n <- 2L * 24L * 60L
+  t <- 0:(n - 1L)
+  activity <- 40 + 5 * sin(t * 0.05)
+  activity[1381:1800] <- 1 + 0.3 * sin(t[1381:1800] * 0.2)
+
+  scoring <- .roenneberg_score(
+    activity,
+    trend_period_min     = 1440L,
+    min_trend_period_min = 720L,
+    threshold             = 0.15,
+    min_seed_period_min  = 30L,
+    max_test_period_min  = 720L,
+    r_consec_below_min   = 30L
+  )
+
+  expect_equal(sum(scoring == 1L), 420L)
+  expect_equal(sum(scoring == 0L), 2460L)
+  expect_equal(scoring[1381], 1L)
+  expect_equal(scoring[1380], 0L)   # epoch just before onset
+  expect_equal(scoring[1801], 0L)   # epoch just after offset (offset itself is 1)
+  expect_equal(scoring[1800], 1L)   # last sleep epoch
+  expect_true(all(scoring[1381:1800] == 1L))
+  expect_true(all(scoring[1:1380] == 0L))
+  expect_true(all(scoring[1801:n] == 0L))
+})
+
+test_that("compute_sri(algo = 'roenneberg') is wired correctly end to end", {
+  n <- 3L * 24L * 60L
+  t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
+  dt <- t0 + 60L * seq.int(0L, n - 1L)
+  t  <- 0:(n - 1L)
+  activity <- 40 + 5 * sin(t * 0.05)
+  activity[1381:1800] <- 1 + 0.3 * sin(t[1381:1800] * 0.2)
+
+  d      <- tibble::tibble(datetime = dt, activity = activity)
+  result <- compute_sri(d, algo = "roenneberg")
+
+  expect_true(is.finite(result$sri))
+  expect_gte(result$sri, -100)
+  expect_lte(result$sri, 100)
+  expect_true(is.na(result$n_pairs))
+})
+
+test_that("compute_sri(algo = 'roenneberg') errors on missing activity column", {
+  d <- make_sri_fixture()
+  expect_error(compute_sri(d, algo = "roenneberg"), "Missing required column")
 })

@@ -2,36 +2,35 @@
 
 ### ✨ New features
 
-* **`compute_sri()`** gains `algo = "sadeh"`, `"ck"`, and `"scripps"`:
-  alternatives to the default `"vallim"` (state-column-based) SRI, scoring
-  raw `activity` via the Sadeh et al. (1994), pyActigraphy-native
-  Cole-Kripke, and Scripps Clinic algorithms respectively -- matching
-  pyActigraphy's actual `Sadeh()`/`CK()`/`Scripps()`/`SleepRegularityIndex()`
-  exactly, sourced directly from pyActigraphy's real code
+* **`compute_sri()`** gains `algo = "sadeh"`, `"ck"`, `"scripps"`, and
+  `"roenneberg"`: alternatives to the default `"vallim"` (state-column-
+  based) SRI, scoring raw `activity` via the Sadeh et al. (1994),
+  pyActigraphy-native Cole-Kripke, Scripps Clinic, and Roenneberg et al.
+  algorithms respectively -- matching pyActigraphy's actual `Sadeh()`/
+  `CK()`/`Scripps()`/`roenneberg()`/`SleepRegularityIndex()` exactly,
+  sourced directly from pyActigraphy's real code
   (`pyActigraphy/sleep/scoring_base.py`'s
   `_sadeh()`/`_cole_kripke()`/`CK()`/`_scripps()`/`Scripps()`;
-  `pyActigraphy/sleep/scoring/sri.py`'s `sri()`; `pyActigraphy/sleep/
-  scoring/utils.py`'s Webster rescoring rules), not reconstructed from
-  documentation. All three share two precise details that differ from the
-  `"vallim"` path, both intentional and documented: the SRI aggregation
-  itself is a two-step average (per time-of-day slot across days, then
-  across slots) rather than `"vallim"`'s flat pooled average over all
-  24h-apart pairs -- these are only mathematically equivalent when every
-  time-of-day slot has the same number of valid day-pairs (no partial
-  first/last day); and there is no off-wrist handling at all
-  (`max_gap_min` has no effect), since pyActigraphy's own code has none
-  for any of the three paths. Sadeh's, CK's, and Scripps' own edge
-  behaviours are reproduced exactly, including the easy-to-miss detail
-  that pandas scores edge epochs (where the relevant rolling window isn't
-  fully available) as a definite sleep/wake value via `NaN > threshold`/
-  `NaN < threshold` evaluating to `False`, rather than propagating them as
-  missing -- reproduced explicitly in R, which gives `NA` (not `FALSE`)
-  for the same comparison. `algo = "ck"` also applies Webster's (1982)
-  rescoring rules afterward, matching pyActigraphy's default; `"scripps"`
-  has no such step (pyActigraphy's `Scripps()` doesn't call `rescore()`).
-  `"ck"` and `"scripps"` are structurally identical (same centered rolling
-  weighted dot product, same `D < threshold` = sleep polarity), just
-  different scale/window/threshold and the rescoring step.
+  `pyActigraphy/sleep/scoring/roenneberg.py`'s `roenneberg()` and its
+  sub-functions; `pyActigraphy/sleep/scoring/sri.py`'s `sri()`;
+  `pyActigraphy/sleep/scoring/utils.py`'s Webster rescoring rules,
+  `pearsonr()`, `correlation_series()`, `find_first_peak_idx()`), not
+  reconstructed from documentation. All four share two precise details
+  that differ from the `"vallim"` path, both intentional and documented:
+  the SRI aggregation itself is a two-step average (per time-of-day slot
+  across days, then across slots) rather than `"vallim"`'s flat pooled
+  average over all 24h-apart pairs -- these are only mathematically
+  equivalent when every time-of-day slot has the same number of valid
+  day-pairs (no partial first/last day); and there is no off-wrist
+  handling at all (`max_gap_min` has no effect), since pyActigraphy's own
+  code has none for any of the four paths. `algo = "ck"` also applies
+  Webster's (1982) rescoring rules afterward, matching pyActigraphy's
+  default; `"scripps"`/`"roenneberg"` have no such step. `"ck"` and
+  `"scripps"` are structurally identical (same centered rolling weighted
+  dot product, same `D < threshold` = sleep polarity), just different
+  scale/window/threshold and the rescoring step; both reproduce pandas'
+  edge-epoch behaviour exactly (`NaN < threshold` evaluating to `False`,
+  scoring those epochs a definite wake rather than propagating `NA`).
 
   `algo = "ck"`'s weights are a DIFFERENT set from the Condor-native
   `ColeKripke` class already used elsewhere in zeitR's pipeline
@@ -46,11 +45,26 @@
   `activity` with no resampling needed, despite initial concern that
   genuine sub-minute data would be required.
 
-  Three of four planned algorithm ports done (Sadeh, CK-native, Scripps;
-  Roenneberg to follow -- the most involved of the four, with trend
-  extraction, seed-finding, and correlation-based bout cleaning) motivated
-  by Julia's real-cohort validation report showing these
-  pyActigraphy-derived SRI variants as separate columns from `SRI_vallim`.
+  `algo = "roenneberg"` is by far the most involved of the four: a 24h
+  centered rolling-mean trend (allowing a partial window down to 12h at
+  the recording's edges -- pandas' actual centered-window convention for
+  an even window size puts the extra element on the LEFT, confirmed
+  against real pandas output rather than assumed), a 15%-of-trend
+  threshold categorization, seed-finding (candidate sleep-onset runs at
+  least 30 min long), then an iterative correlation-based bout-cleaning
+  loop -- each candidate onset tested against a family of triangular
+  "sleep bout ending at position i" templates over the following 12h,
+  accepting the first clear correlation peak as the bout's offset.
+  `.consecutive_values()` (shared with Webster rescoring) needed a real
+  `NA`-safety fix for this caller specifically: Roenneberg's categorized
+  series can genuinely contain `NA` (trend undefined at the edges), and
+  R's own `NA == target` propagates `NA` unlike numpy's `np.equal(NaN, x)`
+  evaluating to `False` -- harmless for Webster rescoring's always-clean
+  input, but would have silently corrupted seed-finding here.
+
+  All four algorithm ports done, motivated by Julia's real-cohort
+  validation report showing these pyActigraphy-derived SRI variants as
+  separate columns from `SRI_vallim`.
 * **`compute_npcra()`** gains `ISm`/`IVm` -- the mean of `IS`/`IV` computed
   at every divisor of 1440 minutes between 1-60 min (22 resolutions),
   matching Cell 16's `_ISm_IVm_FREQS` loop exactly (`vs_condor_py_pipeline_
