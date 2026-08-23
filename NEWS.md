@@ -2,6 +2,36 @@
 
 ### ✨ New features
 
+* **`compute_sri()`** gains `algo = "sadeh"`: an alternative to the default
+  `"vallim"` (state-column-based) SRI, scoring raw `activity` via the Sadeh
+  et al. (1994) algorithm instead, matching pyActigraphy's actual
+  `Sadeh()`/`SleepRegularityIndex()` exactly -- sourced directly from
+  pyActigraphy's real code (`pyActigraphy/sleep/scoring_base.py`'s
+  `_sadeh()`; `pyActigraphy/sleep/scoring/sri.py`'s `sri()`), not
+  reconstructed from documentation. Two precise details that differ from
+  the `"vallim"` path, both intentional and documented: the SRI
+  aggregation itself is a two-step average (per time-of-day slot across
+  days, then across slots) rather than `"vallim"`'s flat pooled average
+  over all 24h-apart pairs -- these are only mathematically equivalent
+  when every time-of-day slot has the same number of valid day-pairs (no
+  partial first/last day); and there is no off-wrist handling for
+  `"sadeh"` at all (`max_gap_min` has no effect), since pyActigraphy's own
+  code has none for this path. Sadeh's edge behaviour (the 11-epoch
+  centered window needed by `mean_W5`/`NAT`, the 6-epoch trailing window
+  for `sd_Last6`, and the following-epoch shift for `logAct`) is
+  reproduced exactly, including the easy-to-miss detail that pandas scores
+  edge epochs (where these windows aren't fully available) as sleep via
+  `NaN > threshold` evaluating to `False`, rather than propagating them as
+  missing.
+
+  First of four planned algorithm ports (Sadeh done; CK-native, Scripps,
+  and Roenneberg to follow) motivated by Julia's real-cohort validation
+  report showing these pyActigraphy-derived SRI variants as separate
+  columns from `SRI_vallim`. Note: pyActigraphy's native `CK` variant, as
+  actually configured in the reference notebook, requires genuine
+  30-second sub-epoch activity data that 1-minute ActTrust recordings
+  (what zeitR's pipeline reads) don't have -- flagged for a design
+  decision before that specific port, not yet resolved.
 * **`compute_npcra()`** gains `ISm`/`IVm` -- the mean of `IS`/`IV` computed
   at every divisor of 1440 minutes between 1-60 min (22 resolutions),
   matching Cell 16's `_ISm_IVm_FREQS` loop exactly (`vs_condor_py_pipeline_

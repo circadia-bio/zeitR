@@ -130,3 +130,90 @@ test_that(".interpolate_short_gaps() leaves a gap spanning the whole vector as N
   out <- .interpolate_short_gaps(x, max_gap_epochs = 5L)
   expect_true(all(is.na(out)))
 })
+
+# ---- algo = "sadeh" -----------------------------------------------------
+# Regression coverage ported directly from pyActigraphy's real source
+# (pyActigraphy/sleep/scoring_base.py's _sadeh(), and pyActigraphy/sleep/
+# scoring/sri.py's sri()/prob_stability()). Expected values below were
+# computed by running the ACTUAL pandas-based algorithm on these exact
+# fixtures (not hand-derived), to avoid arithmetic mistakes on a
+# moderately complex multi-term formula -- see this session's transcript
+# for the verification script if it needs to be re-run.
+
+test_that(".sadeh_score() matches pyActigraphy's real _sadeh() exactly on a synthetic fixture", {
+  # A single spike (60, within the 50-100 NAT band) surrounded by zeros.
+  # Verified against a direct run of pyActigraphy's actual _sadeh() on
+  # this exact vector.
+  activity <- c(0,0,0,0,0,10,60,10,0,0,0,0,0,0,0,0,0,0,0,0)
+  expected <- c(0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0)
+
+  expect_equal(.sadeh_score(activity), as.integer(expected))
+})
+
+test_that(".rolling_centered_mean()/.rolling_centered_count_between()/.rolling_trailing_sd() match pandas' intermediate columns exactly", {
+  # Same fixture and verification method as the .sadeh_score() test above --
+  # these are pandas' own mean_W5/NAT/sd_Last6 columns for this input.
+  activity <- c(0,0,0,0,0,10,60,10,0,0,0,0,0,0,0,0,0,0,0,0)
+
+  mean_W5 <- .rolling_centered_mean(activity, halfwin = 5L)
+  expect_true(all(is.na(mean_W5[1:5])))
+  expect_true(all(is.na(mean_W5[16:20])))
+  expect_equal(mean_W5[6], 80 / 11, tolerance = 1e-8)    # window = activity[1:11]
+  expect_equal(mean_W5[12], 70 / 11, tolerance = 1e-8)   # window = activity[7:17]
+
+  NAT <- .rolling_centered_count_between(activity, halfwin = 5L, lo = 50, hi = 100)
+  expect_true(all(is.na(NAT[1:5])))
+  expect_equal(NAT[6], 1)     # window = activity[1:11], one value (60) in (50,100)
+  expect_equal(NAT[13], 0)    # window = activity[8:18], no values in (50,100)
+
+  sd_Last6 <- .rolling_trailing_sd(activity, win = 6L)
+  expect_true(all(is.na(sd_Last6[1:5])))
+  expect_equal(sd_Last6[6], stats::sd(activity[1:6]), tolerance = 1e-8)
+  expect_equal(sd_Last6[7], stats::sd(activity[2:7]), tolerance = 1e-8)
+})
+
+test_that(".sri_pyactigraphy() matches pyActigraphy's real sri()/prob_stability() exactly", {
+  # 3 days, hourly epochs, a perfectly repeating sleep(1)/wake(0) pattern
+  # (hours 0-7 sleep, 8-23 wake) with a SINGLE mismatch injected at day 2,
+  # hour 3. Verified against a direct run of pyActigraphy's actual sri()
+  # on this exact series: SRI = 91.66666666666669.
+  t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
+  dt <- t0 + 3600 * 0:71
+  vals <- rep(c(rep(1, 8), rep(0, 16)), 3)
+  vals[24 + 3 + 1] <- 0   # day 2 (0-indexed), hour 3 -> flip 1 to 0 (R 1-indexed)
+
+  result <- .sri_pyactigraphy(dt, vals, tz = "UTC", threshold = NULL)
+  expect_equal(result, 91.66666666666669, tolerance = 1e-8)
+})
+
+test_that("compute_sri(algo = 'sadeh') is wired correctly end to end", {
+  # Reuses the perfectly-regular activity-free SRI fixture's TIMING, but
+  # needs an activity column instead of state -- construct a simple
+  # repeating activity pattern (active by day, quiet by night) over
+  # several days, and confirm the function runs, returns a finite SRI in
+  # [-100, 100], and that its n_pairs is NA (pyActigraphy's two-step
+  # average has no single pooled pair count -- see compute_sri()'s docs).
+  t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
+  n  <- 4L * 24L * 60L
+  dt <- t0 + 60L * seq.int(0L, n - 1L)
+  hour <- as.integer(format(dt, "%H", tz = "UTC"))
+  activity <- ifelse(hour < 8L, 0, 50)   # quiet at night, active by day
+
+  d      <- tibble::tibble(datetime = dt, activity = activity)
+  result <- compute_sri(d, algo = "sadeh")
+
+  expect_true(is.finite(result$sri))
+  expect_gte(result$sri, -100)
+  expect_lte(result$sri, 100)
+  expect_true(is.na(result$n_pairs))
+})
+
+test_that("compute_sri()'s default algo is 'vallim', unchanged from before the algo argument existed", {
+  d <- make_sri_fixture()
+  expect_equal(compute_sri(d), compute_sri(d, algo = "vallim"))
+})
+
+test_that("compute_sri(algo = 'sadeh') errors on missing activity column", {
+  d <- make_sri_fixture()   # has state, not activity
+  expect_error(compute_sri(d, algo = "sadeh"), "Missing required column")
+})
