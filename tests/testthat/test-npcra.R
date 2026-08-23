@@ -245,3 +245,47 @@ test_that("compute_npcra() zero-fills a genuinely missing hourly bin, matching a
   expect_equal(result_missing$IS, result_zero$IS)
   expect_equal(result_missing$IV, result_zero$IV)
 })
+
+test_that("compute_npcra() computes ISm/IVm as the mean of IS/IV across the 22 divisor-of-1440 resolutions", {
+  # Regression coverage for ISm/IVm, ported from Cell 16's _ISm_IVm_FREQS
+  # loop. Recomputes the expected value independently, using the same
+  # .is_iv_at_resolution() helper the function itself calls -- this checks
+  # WIRING (does compute_npcra() actually run the described loop with
+  # fill_zero = FALSE and the right frequency list), not the underlying
+  # per-resolution math (already covered by the main IS/IV tests above,
+  # since .is_iv_at_resolution() is shared code).
+  d      <- make_npcra_fixture(n_days = 7L)
+  result <- compute_npcra(d)
+
+  # d has n_days = 7; default trim_to_d1 removes 1 day -> 6 remain. Rebuild
+  # the exact (datetimes, activity) compute_npcra() would have passed to
+  # .npcra_core() after trimming, so the independent recomputation below
+  # uses identical inputs.
+  dt_trimmed  <- d$datetime[as.Date(d$datetime, tz = "UTC") >= as.Date("2024-01-02")]
+  act_trimmed <- d$activity[as.Date(d$datetime, tz = "UTC") >= as.Date("2024-01-02")]
+
+  freqs <- c(1L, 2L, 3L, 4L, 5L, 6L, 8L, 9L, 10L, 12L, 15L, 16L,
+             18L, 20L, 24L, 30L, 32L, 36L, 40L, 45L, 48L, 60L)
+  is_vals <- numeric(0); iv_vals <- numeric(0)
+  for (f in freqs) {
+    res <- .is_iv_at_resolution(dt_trimmed, act_trimmed, freq_min = f,
+                                fill_zero = FALSE, tz = "UTC")
+    if (res$n > 1L) {
+      is_vals <- c(is_vals, res$IS)
+      iv_vals <- c(iv_vals, res$IV)
+    }
+  }
+  expected_ISm <- round(mean(is_vals), 4)
+  expected_IVm <- round(mean(iv_vals), 4)
+
+  expect_true(is.finite(result$ISm))
+  expect_true(is.finite(result$IVm))
+  expect_equal(result$ISm, expected_ISm)
+  expect_equal(result$IVm, expected_IVm)
+
+  # Sanity: ISm should NOT just equal IS (they use different fill
+  # conventions and average over 22 resolutions, not just 1h) -- if a
+  # future change accidentally made ISm an alias for IS, this would catch
+  # it.
+  expect_false(isTRUE(all.equal(result$ISm, result$IS)))
+})

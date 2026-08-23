@@ -19,6 +19,12 @@
 #'   \item{`IV`}{**Intradaily variability** — fragmentation of the
 #'     rest-activity rhythm (>= 0; higher = more fragmented). From the
 #'     hourly-mean profile (p = 24).}
+#'   \item{`ISm`}{Mean of `IS` computed at every divisor of 1440 minutes
+#'     between 1 and 60 min (22 resolutions total: 1, 2, 3, 4, 5, 6, 8, 9,
+#'     10, 12, 15, 16, 18, 20, 24, 30, 32, 36, 40, 45, 48, 60), matching
+#'     Cell 16's `_ISm_IVm_FREQS` loop. Unlike `IS`, missing bins at each
+#'     resolution are omitted (not zero-filled).}
+#'   \item{`IVm`}{As `ISm`, for `IV`.}
 #'   \item{`RA`}{**Relative amplitude** — contrast between the most active
 #'     10 h window (M10) and least active 5 h window (L5) (range 0--1).}
 #'   \item{`L5`}{Mean activity during the least active 5-hour window, found
@@ -46,6 +52,16 @@
 #' the number of hour-of-day groups present (24 for any recording spanning a
 #' full day). The two formulas share the same denominator, matching
 #' pyActigraphy's `d_1h = data.var()` being computed once and reused for both.
+#'
+#' `ISm`/`IVm` repeat this same computation at 22 other bin widths (every
+#' divisor of 1440 min between 1-60 min) and average the results -- but
+#' missing bins at those resolutions are omitted from `N` (matching
+#' `.dropna()`), not zero-filled like the main `IS`/`IV`. A resolution is
+#' only excluded from the average if it has 1 or fewer bins; if the
+#' IS/IV formula itself degenerates (e.g. zero variance) at some other
+#' resolution, that `NaN`/`Inf` is included in the average like any other
+#' value, exactly matching the real Python (a `try/except` around the whole
+#' per-frequency block, not a check on the computed value).
 #'
 #' @param x A `zeitr_recording` as returned by [read_actigraphy()], or a
 #'   data frame / tibble with at least `datetime` and `activity` columns.
@@ -90,8 +106,8 @@
 #'   outright, changing the time index rather than leaving gaps.
 #'
 #' @return A tibble with columns `participant_id`, `window_start` (if
-#'   `window_days` is set), `IS`, `IV`, `RA`, `L5`, `L5_onset`, `M10`,
-#'   `M10_onset`, `n_days`, `n_epochs`.
+#'   `window_days` is set), `IS`, `IV`, `ISm`, `IVm`, `RA`, `L5`, `L5_onset`,
+#'   `M10`, `M10_onset`, `n_days`, `n_epochs`.
 #'
 #' @references
 #' Gonçalves, B. S. B., Adamowicz, T., Louzada, F. M., Moreno, C. R., &
@@ -229,60 +245,44 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   n_raw      <- length(activity)
   epochs_per_day <- 24 * 3600 / epoch_s
 
-  # ── Build the 1h-resampled series ────────────────────────────────────────
-  # Matches Python's `s_1h = s_isiv.resample('1h').mean().fillna(0)` (Cell 16):
-  # missing hourly bins get a real zero, not silent omission. This is the
-  # SAME series (and the same convention) `.lmx_window()` already applies
-  # for M10/L5 at 10-min resolution -- IS/IV previously used tapply(), which
-  # just dropped a missing hour from N/p entirely instead of zero-filling it.
-  #
-  # bin_times is built from sort(unique(hour_start)) directly -- NOT by
-  # reconstructing timestamps from tapply()'s factor-level names via
-  # as.POSIXct(names(...)). That round-trip is a real trap:
-  # format.POSIXct() silently drops the time-of-day for exact midnight
-  # ("2024-01-02" instead of "2024-01-02 00:00:00"), and tapply()'s default
-  # character-conversion of a POSIXct grouping variable hits this for every
-  # midnight bin. as.POSIXct() parsing that resulting MIXED vector of
-  # date-only and full-datetime strings back in one vectorised call
-  # mis-parsed multiple distinct days down to the same timestamp (silently,
-  # no error) -- corrupting N and every IS/IV value derived from it.
-  # Confirmed by direct execution: this bug alone took a 6-day fixture's
-  # theoretical IS from 1.0362 down to 0.8782.
-  hour_start  <- as.POSIXct(format(datetimes, "%Y-%m-%d %H:00:00", tz = tz), tz = tz)
-  bin_times   <- sort(unique(hour_start))
-  bin_means   <- vapply(bin_times, function(ht) mean(activity[hour_start == ht], na.rm = TRUE), numeric(1L))
+  # ── IS / IV: 1h resolution, zero-filled (matches Python's `s_1h = ────────
+  # s_isiv.resample('1h').mean().fillna(0)`, Cell 16) ────────────────────────
+  main <- .is_iv_at_resolution(datetimes, activity, freq_min = 60L,
+                               fill_zero = TRUE, tz = tz)
+  IS   <- main$IS
+  IV   <- main$IV
 
-  full_bins  <- seq(min(bin_times), max(bin_times), by = "hour")
-  X          <- rep(0.0, length(full_bins))   # missing bins -> 0, matches .fillna(0)
-  X[match(bin_times, full_bins)] <- as.double(bin_means)
-  N          <- length(X)
-
-  if (N < 2L) zeitr_abort("Fewer than 2 hourly slots after resampling.")
-
-  slot_hour  <- as.integer(format(full_bins, "%H", tz = tz))
-
-  # ── 24-h mean profile (p = 24) ──────────────────────────────────────────────
-  Xm         <- mean(X, na.rm = TRUE)
-  Xh         <- vapply(0L:23L, function(h) {
-    vals <- X[slot_hour == h]
-    if (length(vals) > 0L) mean(vals, na.rm = TRUE) else NA_real_
-  }, numeric(1L))
-  p          <- sum(!is.na(Xh))   # number of hour-of-day groups actually present
-                                   # (== 24 for any recording spanning a full day)
-
-  # ── IS / IV: sample variance (ddof = 1), matching pyActigraphy's actual ────
-  # _interdaily_stability()/_intradaily_variability() (Cell 16), which call
-  # pandas' .var() -- ddof = 1 (divide by n-1) by default. NOT the
-  # population-variance (divide by n) formula their own docstrings and
-  # Gonçalves et al. (2014) describe; the real production code uses ddof=1.
-  # d_1h = Var(X) is the shared denominator for both IS and IV (matches
-  # Python's `d_1h = data.var()`, computed once and reused for both).
-  d_1h   <- sum((X  - Xm)^2, na.rm = TRUE) / (N - 1L)
-  d_24h  <- sum((Xh - Xm)^2, na.rm = TRUE) / (p - 1L)
-  c_1h   <- sum(diff(X)^2,   na.rm = TRUE) / (N - 1L)
-
-  IS     <- if (d_1h > 0) d_24h / d_1h else NA_real_
-  IV     <- if (d_1h > 0) c_1h  / d_1h else NA_real_
+  # ── ISm / IVm: mean of IS/IV over every divisor of 1440 min between ────
+  # 1-60 min, matching Cell 16's _ISm_IVm_FREQS loop exactly. Two details
+  # that matter for faithfulness, not just the frequency list itself:
+  #   - these resamples use .dropna() (fill_zero = FALSE), NOT .fillna(0)
+  #     like the main IS/IV above -- missing bins are omitted from N, not
+  #     zero-filled.
+  #   - a frequency is only skipped from the average if len(s_f) <= 1
+  #     (Python's explicit gate before calling the metric functions). If
+  #     _interdaily_stability()/_intradaily_variability() itself returns
+  #     NaN/Inf for a frequency that DID pass that gate (e.g. zero
+  #     variance), Python's try/except does NOT catch that -- no
+  #     exception is raised, so the NaN/Inf is appended to the list and
+  #     contaminates the final statistics::mean() same as R's mean()
+  #     without na.rm does. Do not filter non-finite values out here.
+  ism_ivm_freq_min <- c(1L, 2L, 3L, 4L, 5L, 6L, 8L, 9L, 10L, 12L, 15L, 16L,
+                        18L, 20L, 24L, 30L, 32L, 36L, 40L, 45L, 48L, 60L)
+  ism_vals <- numeric(0L)
+  ivm_vals <- numeric(0L)
+  for (f in ism_ivm_freq_min) {
+    res <- tryCatch(
+      .is_iv_at_resolution(datetimes, activity, freq_min = f,
+                           fill_zero = FALSE, tz = tz),
+      error = function(e) NULL
+    )
+    if (!is.null(res) && res$n > 1L) {
+      ism_vals <- c(ism_vals, res$IS)
+      ivm_vals <- c(ivm_vals, res$IV)
+    }
+  }
+  ISm <- if (length(ism_vals) > 0L) mean(ism_vals) else NA_real_
+  IVm <- if (length(ivm_vals) > 0L) mean(ivm_vals) else NA_real_
 
   # ── L5 and M10: rolling-mean search on a 10-min-resampled series ────────
   # Ported from the notebook's `_lmx_ow()`/`_nonparam_metrics()` (Cell 16 of
@@ -312,6 +312,8 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
     participant_id = participant_id,
     IS             = round(IS,  4),
     IV             = round(IV,  4),
+    ISm            = round(ISm, 4),
+    IVm            = round(IVm, 4),
     RA             = round(RA,  4),
     L5             = round(L5,  4),
     L5_onset       = L5_onset,
@@ -320,6 +322,85 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
     n_days         = round(n_raw / epochs_per_day, 2),
     n_epochs       = n_raw
   )
+}
+
+#' Compute IS/IV at an arbitrary resampling resolution
+#'
+#' Generalises the 1h-specific IS/IV computation to any bin width, so both
+#' the main `IS`/`IV` (1h, zero-filled) and `ISm`/`IVm` (every divisor of
+#' 1440 min between 1-60 min, NOT zero-filled) share one implementation.
+#' Ports pyActigraphy's actual `_interdaily_stability()`/
+#' `_intradaily_variability()` (sample variance, ddof = 1 -- see
+#' [compute_npcra()]'s Details), generalised from "group by hour" to "group
+#' by within-day bin position" (pandas' `groupby([hour, minute, second])`
+#' does this automatically for any resample frequency; this is the R
+#' equivalent for a `freq_min`-minute grid).
+#'
+#' Building bin timestamps from `sort(unique(bin_start))` directly -- not by
+#' reconstructing them from `tapply()`'s factor-level names via
+#' `as.POSIXct(names(...))` -- avoids a real trap: `format.POSIXct()`
+#' silently drops the time-of-day string for exact midnight
+#' ("2024-01-02" instead of "2024-01-02 00:00:00"), and `tapply()`'s default
+#' character-conversion of a POSIXct grouping variable hits this for every
+#' midnight bin. Re-parsing that resulting MIXED vector of date-only and
+#' full-datetime strings back via one vectorised `as.POSIXct()` call
+#' mis-parses multiple distinct days down to the same timestamp (silently,
+#' no error) -- corrupting N and every value derived from it. Confirmed by
+#' direct execution: this bug alone took a 6-day fixture's theoretical IS
+#' from 1.0362 down to 0.8782.
+#'
+#' @param datetimes POSIXct vector, native epoch resolution.
+#' @param activity numeric vector, same length as `datetimes`.
+#' @param freq_min integer(1). Bin width in minutes. Must evenly divide
+#'   1440 for the within-day profile grouping to align across days (true
+#'   for every frequency `compute_npcra()` actually calls this with).
+#' @param fill_zero logical(1). `TRUE`: missing bins get a real zero
+#'   (matches `.fillna(0)`, used for the main 1h IS/IV). `FALSE`: missing
+#'   bins are simply absent from `N` (matches `.dropna()`, used for the
+#'   `ISm`/`IVm` loop at every other frequency).
+#' @param tz Timezone string.
+#' @return `list(IS, IV, n)` -- `n` is the resulting `N` (number of bins),
+#'   needed by the `ISm`/`IVm` loop's `len(s_f) > 1` gate.
+#' @noRd
+.is_iv_at_resolution <- function(datetimes, activity, freq_min, fill_zero, tz) {
+  day_start <- as.POSIXct(format(datetimes, "%Y-%m-%d 00:00:00", tz = tz), tz = tz)
+  mins_since_midnight <- as.numeric(difftime(datetimes, day_start, units = "mins"))
+  bin_idx_in_day <- floor(mins_since_midnight / freq_min)
+  bin_start <- day_start + bin_idx_in_day * freq_min * 60
+
+  bin_times <- sort(unique(bin_start))
+  bin_means <- vapply(bin_times, function(bt) mean(activity[bin_start == bt], na.rm = TRUE), numeric(1L))
+
+  if (isTRUE(fill_zero)) {
+    full_bins <- seq(min(bin_times), max(bin_times), by = freq_min * 60)
+    X         <- rep(0.0, length(full_bins))   # missing bins -> 0, matches .fillna(0)
+    X[match(bin_times, full_bins)] <- as.double(bin_means)
+  } else {
+    full_bins <- bin_times                     # missing bins simply absent, matches .dropna()
+    X         <- as.double(bin_means)
+  }
+  N <- length(X)
+  if (N <= 1L) return(list(IS = NA_real_, IV = NA_real_, n = N))
+
+  day_start_full <- as.POSIXct(format(full_bins, "%Y-%m-%d 00:00:00", tz = tz), tz = tz)
+  slot_idx <- round(as.numeric(difftime(full_bins, day_start_full, units = "mins")) / freq_min)
+  n_slots  <- 1440L %/% freq_min
+
+  Xm <- mean(X, na.rm = TRUE)
+  Xh <- vapply(0L:(n_slots - 1L), function(sidx) {
+    vals <- X[slot_idx == sidx]
+    if (length(vals) > 0L) mean(vals, na.rm = TRUE) else NA_real_
+  }, numeric(1L))
+  p <- sum(!is.na(Xh))   # number of within-day bin positions actually present
+
+  d_bin     <- sum((X  - Xm)^2, na.rm = TRUE) / (N - 1L)
+  d_profile <- if (p >= 2L) sum((Xh - Xm)^2, na.rm = TRUE) / (p - 1L) else NA_real_
+  c_bin     <- sum(diff(X)^2, na.rm = TRUE) / (N - 1L)
+
+  IS <- if (!is.na(d_bin) && d_bin > 0) d_profile / d_bin else NA_real_
+  IV <- if (!is.na(d_bin) && d_bin > 0) c_bin     / d_bin else NA_real_
+
+  list(IS = IS, IV = IV, n = N)
 }
 
 #' Find least/most active window from the 24-h mean profile
