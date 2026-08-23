@@ -310,3 +310,38 @@ test_that("compute_sri(algo = 'ck') errors on missing activity column", {
   d <- make_sri_fixture()
   expect_error(compute_sri(d, algo = "ck"), "Missing required column")
 })
+
+# ---- algo = "scripps" -------------------------------------------------
+# Regression coverage ported directly from pyActigraphy's real source
+# (pyActigraphy/sleep/scoring_base.py's _scripps()/Scripps()). Expected
+# values computed by running the ACTUAL algorithm on this exact fixture.
+
+test_that(".scripps_score() matches pyActigraphy's real _scripps() exactly on a synthetic fixture", {
+  activity <- rep(0, 60)
+  activity[21:25] <- c(80, 5, 90, 3, 70)
+  activity[41:45] <- 100
+
+  expected <- c(rep(0,10), rep(1,11), rep(0,5), rep(1,14), rep(0,20))
+  expect_equal(.scripps_score(activity), as.integer(expected))
+})
+
+test_that("compute_sri(algo = 'scripps') is wired correctly end to end", {
+  t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
+  n  <- 4L * 24L * 60L
+  dt <- t0 + 60L * seq.int(0L, n - 1L)
+  hour <- as.integer(format(dt, "%H", tz = "UTC"))
+  activity <- ifelse(hour < 8L, 0, 50)
+
+  d      <- tibble::tibble(datetime = dt, activity = activity)
+  result <- compute_sri(d, algo = "scripps")
+
+  expect_true(is.finite(result$sri))
+  expect_gte(result$sri, -100)
+  expect_lte(result$sri, 100)
+  expect_true(is.na(result$n_pairs))
+})
+
+test_that("compute_sri(algo = 'scripps') errors on missing activity column", {
+  d <- make_sri_fixture()
+  expect_error(compute_sri(d, algo = "scripps"), "Missing required column")
+})

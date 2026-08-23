@@ -77,13 +77,22 @@
 #' vs `PS > threshold` = sleep for Sadeh) -- both faithful to their own
 #' respective source.
 #'
+#' `algo = "scripps"` derives sleep/wake via pyActigraphy's native Scripps
+#' Clinic implementation (`Scripps()`/`_scripps()`). Structurally identical
+#' to `algo = "ck"` -- same centered rolling weighted dot product, same
+#' `D < threshold` = sleep polarity, same two-step SRI aggregation and
+#' lack of off-wrist handling -- just a different scale/window/threshold,
+#' and no Webster rescoring step (pyActigraphy's `Scripps()` doesn't call
+#' `rescore()`, unlike `CK()`).
+#'
 #' @param x A `zeitr_recording`/`zeitr_result`, or a data frame / tibble with
 #'   at least `datetime` and `state` columns (`algo = "vallim"`) or
-#'   `datetime` and `activity` columns (`algo = "sadeh"` or `"ck"`). For
-#'   `state`: `state == 1` or `state == 7` is treated as sleep, `state == 4`
-#'   as off-wrist (missing), and any other value as wake -- matching the
-#'   coding already used across zeitR's pipeline output ([run_pipeline()],
-#'   [run_pipeline_native()], [export_hypnogram()]).
+#'   `datetime` and `activity` columns (`algo = "sadeh"`, `"ck"`, or
+#'   `"scripps"`). For `state`: `state == 1` or `state == 7` is treated as
+#'   sleep, `state == 4` as off-wrist (missing), and any other value as
+#'   wake -- matching the coding already used across zeitR's pipeline
+#'   output ([run_pipeline()], [run_pipeline_native()],
+#'   [export_hypnogram()]).
 #' @param epoch_s `numeric(1)`. Epoch duration in seconds. If `NULL`
 #'   (default), estimated automatically from the median inter-epoch interval.
 #' @param max_gap_min `numeric(1)`. Off-wrist gaps of this many minutes or
@@ -92,12 +101,13 @@
 #'   used when `algo = "vallim"`.
 #' @param algo `character(1)`. Which sleep/wake source and SRI aggregation
 #'   to use: `"vallim"` (default, uses the pipeline's own `state` column),
-#'   `"sadeh"`, or `"ck"` (both score raw `activity`). See Details for the
-#'   precise differences beyond just the scoring algorithm.
+#'   `"sadeh"`, `"ck"`, or `"scripps"` (all three score raw `activity`).
+#'   See Details for the precise differences beyond just the scoring
+#'   algorithm.
 #'
 #' @return A tibble with columns `participant_id`, `sri`, `n_pairs` (number
-#'   of valid 24h-apart epoch comparisons used; `NA` for `algo = "sadeh"`
-#'   or `"ck"`, whose aggregation isn't a single pooled pair count), and
+#'   of valid 24h-apart epoch comparisons used; `NA` for `algo != "vallim"`,
+#'   whose aggregation isn't a single pooled pair count), and
 #'   `n_epochs`. `sri` is `NA` if the recording is shorter than 24 h, or
 #'   (for `algo = "vallim"`) if no valid pairs remain after off-wrist
 #'   exclusion.
@@ -127,7 +137,7 @@
 #' compute_sri(result, algo = "sadeh")
 #' }
 compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
-  algo <- match.arg(algo, c("vallim", "sadeh", "ck"))
+  algo <- match.arg(algo, c("vallim", "sadeh", "ck", "scripps"))
 
   # ── Extract epochs tibble and participant_id ──────────────────────────────
   if (inherits(x, "zeitr_result")) {
@@ -147,8 +157,10 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
     .compute_sri_vallim(epochs, participant_id, epoch_s, max_gap_min)
   } else if (algo == "sadeh") {
     .compute_sri_sadeh(epochs, participant_id, epoch_s)
-  } else {
+  } else if (algo == "ck") {
     .compute_sri_ck(epochs, participant_id, epoch_s)
+  } else {
+    .compute_sri_scripps(epochs, participant_id, epoch_s)
   }
 }
 
@@ -405,6 +417,96 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
     out[i] <- scale * sum(x[(i - halfwin):(i + halfwin)] * window)
   }
   out
+}
+
+# ── Internal: algo = "scripps" (native pyActigraphy Scripps, raw-activity-based) ──
+
+#' @noRd
+.compute_sri_scripps <- function(epochs, participant_id, epoch_s) {
+  required <- c("datetime", "activity")
+  missing  <- setdiff(required, names(epochs))
+  if (length(missing) > 0L) {
+    zeitr_abort("Missing required column(s): {.val {missing}}")
+  }
+
+  datetimes <- as.POSIXct(epochs$datetime)
+  activity  <- as.double(epochs$activity)
+
+  ord <- order(datetimes)
+  datetimes <- datetimes[ord]
+  activity  <- activity[ord]
+
+  n <- length(activity)
+  if (n < 2L) zeitr_abort("Need at least 2 epochs to compute SRI.")
+
+  tz <- attr(datetimes, "tzone") %||% "UTC"
+
+  if (is.null(epoch_s)) {
+    diffs   <- as.numeric(diff(datetimes), units = "secs")
+    epoch_s <- stats::median(diffs[diffs > 0], na.rm = TRUE)
+  }
+
+  lag_epochs <- round(24 * 3600 / epoch_s)
+  if (lag_epochs >= n) {
+    zeitr_warn("Recording spans less than 24 h; {.fn compute_sri} returns NA.")
+    return(tibble::tibble(
+      participant_id = participant_id,
+      sri             = NA_real_,
+      n_pairs         = NA_integer_,
+      n_epochs        = n
+    ))
+  }
+
+  scoring <- .scripps_score(activity)
+  sri_val <- .sri_pyactigraphy(datetimes, scoring, tz = tz, threshold = NULL)
+
+  tibble::tibble(
+    participant_id = participant_id,
+    sri             = round(sri_val, 4),
+    n_pairs         = NA_integer_,
+    n_epochs        = n
+  )
+}
+
+#' pyActigraphy-native Scripps Clinic algorithm for sleep/wake scoring
+#'
+#' Ports pyActigraphy's `Scripps()`/`_scripps()` exactly
+#' (`pyActigraphy/sleep/scoring_base.py`). Structurally identical to
+#' `.ck_native_score()` (same centered rolling weighted dot product, same
+#' `D < threshold` = sleep polarity) -- just a different scale/window/
+#' threshold, and Scripps has no rescoring step in pyActigraphy's own code
+#' (unlike `CK()`, which applies Webster's rules by default).
+#'
+#' `window` has 21 elements (10 before, self, 10 after) but the last 10
+#' are `0`, so only `A_{-10}` through `A_{+2}` actually contribute --
+#' matching the original Scripps algorithm's asymmetric window, padded to
+#' 21 elements for a symmetric centered rolling window.
+#'
+#' Edge epochs (first/last 10, where the full 21-epoch window isn't
+#' available) are `NA` before thresholding; pandas' `NaN < threshold`
+#' evaluates to `False`, scoring them wake (`0`) -- same reasoning as
+#' `.ck_native_score()`'s edge handling.
+#'
+#' @param activity numeric vector of raw activity counts, one per epoch.
+#' @param scale `numeric(1)`. Default `0.204`.
+#' @param window `numeric(21)`. Default matches pyActigraphy's published
+#'   Scripps weights.
+#' @param threshold `numeric(1)`. Default `1.0`.
+#' @return Integer vector, same length as `activity`: `1` = sleep,
+#'   `0` = wake.
+#' @noRd
+.scripps_score <- function(activity, scale = 0.204,
+                           window = c(0.0064, 0.0074, 0.0112, 0.0112, 0.0118,
+                                      0.0118, 0.0128, 0.0188, 0.0280, 0.0664,
+                                      0.0300, 0.0112, 0.0100, 0.0000, 0.0000,
+                                      0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                                      0.0000),
+                           threshold = 1.0) {
+  win_size <- length(window)
+  halfwin  <- (win_size - 1L) %/% 2L
+
+  D <- .rolling_centered_dot(activity, window, halfwin, scale)
+  ifelse(is.na(D), 0L, as.integer(D < threshold))
 }
 
 #' Find runs of `x == target` of at least `min_length`, as 1-indexed
