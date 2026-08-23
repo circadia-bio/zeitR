@@ -61,12 +61,28 @@
 #' that epoch is scored wake (`0`), not excluded -- reproduced here
 #' explicitly, since R's `NA > threshold` gives `NA`, not `FALSE`.
 #'
+#' `algo = "ck"` derives sleep/wake via pyActigraphy's native Cole-Kripke
+#' implementation (`.CK()`, default `settings = "30sec_max_non_overlap"`)
+#' -- a DIFFERENT weight set from the Condor-native `ColeKripke` class
+#' used elsewhere in zeitR's pipeline (`R/cole_kripke.R`); the two share an
+#' algorithm family name but are otherwise unrelated. Shares `"sadeh"`'s
+#' two-step SRI aggregation and lack of off-wrist handling (see above).
+#' Despite the reference notebook resampling to 30-second bins before
+#' calling this, that round-trip is a mathematical no-op on data that was
+#' only ever 1-minute resolution (verified by direct execution -- see
+#' `?.ck_native_score`), so this operates directly on native-resolution
+#' `activity` with no resampling needed. Also applies Webster's (1982)
+#' rescoring rules afterward, matching pyActigraphy's default. Uses the
+#' *opposite* threshold polarity from Sadeh (`D < threshold` = sleep here,
+#' vs `PS > threshold` = sleep for Sadeh) -- both faithful to their own
+#' respective source.
+#'
 #' @param x A `zeitr_recording`/`zeitr_result`, or a data frame / tibble with
 #'   at least `datetime` and `state` columns (`algo = "vallim"`) or
-#'   `datetime` and `activity` columns (`algo = "sadeh"`). For `state`:
-#'   `state == 1` or `state == 7` is treated as sleep, `state == 4` as
-#'   off-wrist (missing), and any other value as wake -- matching the coding
-#'   already used across zeitR's pipeline output ([run_pipeline()],
+#'   `datetime` and `activity` columns (`algo = "sadeh"` or `"ck"`). For
+#'   `state`: `state == 1` or `state == 7` is treated as sleep, `state == 4`
+#'   as off-wrist (missing), and any other value as wake -- matching the
+#'   coding already used across zeitR's pipeline output ([run_pipeline()],
 #'   [run_pipeline_native()], [export_hypnogram()]).
 #' @param epoch_s `numeric(1)`. Epoch duration in seconds. If `NULL`
 #'   (default), estimated automatically from the median inter-epoch interval.
@@ -75,16 +91,16 @@
 #'   Fix 30 and Fix 14's 30-minute threshold elsewhere in the pipeline. Only
 #'   used when `algo = "vallim"`.
 #' @param algo `character(1)`. Which sleep/wake source and SRI aggregation
-#'   to use: `"vallim"` (default, uses the pipeline's own `state` column) or
-#'   `"sadeh"` (scores raw `activity` via the Sadeh algorithm). See Details
-#'   for the precise differences between the two beyond just the scoring
-#'   algorithm.
+#'   to use: `"vallim"` (default, uses the pipeline's own `state` column),
+#'   `"sadeh"`, or `"ck"` (both score raw `activity`). See Details for the
+#'   precise differences beyond just the scoring algorithm.
 #'
 #' @return A tibble with columns `participant_id`, `sri`, `n_pairs` (number
-#'   of valid 24h-apart epoch comparisons used; `NA` for `algo = "sadeh"`,
-#'   whose aggregation isn't a single pooled pair count), and `n_epochs`.
-#'   `sri` is `NA` if the recording is shorter than 24 h, or (for
-#'   `algo = "vallim"`) if no valid pairs remain after off-wrist exclusion.
+#'   of valid 24h-apart epoch comparisons used; `NA` for `algo = "sadeh"`
+#'   or `"ck"`, whose aggregation isn't a single pooled pair count), and
+#'   `n_epochs`. `sri` is `NA` if the recording is shorter than 24 h, or
+#'   (for `algo = "vallim"`) if no valid pairs remain after off-wrist
+#'   exclusion.
 #'
 #' @references
 #' Phillips, A. J. K., Clerx, W. M., O'Brien, C. S., Sano, A., Barger, L. K.,
@@ -111,7 +127,7 @@
 #' compute_sri(result, algo = "sadeh")
 #' }
 compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
-  algo <- match.arg(algo, c("vallim", "sadeh"))
+  algo <- match.arg(algo, c("vallim", "sadeh", "ck"))
 
   # ── Extract epochs tibble and participant_id ──────────────────────────────
   if (inherits(x, "zeitr_result")) {
@@ -129,8 +145,10 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 
   if (algo == "vallim") {
     .compute_sri_vallim(epochs, participant_id, epoch_s, max_gap_min)
-  } else {
+  } else if (algo == "sadeh") {
     .compute_sri_sadeh(epochs, participant_id, epoch_s)
+  } else {
+    .compute_sri_ck(epochs, participant_id, epoch_s)
   }
 }
 
@@ -253,13 +271,247 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
   )
 }
 
+# ── Internal: algo = "ck" (native pyActigraphy Cole-Kripke, raw-activity-based) ──
+
+#' @noRd
+.compute_sri_ck <- function(epochs, participant_id, epoch_s) {
+  required <- c("datetime", "activity")
+  missing  <- setdiff(required, names(epochs))
+  if (length(missing) > 0L) {
+    zeitr_abort("Missing required column(s): {.val {missing}}")
+  }
+
+  datetimes <- as.POSIXct(epochs$datetime)
+  activity  <- as.double(epochs$activity)
+
+  ord <- order(datetimes)
+  datetimes <- datetimes[ord]
+  activity  <- activity[ord]
+
+  n <- length(activity)
+  if (n < 2L) zeitr_abort("Need at least 2 epochs to compute SRI.")
+
+  tz <- attr(datetimes, "tzone") %||% "UTC"
+
+  if (is.null(epoch_s)) {
+    diffs   <- as.numeric(diff(datetimes), units = "secs")
+    epoch_s <- stats::median(diffs[diffs > 0], na.rm = TRUE)
+  }
+
+  lag_epochs <- round(24 * 3600 / epoch_s)
+  if (lag_epochs >= n) {
+    zeitr_warn("Recording spans less than 24 h; {.fn compute_sri} returns NA.")
+    return(tibble::tibble(
+      participant_id = participant_id,
+      sri             = NA_real_,
+      n_pairs         = NA_integer_,
+      n_epochs        = n
+    ))
+  }
+
+  scoring <- .ck_native_score(activity)
+  sri_val <- .sri_pyactigraphy(datetimes, scoring, tz = tz, threshold = NULL)
+
+  tibble::tibble(
+    participant_id = participant_id,
+    sri             = round(sri_val, 4),
+    n_pairs         = NA_integer_,
+    n_epochs        = n
+  )
+}
+
+#' pyActigraphy-native Cole-Kripke algorithm for sleep/wake scoring
+#'
+#' Ports pyActigraphy's `.CK()` method with its default `settings =
+#' "30sec_max_non_overlap"` (`pyActigraphy/sleep/scoring_base.py`'s
+#' `_cole_kripke()`, called from `ScoringMixin.CK()`). This is a
+#' DIFFERENT weight set than the Condor-native `ColeKripke` class already
+#' ported elsewhere in zeitR (`R/cole_kripke.R`) -- the two are unrelated
+#' beyond sharing an algorithm family name.
+#'
+#' The reference notebook's actual call
+#' (`rawATR_ck.SleepRegularityIndex(algo='CK')`) first artificially
+#' resamples already-1-minute-resolution data to 30-second bins
+#' (`.resample('30s').sum()`) before `.CK()`'s own
+#' `"30sec_max_non_overlap"` branch resamples it back to 60-second bins via
+#' `.max()`. Verified by direct execution that this round-trip is a
+#' mathematical no-op on genuinely-1-minute data: every artificially
+#' created 30-second bin that doesn't align with a real 1-minute timestamp
+#' becomes `0` (`.resample().sum()` on an empty group), and since activity
+#' counts are never negative, `max(original_value, 0)` always equals the
+#' original value. So this applies the `"30sec_max_non_overlap"` weights
+#' directly to the native 1-minute `activity` values, with no resampling
+#' needed at all.
+#'
+#' `D = scale * dot([A_{-4},...,A_0,...,A_{+4}], window)`, computed over a
+#' centered 9-epoch window (`window`'s last two elements are `0`, so only
+#' `A_{-4}` through `A_{+2}` actually contribute -- matching the original
+#' Cole-Kripke algorithm's asymmetric window, just padded to 9 elements for
+#' a symmetric centered rolling window). `D < threshold` -> sleep (`1`),
+#' else wake (`0`) -- matching pyActigraphy's own docstring ("D < 1 ==
+#' sleep, D >= 1 == wake"). Note this is the OPPOSITE polarity from
+#' `.sadeh_score()` (`PS > threshold` = sleep there).
+#'
+#' Edge epochs (first/last 4, where the full 9-epoch window isn't
+#' available) are `NA` before thresholding; pandas' `NaN < threshold`
+#' evaluates to `False`, scoring them wake (`0`) -- reproduced explicitly,
+#' same reasoning as `.sadeh_score()`'s edge handling.
+#'
+#' If `rescoring = TRUE` (pyActigraphy's default), Webster's rescoring
+#' rules are applied afterward via `.rescore()`.
+#'
+#' @param activity numeric vector of raw activity counts, one per epoch.
+#' @param scale `numeric(1)`. Default `0.0001`.
+#' @param window `numeric(9)`. Default
+#'   `c(50, 30, 14, 28, 12, 8, 50, 0, 0)`.
+#' @param threshold `numeric(1)`. Default `1.0`.
+#' @param rescoring `logical(1)`. Apply Webster's rescoring rules. Default
+#'   `TRUE`.
+#' @return Integer vector, same length as `activity`: `1` = sleep,
+#'   `0` = wake.
+#' @noRd
+.ck_native_score <- function(activity, scale = 0.0001,
+                             window = c(50, 30, 14, 28, 12, 8, 50, 0, 0),
+                             threshold = 1.0, rescoring = TRUE) {
+  win_size <- length(window)
+  halfwin  <- (win_size - 1L) %/% 2L
+
+  D  <- .rolling_centered_dot(activity, window, halfwin, scale)
+  ck <- ifelse(is.na(D), 0L, as.integer(D < threshold))
+
+  if (isTRUE(rescoring)) {
+    mask <- .rescore(ck, sleep_score = 1L)
+    ck   <- as.integer(ck * mask)
+  }
+  ck
+}
+
+#' Centered rolling weighted dot product, NA where the full window is
+#' unavailable
+#'
+#' For position `i`, `scale * sum(x[(i-halfwin):(i+halfwin)] * window)`,
+#' where `window` is applied positionally in temporal order (`window[1]`
+#' pairs with `x[i-halfwin]`, `window[length(window)]` pairs with
+#' `x[i+halfwin]`). Matches pandas' `.rolling(win_size, center=True)
+#' .apply(_window_convolution, ...)` default behaviour (requires the full
+#' window; no partial-window fallback).
+#' @noRd
+.rolling_centered_dot <- function(x, window, halfwin, scale) {
+  n   <- length(x)
+  win <- 2L * halfwin + 1L
+  out <- rep(NA_real_, n)
+  if (win > n) return(out)
+  for (i in (halfwin + 1L):(n - halfwin)) {
+    out[i] <- scale * sum(x[(i - halfwin):(i + halfwin)] * window)
+  }
+  out
+}
+
+#' Find runs of `x == target` of at least `min_length`, as 1-indexed
+#' inclusive `[start, end]` pairs
+#'
+#' Ports pyActigraphy's `consecutive_values()` (`pyActigraphy/sleep/
+#' scoring/utils.py`) exactly, translated from Python's 0-indexed
+#' half-open `[a, b)` ranges to R's 1-indexed inclusive `[start, end]`
+#' (`start = a + 1`, `end = b`) -- verified against the real Python
+#' function's output on several test arrays, not derived from the source
+#' alone, given how easy an off-by-one error would be to introduce here.
+#'
+#' @param x integer/numeric vector.
+#' @param target Value to find runs of.
+#' @param min_length `integer(1)`. Minimum run length to include.
+#' @return A 2-column matrix (`start`, `end`), one row per qualifying run,
+#'   0 rows if none found.
+#' @noRd
+.consecutive_values <- function(x, target, min_length) {
+  n <- length(x)
+  targets <- c(0L, as.integer(x == target), 0L)
+  absdiff <- abs(diff(targets))
+  pos <- which(absdiff == 1L)
+  if (length(pos) == 0L) return(matrix(integer(0), ncol = 2, dimnames = list(NULL, c("start", "end"))))
+  ranges <- matrix(pos, ncol = 2, byrow = TRUE)
+  starts <- ranges[, 1L]
+  ends   <- ranges[, 2L] - 1L
+  keep   <- (ends - starts + 1L) >= min_length
+  cbind(start = starts[keep], end = ends[keep])
+}
+
+#' Webster's rescoring rule: rescore the start of a sleep run preceded by
+#' wake
+#'
+#' Ports pyActigraphy's `rescore_if_preceded()` (`pyActigraphy/sleep/
+#' scoring/utils.py`) exactly: for every run of `sleep_score` at least
+#' `n_periods` long, if the `n_previous` epochs immediately before it are
+#' all wake (`0`), rescore the run's first `n_periods` epochs to wake.
+#' @noRd
+.rescore_if_preceded <- function(scoring, n_periods, n_previous, sleep_score = 1L) {
+  n    <- length(scoring)
+  mask <- rep(1L, n)
+  runs <- .consecutive_values(scoring, target = sleep_score, min_length = n_periods)
+  if (nrow(runs) == 0L) return(mask)
+  for (r in seq_len(nrow(runs))) {
+    start <- runs[r, "start"]; end <- runs[r, "end"]
+    if (start <= n_previous) next   # not enough preceding epochs
+    if (end > n) next               # defensive, mirrors Python's own guard
+    if (all(scoring[(start - n_previous):(start - 1L)] == 0L)) {
+      mask[start:(start + n_periods - 1L)] <- 0L
+    }
+  }
+  mask
+}
+
+#' Webster's rescoring rule: rescore a short sleep gap surrounded by long
+#' wake runs on both sides
+#'
+#' Ports pyActigraphy's `rescore_if_surrounded()` (`pyActigraphy/sleep/
+#' scoring/utils.py`) exactly: for every pair of consecutive wake runs
+#' (each at least `n_surround` long), if the gap between them is at most
+#' `n_periods` epochs, rescore that whole gap to wake -- regardless of its
+#' actual sleep/wake composition.
+#' @noRd
+.rescore_if_surrounded <- function(scoring, n_periods, n_surround, sleep_score = 1L) {
+  n    <- length(scoring)
+  mask <- rep(1L, n)
+  wake_runs <- .consecutive_values(scoring, target = abs(sleep_score - 1L), min_length = n_surround)
+  if (nrow(wake_runs) < 2L) return(mask)
+  for (i in seq_len(nrow(wake_runs) - 1L)) {
+    end_current    <- wake_runs[i, "end"]
+    start_next     <- wake_runs[i + 1L, "start"]
+    sleep_duration <- (start_next - 1L) - end_current
+    if (sleep_duration <= n_periods) {
+      gap_start <- end_current + 1L
+      gap_end   <- start_next - 1L
+      if (gap_end >= gap_start) mask[gap_start:gap_end] <- 0L
+    }
+  }
+  mask
+}
+
+#' Webster's (1982) rescoring rules, combined
+#'
+#' Ports pyActigraphy's `rescore()` (`pyActigraphy/sleep/scoring/utils.py`)
+#' exactly: the five rules below, multiplied together elementwise (`0`
+#' from any rule wins).
+#' @noRd
+.rescore <- function(scoring, sleep_score = 1L) {
+  m1 <- .rescore_if_preceded(scoring, n_periods = 1L, n_previous = 4L,  sleep_score = sleep_score)
+  m2 <- .rescore_if_preceded(scoring, n_periods = 3L, n_previous = 10L, sleep_score = sleep_score)
+  m3 <- .rescore_if_preceded(scoring, n_periods = 4L, n_previous = 15L, sleep_score = sleep_score)
+  m4 <- .rescore_if_surrounded(scoring, n_periods = 6L,  n_surround = 10L, sleep_score = sleep_score)
+  m5 <- .rescore_if_surrounded(scoring, n_periods = 10L, n_surround = 20L, sleep_score = sleep_score)
+  m1 * m2 * m3 * m4 * m5
+}
+
 #' Sadeh algorithm for sleep/wake scoring
 #'
 #' Ports pyActigraphy's `_sadeh()` exactly (`pyActigraphy/sleep/
 #' scoring_base.py`). `PS = offset + weights . [mean_W5, NAT, sd_Last6,
-#' logAct]`; `PS > threshold` -> wake (1), else sleep (0) -- matching
-#' pyActigraphy's own sleep=0/wake=1 convention for scoring functions
-#' (opposite of zeitR's own `state` convention; the caller converts).
+#' logAct]`; `PS > threshold` -> sleep (1), else wake (0) -- matching
+#' pyActigraphy's own docstring convention ("PS >= 0 == sleep, PS < 0 ==
+#' wake") and zeitR's own `state` convention (`1` = sleep). Note this is
+#' the OPPOSITE polarity from `.ck_native_score()` below (`D < threshold`
+#' = sleep there) -- both are faithful to their own respective source,
+#' just opposite conventions in the original algorithms.
 #'
 #' `mean_W5`: centered 11-epoch rolling mean (5 before, self, 5 after);
 #' `NA` at both ends where the full window isn't available (pandas
@@ -273,7 +525,7 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #' pandas); `NA` for the last epoch.
 #'
 #' Where `PS` is `NA` (edge epochs), pandas' `NaN > threshold` evaluates to
-#' `False`, scoring that epoch as sleep (`0`) via `.astype(int)` -- NOT
+#' `False`, scoring that epoch as wake (`0`) via `.astype(int)` -- NOT
 #' propagated as missing. R's `NA > threshold` gives `NA`, not `FALSE`, so
 #' this is handled explicitly below to match.
 #'
@@ -282,8 +534,8 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #' @param weights `numeric(4)`. Weights for `mean_W5`, `NAT`, `sd_Last6`,
 #'   `logAct` respectively. Default `c(-0.065, -1.08, -0.056, -0.703)`.
 #' @param threshold `numeric(1)`. Default `0.0`.
-#' @return Integer vector, same length as `activity`: `0` = sleep,
-#'   `1` = wake.
+#' @return Integer vector, same length as `activity`: `1` = sleep,
+#'   `0` = wake.
 #' @noRd
 .sadeh_score <- function(activity, offset = 7.601,
                          weights = c(-0.065, -1.08, -0.056, -0.703),
@@ -296,7 +548,7 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
   PS <- offset + weights[1L] * mean_W5 + weights[2L] * NAT +
         weights[3L] * sd_Last6 + weights[4L] * logAct
 
-  # pandas: NaN > threshold is False -> astype(int) -> 0 (sleep). R's
+  # pandas: NaN > threshold is False -> astype(int) -> 0 (wake). R's
   # NA > threshold gives NA, not FALSE -- handled explicitly to match.
   ifelse(is.na(PS), 0L, as.integer(PS > threshold))
 }

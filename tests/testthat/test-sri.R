@@ -217,3 +217,96 @@ test_that("compute_sri(algo = 'sadeh') errors on missing activity column", {
   d <- make_sri_fixture()   # has state, not activity
   expect_error(compute_sri(d, algo = "sadeh"), "Missing required column")
 })
+
+# ---- algo = "ck" ----------------------------------------------------------
+# Regression coverage ported directly from pyActigraphy's real source
+# (pyActigraphy/sleep/scoring_base.py's _cole_kripke()/CK(), and
+# pyActigraphy/sleep/scoring/utils.py's consecutive_values()/
+# rescore_if_preceded()/rescore_if_surrounded()/rescore()). Expected
+# values below were computed by running the ACTUAL algorithm on these
+# exact fixtures, not hand-derived.
+
+test_that(".consecutive_values() matches pyActigraphy's real consecutive_values() exactly, both targets", {
+  x <- c(0,0,1,1,1,0,0,1,1,1,1,1,0,1,0,0)
+
+  runs1 <- .consecutive_values(x, target = 1, min_length = 2)
+  expect_equal(unname(runs1[, "start"]), c(3L, 8L))
+  expect_equal(unname(runs1[, "end"]),   c(5L, 12L))
+
+  runs0 <- .consecutive_values(x, target = 0, min_length = 2)
+  expect_equal(unname(runs0[, "start"]), c(1L, 6L, 15L))
+  expect_equal(unname(runs0[, "end"]),   c(2L, 7L, 16L))
+})
+
+test_that(".consecutive_values() returns 0 rows when nothing qualifies", {
+  x <- c(1, 0, 1, 0, 1)
+  runs <- .consecutive_values(x, target = 1, min_length = 2)
+  expect_equal(nrow(runs), 0L)
+})
+
+test_that(".rescore_if_preceded() matches pyActigraphy exactly", {
+  # 4 wake epochs then 1 isolated sleep epoch -> rescored to wake.
+  x1 <- c(0,0,0,0,1,0,0,0,0)
+  expect_equal(.rescore_if_preceded(x1, n_periods = 1L, n_previous = 4L),
+               c(1,1,1,1,0,1,1,1,1))
+
+  # Only 3 preceding wake epochs (not enough) -> NOT rescored.
+  x2 <- c(0,0,0,1,0,0,0,0)
+  expect_equal(.rescore_if_preceded(x2, n_periods = 1L, n_previous = 4L),
+               c(1,1,1,1,1,1,1,1))
+})
+
+test_that(".rescore_if_surrounded() matches pyActigraphy exactly", {
+  # wake(4) sleep(2) wake(4): gap (2) <= n_periods (3) -> gap rescored to wake.
+  x3 <- c(0,0,0,0,1,1,0,0,0,0)
+  expect_equal(.rescore_if_surrounded(x3, n_periods = 3L, n_surround = 4L),
+               c(1,1,1,1,0,0,1,1,1,1))
+
+  # wake(4) sleep(4) wake(4): gap (4) > n_periods (3) -> NOT rescored.
+  x4 <- c(0,0,0,0,1,1,1,1,0,0,0,0)
+  expect_equal(.rescore_if_surrounded(x4, n_periods = 3L, n_surround = 4L),
+               rep(1, 12))
+})
+
+test_that(".ck_native_score() matches pyActigraphy's real CK()/_cole_kripke()/rescore() exactly on a synthetic fixture", {
+  # Mostly quiet activity with a few noisy bursts, long enough to exercise
+  # both the raw scoring and Webster's rescoring rules. Verified against a
+  # direct run of pyActigraphy's actual _cole_kripke() + rescore() on this
+  # exact vector.
+  activity <- rep(0, 200)
+  activity[21:25]   <- c(80, 5, 90, 3, 70)   # short noisy burst
+  activity[61:65]   <- 100                    # a real wake period
+  activity[101:103] <- c(60, 2, 55)           # another short blip
+  activity[151:170] <- 100                    # long wake stretch
+
+  scored <- .ck_native_score(activity)
+
+  # Only these 5 positions (1-indexed) should differ from the raw
+  # (pre-rescoring) scoring, per the real Python run.
+  changed <- c(5L, 172L, 173L, 174L, 175L)
+  raw     <- .ck_native_score(activity, rescoring = FALSE)
+
+  expect_equal(which(scored != raw), changed)
+  expect_true(all(scored[changed] == 0L))   # all rescored TO wake, matching Webster's rules
+})
+
+test_that("compute_sri(algo = 'ck') is wired correctly end to end", {
+  t0 <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
+  n  <- 4L * 24L * 60L
+  dt <- t0 + 60L * seq.int(0L, n - 1L)
+  hour <- as.integer(format(dt, "%H", tz = "UTC"))
+  activity <- ifelse(hour < 8L, 0, 50)
+
+  d      <- tibble::tibble(datetime = dt, activity = activity)
+  result <- compute_sri(d, algo = "ck")
+
+  expect_true(is.finite(result$sri))
+  expect_gte(result$sri, -100)
+  expect_lte(result$sri, 100)
+  expect_true(is.na(result$n_pairs))
+})
+
+test_that("compute_sri(algo = 'ck') errors on missing activity column", {
+  d <- make_sri_fixture()
+  expect_error(compute_sri(d, algo = "ck"), "Missing required column")
+})

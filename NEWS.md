@@ -2,36 +2,48 @@
 
 ### ✨ New features
 
-* **`compute_sri()`** gains `algo = "sadeh"`: an alternative to the default
-  `"vallim"` (state-column-based) SRI, scoring raw `activity` via the Sadeh
-  et al. (1994) algorithm instead, matching pyActigraphy's actual
-  `Sadeh()`/`SleepRegularityIndex()` exactly -- sourced directly from
+* **`compute_sri()`** gains `algo = "sadeh"` and `algo = "ck"`:
+  alternatives to the default `"vallim"` (state-column-based) SRI, scoring
+  raw `activity` via the Sadeh et al. (1994) and pyActigraphy-native
+  Cole-Kripke algorithms respectively -- matching pyActigraphy's actual
+  `Sadeh()`/`CK()`/`SleepRegularityIndex()` exactly, sourced directly from
   pyActigraphy's real code (`pyActigraphy/sleep/scoring_base.py`'s
-  `_sadeh()`; `pyActigraphy/sleep/scoring/sri.py`'s `sri()`), not
-  reconstructed from documentation. Two precise details that differ from
-  the `"vallim"` path, both intentional and documented: the SRI
-  aggregation itself is a two-step average (per time-of-day slot across
-  days, then across slots) rather than `"vallim"`'s flat pooled average
-  over all 24h-apart pairs -- these are only mathematically equivalent
-  when every time-of-day slot has the same number of valid day-pairs (no
-  partial first/last day); and there is no off-wrist handling for
-  `"sadeh"` at all (`max_gap_min` has no effect), since pyActigraphy's own
-  code has none for this path. Sadeh's edge behaviour (the 11-epoch
-  centered window needed by `mean_W5`/`NAT`, the 6-epoch trailing window
-  for `sd_Last6`, and the following-epoch shift for `logAct`) is
+  `_sadeh()`/`_cole_kripke()`/`CK()`; `pyActigraphy/sleep/scoring/sri.py`'s
+  `sri()`; `pyActigraphy/sleep/scoring/utils.py`'s Webster rescoring rules),
+  not reconstructed from documentation. Both share two precise details
+  that differ from the `"vallim"` path, both intentional and documented:
+  the SRI aggregation itself is a two-step average (per time-of-day slot
+  across days, then across slots) rather than `"vallim"`'s flat pooled
+  average over all 24h-apart pairs -- these are only mathematically
+  equivalent when every time-of-day slot has the same number of valid
+  day-pairs (no partial first/last day); and there is no off-wrist
+  handling at all (`max_gap_min` has no effect), since pyActigraphy's own
+  code has none for either path. Sadeh's and CK's own edge behaviours are
   reproduced exactly, including the easy-to-miss detail that pandas scores
-  edge epochs (where these windows aren't fully available) as sleep via
-  `NaN > threshold` evaluating to `False`, rather than propagating them as
-  missing.
+  edge epochs (where the relevant rolling window isn't fully available) as
+  a definite sleep/wake value via `NaN > threshold`/`NaN < threshold`
+  evaluating to `False`, rather than propagating them as missing --
+  reproduced explicitly in R, which gives `NA` (not `FALSE`) for the same
+  comparison. `algo = "ck"` also applies Webster's (1982) rescoring rules
+  afterward, matching pyActigraphy's default.
 
-  First of four planned algorithm ports (Sadeh done; CK-native, Scripps,
-  and Roenneberg to follow) motivated by Julia's real-cohort validation
-  report showing these pyActigraphy-derived SRI variants as separate
-  columns from `SRI_vallim`. Note: pyActigraphy's native `CK` variant, as
-  actually configured in the reference notebook, requires genuine
-  30-second sub-epoch activity data that 1-minute ActTrust recordings
-  (what zeitR's pipeline reads) don't have -- flagged for a design
-  decision before that specific port, not yet resolved.
+  `algo = "ck"`'s weights are a DIFFERENT set from the Condor-native
+  `ColeKripke` class already used elsewhere in zeitR's pipeline
+  (`R/cole_kripke.R`) -- the two share an algorithm family name but are
+  otherwise unrelated. The reference notebook's actual call artificially
+  resamples already-1-minute data to 30-second bins before calling this;
+  verified by direct execution that this round-trip is a mathematical
+  no-op on genuinely-1-minute data (every artificial 30-second bin that
+  doesn't align with a real timestamp becomes `0`, and since activity
+  counts are never negative, `max(original_value, 0)` always equals the
+  original value) -- so this operates directly on native 1-minute
+  `activity` with no resampling needed, despite initial concern that
+  genuine sub-minute data would be required.
+
+  Two of four planned algorithm ports done (Sadeh, CK-native; Scripps and
+  Roenneberg to follow) motivated by Julia's real-cohort validation report
+  showing these pyActigraphy-derived SRI variants as separate columns from
+  `SRI_vallim`.
 * **`compute_npcra()`** gains `ISm`/`IVm` -- the mean of `IS`/`IV` computed
   at every divisor of 1440 minutes between 1-60 min (22 resolutions),
   matching Cell 16's `_ISm_IVm_FREQS` loop exactly (`vs_condor_py_pipeline_
