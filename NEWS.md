@@ -16,6 +16,26 @@
 
 ### 🐛 Bug fixes
 
+* **`detect_offwrist_bimodal()`**: three separate bugs in the border-refinement
+  and forbidden-zone logic, found via a real off-wrist divergence on
+  participant `ID_0003` (R flagged 2018-08-11 19:44-20:38 as off-wrist;
+  Python's reference pipeline did not). Root cause was the forbidden-zone
+  computation -- R used an invented "middle 25%-75% quantile of the sleep
+  block" heuristic with no basis in the reference implementation, in place
+  of the actual rule (everything *except* the first/last hour of each
+  estimated-sleep block is off-limits to off-wrist candidates). This let a
+  short off-wrist period sitting near the edge of a long low-activity block
+  get rescued back in after the sleep-overlap filter had already correctly
+  rejected it. Two smaller threshold bugs in the border-search step were
+  fixed alongside it: the low-activity quantile used for the
+  border-validity gate was using the wrong quantile method, and that same
+  gate was comparing against a data-driven activity threshold where the
+  reference implementation uses a fixed constant. Verified against a real
+  execution of the reference pipeline on all 4 available real-participant
+  recordings (`ID_0003`, `ID_0005`, `ID_0006`, `ID_0007`): off-wrist periods
+  now match exactly, including recordings with zero or a single detected
+  period.
+
 * **`run_pipeline_native()` / `extract_sleep_episodes()`**: `gts` (get-up
   time) was reading `stamps_ow[gt0]` -- the *last sleep* epoch -- one epoch
   early. Root cause of a systematic -1 epoch shift in `sleep_offset_h` and
