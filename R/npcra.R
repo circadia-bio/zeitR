@@ -50,7 +50,7 @@
 #' @param x A `zeitr_recording` as returned by [read_actigraphy()], or a
 #'   data frame / tibble with at least `datetime` and `activity` columns.
 #'   If a `state` column is present, off-wrist epochs (`state == 4`) are
-#'   excluded before computing all NPCRA variables.
+#'   used as-is by default -- see `exclude_offwrist`.
 #' @param epoch_s `numeric(1)`. Epoch duration in seconds. If `NULL`
 #'   (default), estimated automatically from the median inter-epoch interval.
 #' @param L5_hours `numeric(1)`. Width of the least-active window in hours.
@@ -71,9 +71,23 @@
 #'   recording length). Set to `FALSE` for the full untrimmed recording (the
 #'   pre-`trim_to_d1` behaviour). If trimming would leave fewer than 2 epochs,
 #'   a warning is emitted and the untrimmed recording is used instead.
-#'   Off-wrist exclusion (`state == 4`) still applies either way; this does
-#'   not replicate the Python pipeline's separate 30-min-threshold rule for
-#'   the M10/L5 windows specifically -- only the D+1 window start.
+#'   Off-wrist exclusion (`state == 4`, if `exclude_offwrist = TRUE`) still
+#'   applies either way; this does not replicate the Python pipeline's
+#'   separate 30-min-threshold off-wrist-run rule for the M10/L5 windows
+#'   specifically (see `exclude_offwrist`) -- only the D+1 window start.
+#' @param exclude_offwrist `logical(1)`. If `TRUE`, off-wrist epochs
+#'   (`state == 4`, when a `state` column is present) are deleted before
+#'   computing any NPCRA variable. Default `FALSE` matches the actual
+#'   production Python pipeline (Cell 16 of
+#'   `vs_condor_py_pipeline_fix30_jrsv.ipynb`): `_nonparam_metrics()` is
+#'   always called with `mask_series=None` for every variable (IS, IV, M10,
+#'   L5, RA) -- off-wrist periods' raw device readings are used as-is, not
+#'   deleted. Set `TRUE` for the more conservative (but non-Python-matching)
+#'   behaviour of excluding them. This is a blunter tool than Python's own
+#'   off-wrist handling for M10/L5 specifically (short runs zeroed and kept,
+#'   long runs excluded via `NA` + `min_periods`), which this package does
+#'   not replicate -- `TRUE` here simply deletes every off-wrist epoch
+#'   outright, changing the time index rather than leaving gaps.
 #'
 #' @return A tibble with columns `participant_id`, `window_start` (if
 #'   `window_days` is set), `IS`, `IV`, `RA`, `L5`, `L5_onset`, `M10`,
@@ -107,7 +121,8 @@
 #' compute_npcra(rec, window_days = 14)
 #' }
 compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
-                          window_days = NULL, trim_to_d1 = TRUE) {
+                          window_days = NULL, trim_to_d1 = TRUE,
+                          exclude_offwrist = FALSE) {
 
   # ── Extract epochs tibble and participant_id ─────────────────────────────────
   if (inherits(x, "zeitr_recording")) {
@@ -129,8 +144,23 @@ compute_npcra <- function(x, epoch_s = NULL, L5_hours = 5, M10_hours = 10,
   datetimes <- as.POSIXct(epochs$datetime)
   activity  <- as.double(epochs$activity)
 
-  # ── Exclude off-wrist epochs if state column is present ──────────────────────
-  if ("state" %in% names(epochs)) {
+  # ── Exclude off-wrist epochs, only if explicitly requested ─────────────
+  # Default is exclude_offwrist = FALSE -- matches the actual production
+  # Python (Cell 16 of vs_condor_py_pipeline_fix30_jrsv.ipynb): every NPCRA
+  # variable (IS, IV, M10, L5, RA) comes from `_nonparam_metrics()`, always
+  # called with `mask_series=None` ("M10/L5: sinal bruto sem mascara --
+  # replica Condor ActStudio"). Off-wrist periods' raw device readings are
+  # used as-is, not deleted. Excluding them by default (as this function
+  # used to, unconditionally) was a reasonable general principle but not
+  # what the validated pipeline actually does -- and for M10/L5
+  # specifically, deleting epochs (creating index gaps) rather than
+  # leaving the raw reading in place can relocate which window "wins" the
+  # global min/max search entirely. Real-cohort validation against Julia's
+  # Python reference showed catastrophic (near-zero or negative)
+  # correlation on M10/L5 onset before this fix -- IS/IV were comparatively
+  # unaffected, since summary statistics average over off-wrist stretches
+  # rather than depending on a single winner-take-all window search.
+  if (isTRUE(exclude_offwrist) && "state" %in% names(epochs)) {
     keep      <- is.na(epochs$state) | epochs$state != 4L
     datetimes <- datetimes[keep]
     activity  <- activity[keep]

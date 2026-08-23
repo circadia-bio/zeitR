@@ -77,7 +77,36 @@ test_that("compute_npcra() L5/M10 onset times are exact for a perfectly repeatin
   expect_equal(result$M10_onset, "20:00")
 })
 
-test_that("compute_npcra() excludes off-wrist epochs when a state column is present", {
+test_that("compute_npcra() does NOT exclude off-wrist epochs by default (matches Python)", {
+  # Default exclude_offwrist = FALSE matches the actual production Python
+  # (Cell 16 of vs_condor_py_pipeline_fix30_jrsv.ipynb): _nonparam_metrics()
+  # is always called with mask_series=None for every NPCRA variable --
+  # off-wrist periods' raw readings are used as-is, not deleted. Marking
+  # epochs off-wrist without also passing exclude_offwrist = TRUE should
+  # therefore NOT change the result at all.
+  d <- make_npcra_fixture()
+  d$state <- 0L   # no off-wrist epochs marked -- state present, all on-wrist
+
+  result_with_state    <- compute_npcra(d)
+  result_without_state <- compute_npcra(make_npcra_fixture())
+
+  expect_equal(result_with_state$IS,  result_without_state$IS)
+  expect_equal(result_with_state$L5,  result_without_state$L5)
+  expect_equal(result_with_state$M10, result_without_state$M10)
+
+  # Now actually mark an off-wrist stretch with an implausible spike. Since
+  # exclude_offwrist defaults to FALSE, that raw (implausible) value is
+  # used as-is, corrupting M10 upward -- this is intentional/expected
+  # Python-matching behaviour, not a bug. trim_to_d1 = FALSE here so the
+  # spike (placed on day 1) isn't removed by the D+1 trim before it ever
+  # reaches the off-wrist logic.
+  d$state[1:1440] <- 4L
+  d$activity[1:1440] <- 99999
+  result_unexcluded <- compute_npcra(d, trim_to_d1 = FALSE)
+  expect_gt(result_unexcluded$M10, 100)
+})
+
+test_that("compute_npcra(exclude_offwrist = TRUE) deletes off-wrist epochs as an opt-in", {
   d <- make_npcra_fixture()
   # Mark the first day entirely off-wrist with an implausible spike; if it
   # were NOT excluded this would corrupt IS/L5/M10 away from the exact values
@@ -86,7 +115,7 @@ test_that("compute_npcra() excludes off-wrist epochs when a state column is pres
   d$state[1:1440] <- 4L
   d$activity[1:1440] <- 99999
 
-  result <- compute_npcra(d)
+  result <- compute_npcra(d, exclude_offwrist = TRUE)
 
   # Off-wrist exclusion removes day 1 entirely (days 2-7 remain); the
   # default D+1 trim then removes day 2 too, on top of that -> 5 days left.
@@ -210,7 +239,7 @@ test_that("compute_npcra() zero-fills a genuinely missing hourly bin, matching a
   d_explicit_zero <- make_npcra_fixture(n_days = 3L)
   d_explicit_zero$activity[target] <- 0.0   # present, just recorded as zero
 
-  result_missing <- compute_npcra(d_missing,       trim_to_d1 = FALSE)
+  result_missing <- compute_npcra(d_missing,       trim_to_d1 = FALSE, exclude_offwrist = TRUE)
   result_zero     <- compute_npcra(d_explicit_zero, trim_to_d1 = FALSE)
 
   expect_equal(result_missing$IS, result_zero$IS)
