@@ -2,6 +2,44 @@
 
 ### ✨ New features
 
+* New `compute_lri()` -- Light Regularity Index (Hand et al. 2023):
+  day-to-day consistency in light exposure timing, analogous to `compute_sri()`
+  but applied to a binarized light-exposure signal. Ports the
+  `artvalencio/pyActigraphy` fork's actual `LRI()` method
+  (`pyActigraphy/light/light_metrics.py`) exactly -- found there after an
+  earlier investigation this same development cycle concluded (wrongly, as
+  it turned out) that `LRI` doesn't exist anywhere in pyActigraphy, having
+  only checked the official `ghammad/pyActigraphy` repo (every branch,
+  full commit history) rather than the fork the reference notebook's
+  Docker image actually installs. Verified by direct execution that
+  `LRI()`'s own inner logic and a direct call to `sri()`
+  (`pyActigraphy/sleep/scoring/sri.py`) give IDENTICAL results on the same
+  real light data, to full floating-point precision -- `compute_lri()`
+  reuses the already-verified `.sri_pyactigraphy()` directly rather than
+  duplicating the same formula under a different name.
+
+  A real discrepancy worth knowing about, not a guess: the reference
+  notebook's own comment claims "pyActigraphy stores light data in
+  log10-transformed lux internally" and picks its default thresholds
+  accordingly (10/20/50/100/300 lux -> log10 -> 1.0/1.301/1.699/2.0/2.4771).
+  This is not what the code actually does -- `RawATR`'s constructor passes
+  the `LIGHT` column straight through with no `log10()` call anywhere, and
+  real light values from actual ActTrust recordings confirm this
+  empirically (raw `LIGHT` ranges from 0 to over 20,000 in real data
+  checked this session, nowhere near the ~0-5 range `log10(lux)` would
+  produce). So the reference Python's own `LRI_10`/`LRI_20`/etc. columns
+  almost certainly don't measure what their names claim -- thresholds of
+  ~1-2.5 applied to raw, untransformed light amount to "any detectable
+  light vs. darkness," not "50 lux vs. below." `compute_lri()` replicates
+  the reference's actual behaviour (raw threshold, no transform) by
+  default, for parity -- matching what the real pipeline computes, not
+  what its own comments say it computes. A `log_transform = TRUE` argument
+  is available for the probably-originally-intended `log10(lux)`
+  behaviour instead.
+
+  Verified against a real execution of the actual reference environment on
+  all 4 real recordings available (`ID_0003`, `ID_0005`, `ID_0006`,
+  `ID_0007`): every `LRI_10`...`LRI_300` value matches exactly.
 * New `compute_cosinor()` -- Cosinor rhythmometry (Cornelissen 2014):
   fits a single-harmonic cosine model with a FIXED period (default 24h)
   to an activity/light/temperature signal, returning the acrophase (peak
