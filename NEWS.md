@@ -288,6 +288,11 @@
 
 ### 📚 Documentation
 
+* `vignette("sleep-analysis")`: fixed a `R CMD build` failure -- the NPCRA
+  results table's `Description` column was hardcoded to 9 strings, but
+  `compute_npcra()` now returns 11 columns (`ISm`/`IVm`, added earlier
+  this session) after dropping `participant_id`. Added the two missing
+  descriptions in the correct column position.
 * New `.zenodo.json` for GitHub-Zenodo release archiving, mirroring
   `CITATION.cff`/`DESCRIPTION` authorship.
 
