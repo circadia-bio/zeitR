@@ -1,6 +1,6 @@
 # Changelog
 
-## zeitR 0.1.7.9000 (development)
+## zeitR 0.1.8 (2026-08)
 
 ### ✨ New features
 
@@ -696,7 +696,7 @@
   [`run_pipeline_native_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native_batch.md)
   gain a `parallel` argument. When `TRUE`, files are processed
   concurrently via
-  [`future.apply::future_lapply()`](https://rdrr.io/pkg/future.apply/man/future_lapply.html)
+  [`future.apply::future_lapply()`](https://future.apply.futureverse.org/reference/future_lapply.html)
   under whatever
   [`future::plan()`](https://future.futureverse.org/reference/plan.html)
   the caller has set

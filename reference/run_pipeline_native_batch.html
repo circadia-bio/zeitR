@@ -102,7 +102,7 @@ fail are skipped with a warning."><meta property="og:image" content="https://zei
 
     <a class="navbar-brand me-2" href="../index.html">zeitR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.7.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.8</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -176,7 +176,7 @@ fail are skipped with a warning.</p>
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
 <dd><p><code>logical(1)</code>. If <code>TRUE</code>, processes files in parallel using
-<code><a href="https://rdrr.io/pkg/future.apply/man/future_lapply.html" class="external-link">future.apply::future_lapply()</a></code> (a <code>Suggests</code>-only dependency). Requires
+<code><a href="https://future.apply.futureverse.org/reference/future_lapply.html" class="external-link">future.apply::future_lapply()</a></code> (a <code>Suggests</code>-only dependency). Requires
 a <code><a href="https://future.futureverse.org/reference/plan.html" class="external-link">future::plan()</a></code> to be set beforehand, e.g.
 <code>future::plan(future::multisession(workers = 4))</code>; falls back to
 sequential processing with a warning if <code>future.apply</code> is not installed.
