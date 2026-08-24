@@ -83,7 +83,11 @@ Applies the JRSV classification rule set to a raw episode table from
 }
 \details{
 \enumerate{
-\item \strong{Fix 25} -- exclude truncated episodes at the recording end.
+\item \strong{Fix 29f} -- exclude episodes starting at/after noon on the
+latest classified night's calendar date (\code{max(gts)}), before any
+other classification step. Prevents a spurious end-of-recording
+artifact (device removed mid-day, not a real night) from being
+counted as a valid main night.
 \item \strong{Fix 26a} -- infer adaptive nocturnal window from \code{int_temp}
 and \code{light}. Falls back to \code{nocturnal_onset_start}/\code{nocturnal_onset_end}
 if fewer than 2 candidate episodes pass the temperature and light filter.

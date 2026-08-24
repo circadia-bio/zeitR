@@ -165,6 +165,28 @@ detect_offwrist_bimodal <- function(
   # Invert: 0 = off-wrist candidate, 1 = on-wrist  (matches Python convention)
   offwrist_raw <- 1L - offwrist_raw
 
+  # ── Debug hook (option-guarded; inert unless zeitR.debug_offwrist = TRUE) ──
+  # Exposes the raw Stage 1-3 classification inputs/outputs -- everything
+  # upstream of the border refiner -- for comparing against Python's
+  # bimodal_thresh()/bimodal_offwrist_feature() intermediates on a specific
+  # window (e.g. dev/dump_stage1_features.R).
+  if (isTRUE(getOption("zeitR.debug_offwrist", FALSE))) {
+    .zeitr_debug$idx_valid            <- idx_valid
+    .zeitr_debug$datetime_valid       <- x$datetime[valid_temp]
+    .zeitr_debug$activity_raw         <- activity
+    .zeitr_debug$int_temp_raw         <- int_temp
+    .zeitr_debug$act_median           <- act_median
+    .zeitr_debug$norm_act_med         <- norm_act_med
+    .zeitr_debug$low_act_thr          <- low_act_thr
+    .zeitr_debug$is_low_act           <- is_low_act
+    .zeitr_debug$norm_temp            <- norm_temp
+    .zeitr_debug$temp_threshold_norm  <- temp_threshold
+    .zeitr_debug$temp_threshold_orig  <- temp_threshold_orig
+    .zeitr_debug$ashman_stage1        <- ashman
+    .zeitr_debug$is_low_temp          <- is_low_temp
+    .zeitr_debug$offwrist_raw         <- offwrist_raw
+  }
+
   # ── Stage 4: Full three-stage border refinement ────────────────────────────
   # Compute inputs needed by the refiner
   temp_var    <- var_filter(int_temp, hws)

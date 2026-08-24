@@ -59,10 +59,22 @@
   half_filter_hws                  <- as.integer(filter_hws / 2)
 
   # ── Activity threshold ─────────────────────────────────────────────────
+  # NOTE: Python's refine() computes self.activity_threshold with
+  # np.quantile(..., method="linear") -- i.e. R's default type = 7, NOT
+  # type = 1/inverted_cdf. (type = 1 IS correct for the sibling quantities
+  # act_thr2 in .describe_offwrist_periods_v2 and low_act_thr in offwrist.R,
+  # which mirror Python's method='inverted_cdf' calls -- this one is different.)
   act_zero_prop <- zero_prop(activity)
   act_thr_q     <- act_zero_prop + (1 - act_zero_prop) * activity_threshold_quantile
-  activity_thr  <- as.double(stats::quantile(activity, act_thr_q, names = FALSE, type = 1))
+  activity_thr  <- as.double(stats::quantile(activity, act_thr_q, names = FALSE))
   if (activity_thr < 200) activity_thr <- 200
+
+  # Fixed "low activity" constant used ONLY by .check_valid_border_mod's border
+  # search gate, matching Python's self.low_activity_threshold constructor
+  # default (500), which the ActTrust wrapper never overrides. This is a
+  # DIFFERENT quantity from activity_thr (self.activity_threshold) above --
+  # they must not be conflated.
+  low_activity_threshold <- 500
 
   pos_act             <- activity[activity > 0]
   positive_act_median <- if (length(pos_act) > 0) stats::median(pos_act) else 0
@@ -91,7 +103,7 @@
     ow_s1, norm_temp_variance, activity_median, activity_median_low,
     temperature, temperature_threshold, activity_thr, minimum_low_activity_proportion,
     minimum_preceding_onwrist_length, filter_hws, half_filter_hws,
-    max_low_tv_border, temp_var_thr, activity, n
+    max_low_tv_border, temp_var_thr, activity, n, low_activity_threshold
   )
   if (nrow(ow_s2) == 0L) return(rep(1L, n))
 
@@ -427,7 +439,7 @@ below_prop <- function(x, thr) {
     offwrist_periods, norm_temp_variance, activity_median, activity_median_low,
     temperature, temperature_threshold, activity_thr, minimum_low_act_prop,
     min_preceding_onwrist, filter_hws, half_filter_hws, max_low_tv_border,
-    temp_var_thr, activity, n
+    temp_var_thr, activity, n, low_activity_threshold = 500
 ) {
   ntv          <- norm_temp_variance
   refined      <- list()
@@ -473,7 +485,7 @@ below_prop <- function(x, thr) {
             res <- .find_peak_base_start2(start, previous_end, ntv,
                                           temperature, temperature_threshold,
                                           activity_median, activity_median_low,
-                                          activity_thr, temp_var_thr, n)
+                                          low_activity_threshold, temp_var_thr, n)
             if (isTRUE(res$delete)) {
               periods <- periods[-ow_idx, , drop = FALSE]; n_off <- nrow(periods)
             } else {
@@ -488,7 +500,7 @@ below_prop <- function(x, thr) {
           res <- .find_peak_base_start2(start, prev_end2, ntv,
                                         temperature, temperature_threshold,
                                         activity_median, activity_median_low,
-                                        activity_thr, temp_var_thr, n)
+                                        low_activity_threshold, temp_var_thr, n)
           if (isTRUE(res$delete)) {
             periods <- periods[-ow_idx, , drop = FALSE]; n_off <- nrow(periods)
           } else {
@@ -554,6 +566,7 @@ below_prop <- function(x, thr) {
                                           ntv, temperature,
                                           temperature_threshold, activity_median,
                                           activity_median_low, activity_thr,
+                                          low_activity_threshold,
                                           temp_var_thr, min_preceding_onwrist,
                                           minimum_low_act_prop, activity, n)
           ow_idx <- res$ow_idx; periods <- res$periods
@@ -586,7 +599,7 @@ below_prop <- function(x, thr) {
 #' @noRd
 .find_peak_base_start2 <- function(start, previous_end, ntv, temperature,
                                     temperature_threshold, act_median, act_med_low,
-                                    activity_thr, temp_var_thr, n) {
+                                    low_activity_threshold, temp_var_thr, n) {
   i                 <- start - 1L
   last_valid_border <- start
   peak_base         <- start
@@ -595,7 +608,7 @@ below_prop <- function(x, thr) {
     ri    <- i + 1L
     if (ri < 1L || ri > n) { i <- previous_end; break }
     valid <- .check_valid_border_mod(act_med_low, temperature, temperature_threshold,
-                                     act_median, activity_thr, ri)
+                                     act_median, low_activity_threshold, ri)
     if (valid) {
       if (ntv[ri] >= temp_var_thr) { peak_base <- i; i <- previous_end }
       i <- i - 1L
@@ -660,6 +673,7 @@ below_prop <- function(x, thr) {
 .try_find_peak_base_end <- function(ow_idx, next_start, end, periods, refined,
                                      ntv, temperature, temperature_threshold,
                                      act_median, act_med_low, activity_thr,
+                                     low_activity_threshold,
                                      temp_var_thr, min_preceding_onwrist,
                                      minimum_low_act_prop, activity, n) {
   too_close <- .check_offwrist_too_close(next_start - end, end, next_start,
@@ -676,7 +690,7 @@ below_prop <- function(x, thr) {
     ri    <- i + 1L
     if (ri < 1L || ri > n) { i <- next_start; break }
     valid <- .check_valid_border_mod(act_med_low, temperature, temperature_threshold,
-                                     act_median, activity_thr, ri)
+                                     act_median, low_activity_threshold, ri)
     if (valid) {
       if (ntv[ri] >= temp_var_thr) { peak_base <- i; i <- next_start }
       i <- i + 1L
@@ -714,11 +728,14 @@ below_prop <- function(x, thr) {
   below_prop(activity[(re + 1L):rns], activity_thr) > minimum_low_act_prop
 }
 
+#' NOTE: the 5th argument is Python's fixed self.low_activity_threshold
+#' (default 500), NOT the data-driven activity_thr/self.activity_threshold --
+#' these are two distinct Python attributes. Do not pass activity_thr here.
 #' @noRd
 .check_valid_border_mod <- function(act_med_low, temperature, temperature_threshold,
-                                     act_median, activity_thr, ri) {
+                                     act_median, low_activity_threshold, ri) {
   act_med_low[ri] == 1L ||
-    (temperature[ri] < temperature_threshold && act_median[ri] < 2 * activity_thr)
+    (temperature[ri] < temperature_threshold && act_median[ri] < 2 * low_activity_threshold)
 }
 
 # ── Sleep estimation (with padding matching Python exactly) ───────────────────
@@ -810,20 +827,38 @@ below_prop <- function(x, thr) {
 }
 
 # ── Forbidden zone ────────────────────────────────────────────────────────────
+#' Faithful port of Python's analyze_sleep_borders() forbidden-zone logic
+#' (the ONLY part of that function that runs unconditionally, regardless of
+#' do_analyze_sleep_borders -- which only gates the separate
+#' short_sleep_border_offwrist computation, computed later in that function
+#' and unused for ActTrust). For each estimated-sleep period, everything
+#' EXCEPT the first/last `possible_window_hours` (default 1h) is marked
+#' forbidden -- i.e. off-wrist candidates deep inside a sleep block are
+#' excluded, but candidates near its edges are still allowed through.
+#'
+#' Python: forbidden_start = min(s + win, n-1); forbidden_end = max(0, e - win)
+#'         `forbidden_zone[forbidden_start:forbidden_end]` = 1  (0-based, exclusive end)
+#' NOTE: an earlier R port substituted an unrelated middle-25%-75%-quartile
+#' heuristic here -- that formula does not appear anywhere in the Python
+#' source and never matched Python's forbidden zone for any sleep block
+#' (confirmed: for a 1348-epoch ID_0003 sleep block, the quartile version
+#' gave forbidden=[3597,4270) while Python gives forbidden=[3319,4547) --
+#' completely different regions).
 #' @noRd
-.compute_forbidden_zone_v2 <- function(estimated_sleep, epoch_hour, n) {
+.compute_forbidden_zone_v2 <- function(estimated_sleep, epoch_hour, n,
+                                        possible_window_hours = 1L) {
   forbidden     <- integer(n)
   sleep_periods <- .rle_periods(estimated_sleep == 0L)
   if (nrow(sleep_periods) == 0L) return(forbidden)
 
+  win <- as.integer(possible_window_hours * epoch_hour)
   for (i in seq_len(nrow(sleep_periods))) {
-    s   <- sleep_periods$start[i]; e <- sleep_periods$end[i]
-    len <- e - s
-    if (len > 0L) {
-      q1_r <- s + as.integer(len * 0.25) + 1L
-      q3_r <- s + as.integer(len * 0.75)
-      if (q1_r <= q3_r && q1_r >= 1L && q3_r <= n)
-        forbidden[q1_r:q3_r] <- 1L
+    s  <- sleep_periods$start[i]; e <- sleep_periods$end[i]   # Python 0-based/exclusive
+    fs <- min(s + win, n - 1L)                                # Python forbidden_start
+    fe <- max(0L, e - win)                                    # Python forbidden_end (exclusive)
+    if (fe > fs) {
+      # Python slice [fs:fe) -> R indices (fs+1):fe
+      forbidden[(fs + 1L):fe] <- 1L
     }
   }
   forbidden

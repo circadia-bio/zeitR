@@ -10,14 +10,15 @@ compute_npcra(
   L5_hours = 5,
   M10_hours = 10,
   window_days = NULL,
-  trim_to_d1 = TRUE
+  trim_to_d1 = TRUE,
+  exclude_offwrist = FALSE
 )
 }
 \arguments{
 \item{x}{A \code{zeitr_recording} as returned by \code{\link[=read_actigraphy]{read_actigraphy()}}, or a
 data frame / tibble with at least \code{datetime} and \code{activity} columns.
 If a \code{state} column is present, off-wrist epochs (\code{state == 4}) are
-excluded before computing all NPCRA variables.}
+used as-is by default -- see \code{exclude_offwrist}.}
 
 \item{epoch_s}{\code{numeric(1)}. Epoch duration in seconds. If \code{NULL}
 (default), estimated automatically from the median inter-epoch interval.}
@@ -43,20 +44,38 @@ window at D+1 00:00 rather than spanning the raw, typically fractional,
 recording length). Set to \code{FALSE} for the full untrimmed recording (the
 pre-\code{trim_to_d1} behaviour). If trimming would leave fewer than 2 epochs,
 a warning is emitted and the untrimmed recording is used instead.
-Off-wrist exclusion (\code{state == 4}) still applies either way; this does
-not replicate the Python pipeline's separate 30-min-threshold rule for
-the M10/L5 windows specifically -- only the D+1 window start.}
+Off-wrist exclusion (\code{state == 4}, if \code{exclude_offwrist = TRUE}) still
+applies either way; this does not replicate the Python pipeline's
+separate 30-min-threshold off-wrist-run rule for the M10/L5 windows
+specifically (see \code{exclude_offwrist}) -- only the D+1 window start.}
+
+\item{exclude_offwrist}{\code{logical(1)}. If \code{TRUE}, off-wrist epochs
+(\code{state == 4}, when a \code{state} column is present) are deleted before
+computing any NPCRA variable. Default \code{FALSE} matches the actual
+production Python pipeline (Cell 16 of
+\code{vs_condor_py_pipeline_fix30_jrsv.ipynb}): \verb{_nonparam_metrics()} is
+always called with \code{mask_series=None} for every variable (IS, IV, M10,
+L5, RA) -- off-wrist periods' raw device readings are used as-is, not
+deleted. Set \code{TRUE} for the more conservative (but non-Python-matching)
+behaviour of excluding them. This is a blunter tool than Python's own
+off-wrist handling for M10/L5 specifically (short runs zeroed and kept,
+long runs excluded via \code{NA} + \code{min_periods}), which this package does
+not replicate -- \code{TRUE} here simply deletes every off-wrist epoch
+outright, changing the time index rather than leaving gaps.}
 }
 \value{
 A tibble with columns \code{participant_id}, \code{window_start} (if
-\code{window_days} is set), \code{IS}, \code{IV}, \code{RA}, \code{L5}, \code{L5_onset}, \code{M10},
-\code{M10_onset}, \code{n_days}, \code{n_epochs}.
+\code{window_days} is set), \code{IS}, \code{IV}, \code{ISm}, \code{IVm}, \code{RA}, \code{L5}, \code{L5_onset},
+\code{M10}, \code{M10_onset}, \code{n_days}, \code{n_epochs}.
 }
 \description{
 Computes the standard non-parametric circadian rhythm analysis variables
-from an actigraphy recording. \code{IS} and \code{IV} follow Gonçalves et al. (2014)
-and Van Someren et al. (1999), derived from the 24-hour average activity
-profile built from \strong{hourly means} (p = 24). \code{L5}/\code{M10} and their onsets
+from an actigraphy recording. \code{IS} and \code{IV} are computed from the
+hourly-mean activity profile (p = 24), matching pyActigraphy's actual
+\verb{_interdaily_stability()}/\verb{_intradaily_variability()} (not the
+population-variance formula in Gonçalves et al. 2014 or Van Someren et
+al. 1999's own text -- the real implementation uses sample variance,
+ddof = 1; see Details). \code{L5}/\code{M10} and their onsets
 follow a different convention -- see below -- matching the notebook this
 package's Vallim-pipeline comparisons were validated against.
 }
@@ -70,6 +89,12 @@ hourly-mean profile (p = 24).}
 \item{\code{IV}}{\strong{Intradaily variability} — fragmentation of the
 rest-activity rhythm (>= 0; higher = more fragmented). From the
 hourly-mean profile (p = 24).}
+\item{\code{ISm}}{Mean of \code{IS} computed at every divisor of 1440 minutes
+between 1 and 60 min (22 resolutions total: 1, 2, 3, 4, 5, 6, 8, 9,
+10, 12, 15, 16, 18, 20, 24, 30, 32, 36, 40, 45, 48, 60), matching
+Cell 16's \verb{_ISm_IVm_FREQS} loop. Unlike \code{IS}, missing bins at each
+resolution are omitted (not zero-filled).}
+\item{\code{IVm}}{As \code{ISm}, for \code{IV}.}
 \item{\code{RA}}{\strong{Relative amplitude} — contrast between the most active
 10 h window (M10) and least active 5 h window (L5) (range 0--1).}
 \item{\code{L5}}{Mean activity during the least active 5-hour window, found
@@ -82,6 +107,30 @@ which calendar day the window actually falls on.}
 \item{\code{M10}}{As \code{L5}, for the most active 10-hour window.}
 \item{\code{M10_onset}}{As \code{L5_onset}, for the most-active window.}
 }
+
+\code{IS}/\code{IV} build a 1h-resampled series \code{X} first: missing hourly bins get
+a real zero (matching Python's \verb{s_1h = s.resample('1h').mean().fillna(0)}),
+not silent omission. \code{X} is grouped by hour-of-day into the p = 24 hourly
+profile \code{Xh}. Both variables then use \strong{sample variance} (divide by
+n - 1, matching pandas' \code{.var()} default) rather than the population
+variance (divide by n) that the classic Witting/Van Someren/Gonçalves
+formulas describe on paper:
+\deqn{IS = \frac{\sum_h(\bar{X}_h-\bar{X})^2/(p-1)}{\sum_i(X_i-\bar{X})^2/(N-1)}}
+\deqn{IV = \frac{\sum_i(X_i-X_{i-1})^2/(N-1)}{\sum_i(X_i-\bar{X})^2/(N-1)}}
+with \code{N} the number of hourly bins in the (zero-filled) recording and \code{p}
+the number of hour-of-day groups present (24 for any recording spanning a
+full day). The two formulas share the same denominator, matching
+pyActigraphy's \code{d_1h = data.var()} being computed once and reused for both.
+
+\code{ISm}/\code{IVm} repeat this same computation at 22 other bin widths (every
+divisor of 1440 min between 1-60 min) and average the results -- but
+missing bins at those resolutions are omitted from \code{N} (matching
+\code{.dropna()}), not zero-filled like the main \code{IS}/\code{IV}. A resolution is
+only excluded from the average if it has 1 or fewer bins; if the
+IS/IV formula itself degenerates (e.g. zero variance) at some other
+resolution, that \code{NaN}/\code{Inf} is included in the average like any other
+value, exactly matching the real Python (a \code{try/except} around the whole
+per-frequency block, not a check on the computed value).
 }
 \examples{
 \dontrun{

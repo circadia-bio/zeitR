@@ -77,7 +77,36 @@ test_that("compute_npcra() L5/M10 onset times are exact for a perfectly repeatin
   expect_equal(result$M10_onset, "20:00")
 })
 
-test_that("compute_npcra() excludes off-wrist epochs when a state column is present", {
+test_that("compute_npcra() does NOT exclude off-wrist epochs by default (matches Python)", {
+  # Default exclude_offwrist = FALSE matches the actual production Python
+  # (Cell 16 of vs_condor_py_pipeline_fix30_jrsv.ipynb): _nonparam_metrics()
+  # is always called with mask_series=None for every NPCRA variable --
+  # off-wrist periods' raw readings are used as-is, not deleted. Marking
+  # epochs off-wrist without also passing exclude_offwrist = TRUE should
+  # therefore NOT change the result at all.
+  d <- make_npcra_fixture()
+  d$state <- 0L   # no off-wrist epochs marked -- state present, all on-wrist
+
+  result_with_state    <- compute_npcra(d)
+  result_without_state <- compute_npcra(make_npcra_fixture())
+
+  expect_equal(result_with_state$IS,  result_without_state$IS)
+  expect_equal(result_with_state$L5,  result_without_state$L5)
+  expect_equal(result_with_state$M10, result_without_state$M10)
+
+  # Now actually mark an off-wrist stretch with an implausible spike. Since
+  # exclude_offwrist defaults to FALSE, that raw (implausible) value is
+  # used as-is, corrupting M10 upward -- this is intentional/expected
+  # Python-matching behaviour, not a bug. trim_to_d1 = FALSE here so the
+  # spike (placed on day 1) isn't removed by the D+1 trim before it ever
+  # reaches the off-wrist logic.
+  d$state[1:1440] <- 4L
+  d$activity[1:1440] <- 99999
+  result_unexcluded <- compute_npcra(d, trim_to_d1 = FALSE)
+  expect_gt(result_unexcluded$M10, 100)
+})
+
+test_that("compute_npcra(exclude_offwrist = TRUE) deletes off-wrist epochs as an opt-in", {
   d <- make_npcra_fixture()
   # Mark the first day entirely off-wrist with an implausible spike; if it
   # were NOT excluded this would corrupt IS/L5/M10 away from the exact values
@@ -86,7 +115,7 @@ test_that("compute_npcra() excludes off-wrist epochs when a state column is pres
   d$state[1:1440] <- 4L
   d$activity[1:1440] <- 99999
 
-  result <- compute_npcra(d)
+  result <- compute_npcra(d, exclude_offwrist = TRUE)
 
   # Off-wrist exclusion removes day 1 entirely (days 2-7 remain); the
   # default D+1 trim then removes day 2 too, on top of that -> 5 days left.
@@ -210,9 +239,53 @@ test_that("compute_npcra() zero-fills a genuinely missing hourly bin, matching a
   d_explicit_zero <- make_npcra_fixture(n_days = 3L)
   d_explicit_zero$activity[target] <- 0.0   # present, just recorded as zero
 
-  result_missing <- compute_npcra(d_missing,       trim_to_d1 = FALSE)
+  result_missing <- compute_npcra(d_missing,       trim_to_d1 = FALSE, exclude_offwrist = TRUE)
   result_zero     <- compute_npcra(d_explicit_zero, trim_to_d1 = FALSE)
 
   expect_equal(result_missing$IS, result_zero$IS)
   expect_equal(result_missing$IV, result_zero$IV)
+})
+
+test_that("compute_npcra() computes ISm/IVm as the mean of IS/IV across the 22 divisor-of-1440 resolutions", {
+  # Regression coverage for ISm/IVm, ported from Cell 16's _ISm_IVm_FREQS
+  # loop. Recomputes the expected value independently, using the same
+  # .is_iv_at_resolution() helper the function itself calls -- this checks
+  # WIRING (does compute_npcra() actually run the described loop with
+  # fill_zero = FALSE and the right frequency list), not the underlying
+  # per-resolution math (already covered by the main IS/IV tests above,
+  # since .is_iv_at_resolution() is shared code).
+  d      <- make_npcra_fixture(n_days = 7L)
+  result <- compute_npcra(d)
+
+  # d has n_days = 7; default trim_to_d1 removes 1 day -> 6 remain. Rebuild
+  # the exact (datetimes, activity) compute_npcra() would have passed to
+  # .npcra_core() after trimming, so the independent recomputation below
+  # uses identical inputs.
+  dt_trimmed  <- d$datetime[as.Date(d$datetime, tz = "UTC") >= as.Date("2024-01-02")]
+  act_trimmed <- d$activity[as.Date(d$datetime, tz = "UTC") >= as.Date("2024-01-02")]
+
+  freqs <- c(1L, 2L, 3L, 4L, 5L, 6L, 8L, 9L, 10L, 12L, 15L, 16L,
+             18L, 20L, 24L, 30L, 32L, 36L, 40L, 45L, 48L, 60L)
+  is_vals <- numeric(0); iv_vals <- numeric(0)
+  for (f in freqs) {
+    res <- .is_iv_at_resolution(dt_trimmed, act_trimmed, freq_min = f,
+                                fill_zero = FALSE, tz = "UTC")
+    if (res$n > 1L) {
+      is_vals <- c(is_vals, res$IS)
+      iv_vals <- c(iv_vals, res$IV)
+    }
+  }
+  expected_ISm <- round(mean(is_vals), 4)
+  expected_IVm <- round(mean(iv_vals), 4)
+
+  expect_true(is.finite(result$ISm))
+  expect_true(is.finite(result$IVm))
+  expect_equal(result$ISm, expected_ISm)
+  expect_equal(result$IVm, expected_IVm)
+
+  # Sanity: ISm should NOT just equal IS (they use different fill
+  # conventions and average over 22 resolutions, not just 1h) -- if a
+  # future change accidentally made ISm an alias for IS, this would catch
+  # it.
+  expect_false(isTRUE(all.equal(result$ISm, result$IS)))
 })

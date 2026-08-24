@@ -65,8 +65,23 @@ ID0003.txt
 # Raw device exports:
 dev/ID*.txt
 dev/input*.txt
+# Any subdirectory of raw device exports (e.g. dev/new_participant_data/,
+# used for real files placed locally for a diagnostic comparison):
+dev/new_participant_data/
 # Python-derived per-participant fixtures (real timestamps/durations):
 dev/*python_nights.csv
 dev/*python_epochs.csv
 dev/*python_output.csv
 dev/*python_estimates.csv
+# Comparison/reference outputs derived from real participant recordings:
+dev/*reference*.csv
+dev/*_reference_*.csv
+
+# dev/ defaults to untracked: diagnostic scripts written against real
+# participant data have repeatedly ended up with real timestamps/dates
+# embedded in comments or output examples, not just in the data files
+# above -- safer to require an explicit `git add -f` for anything in
+# dev/ that's actually meant to be committed (e.g. dev/parity_vallim.py,
+# already tracked from before this rule existed) than to keep auditing
+# every new script by hand.
+dev/*
