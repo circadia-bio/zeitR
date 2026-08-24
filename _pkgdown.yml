@@ -199,10 +199,12 @@ reference:
   - compute_waso
 
 - title: "Circadian analysis"
-  desc: "Non-parametric circadian rhythm variables."
+  desc: "Non-parametric and parametric circadian rhythm variables."
   contents:
   - compute_npcra
   - compute_sri
+  - compute_lri
+  - compute_cosinor
   - compute_waso
 
 - title: "Study-level"
