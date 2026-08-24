@@ -1,12 +1,14 @@
 # Non-parametric circadian rhythm analysis (NPCRA)
 
 Computes the standard non-parametric circadian rhythm analysis variables
-from an actigraphy recording. `IS` and `IV` follow Gonçalves et al.
-(2014) and Van Someren et al. (1999), derived from the 24-hour average
-activity profile built from **hourly means** (p = 24). `L5`/`M10` and
-their onsets follow a different convention – see below – matching the
-notebook this package's Vallim-pipeline comparisons were validated
-against.
+from an actigraphy recording. `IS` and `IV` are computed from the
+hourly-mean activity profile (p = 24), matching pyActigraphy's actual
+`_interdaily_stability()`/`_intradaily_variability()` (not the
+population-variance formula in Gonçalves et al. 2014 or Van Someren et
+al. 1999's own text – the real implementation uses sample variance, ddof
+= 1; see Details). `L5`/`M10` and their onsets follow a different
+convention – see below – matching the notebook this package's
+Vallim-pipeline comparisons were validated against.
 
 ## Usage
 
@@ -17,7 +19,8 @@ compute_npcra(
   L5_hours = 5,
   M10_hours = 10,
   window_days = NULL,
-  trim_to_d1 = TRUE
+  trim_to_d1 = TRUE,
+  exclude_offwrist = FALSE
 )
 ```
 
@@ -29,7 +32,7 @@ compute_npcra(
   [`read_actigraphy()`](https://zeitr.circadia-lab.uk/reference/read_actigraphy.md),
   or a data frame / tibble with at least `datetime` and `activity`
   columns. If a `state` column is present, off-wrist epochs
-  (`state == 4`) are excluded before computing all NPCRA variables.
+  (`state == 4`) are used as-is by default – see `exclude_offwrist`.
 
 - epoch_s:
 
@@ -65,15 +68,32 @@ compute_npcra(
   Set to `FALSE` for the full untrimmed recording (the pre-`trim_to_d1`
   behaviour). If trimming would leave fewer than 2 epochs, a warning is
   emitted and the untrimmed recording is used instead. Off-wrist
-  exclusion (`state == 4`) still applies either way; this does not
-  replicate the Python pipeline's separate 30-min-threshold rule for the
-  M10/L5 windows specifically – only the D+1 window start.
+  exclusion (`state == 4`, if `exclude_offwrist = TRUE`) still applies
+  either way; this does not replicate the Python pipeline's separate
+  30-min-threshold off-wrist-run rule for the M10/L5 windows
+  specifically (see `exclude_offwrist`) – only the D+1 window start.
+
+- exclude_offwrist:
+
+  `logical(1)`. If `TRUE`, off-wrist epochs (`state == 4`, when a
+  `state` column is present) are deleted before computing any NPCRA
+  variable. Default `FALSE` matches the actual production Python
+  pipeline (Cell 16 of `vs_condor_py_pipeline_fix30_jrsv.ipynb`):
+  `_nonparam_metrics()` is always called with `mask_series=None` for
+  every variable (IS, IV, M10, L5, RA) – off-wrist periods' raw device
+  readings are used as-is, not deleted. Set `TRUE` for the more
+  conservative (but non-Python-matching) behaviour of excluding them.
+  This is a blunter tool than Python's own off-wrist handling for M10/L5
+  specifically (short runs zeroed and kept, long runs excluded via
+  `NA` + `min_periods`), which this package does not replicate – `TRUE`
+  here simply deletes every off-wrist epoch outright, changing the time
+  index rather than leaving gaps.
 
 ## Value
 
 A tibble with columns `participant_id`, `window_start` (if `window_days`
-is set), `IS`, `IV`, `RA`, `L5`, `L5_onset`, `M10`, `M10_onset`,
-`n_days`, `n_epochs`.
+is set), `IS`, `IV`, `ISm`, `IVm`, `RA`, `L5`, `L5_onset`, `M10`,
+`M10_onset`, `n_days`, `n_epochs`.
 
 ## Details
 
@@ -90,6 +110,18 @@ The following variables are computed:
   **Intradaily variability** — fragmentation of the rest-activity rhythm
   (\>= 0; higher = more fragmented). From the hourly-mean profile (p =
   24).
+
+- `ISm`:
+
+  Mean of `IS` computed at every divisor of 1440 minutes between 1 and
+  60 min (22 resolutions total: 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16,
+  18, 20, 24, 30, 32, 36, 40, 45, 48, 60), matching Cell 16's
+  `_ISm_IVm_FREQS` loop. Unlike `IS`, missing bins at each resolution
+  are omitted (not zero-filled).
+
+- `IVm`:
+
+  As `ISm`, for `IV`.
 
 - `RA`:
 
@@ -115,6 +147,33 @@ The following variables are computed:
 - `M10_onset`:
 
   As `L5_onset`, for the most-active window.
+
+`IS`/`IV` build a 1h-resampled series `X` first: missing hourly bins get
+a real zero (matching Python's
+`s_1h = s.resample('1h').mean().fillna(0)`), not silent omission. `X` is
+grouped by hour-of-day into the p = 24 hourly profile `Xh`. Both
+variables then use **sample variance** (divide by n - 1, matching
+pandas' `.var()` default) rather than the population variance (divide by
+n) that the classic Witting/Van Someren/Gonçalves formulas describe on
+paper: \$\$IS =
+\frac{\sum_h(\bar{X}\_h-\bar{X})^2/(p-1)}{\sum_i(X_i-\bar{X})^2/(N-1)}\$\$
+\$\$IV =
+\frac{\sum_i(X_i-X\_{i-1})^2/(N-1)}{\sum_i(X_i-\bar{X})^2/(N-1)}\$\$
+with `N` the number of hourly bins in the (zero-filled) recording and
+`p` the number of hour-of-day groups present (24 for any recording
+spanning a full day). The two formulas share the same denominator,
+matching pyActigraphy's `d_1h = data.var()` being computed once and
+reused for both.
+
+`ISm`/`IVm` repeat this same computation at 22 other bin widths (every
+divisor of 1440 min between 1-60 min) and average the results – but
+missing bins at those resolutions are omitted from `N` (matching
+`.dropna()`), not zero-filled like the main `IS`/`IV`. A resolution is
+only excluded from the average if it has 1 or fewer bins; if the IS/IV
+formula itself degenerates (e.g. zero variance) at some other
+resolution, that `NaN`/`Inf` is included in the average like any other
+value, exactly matching the real Python (a `try/except` around the whole
+per-frequency block, not a check on the computed value).
 
 ## References
 

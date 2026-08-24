@@ -41,12 +41,16 @@ Off-wrist, sleep period, and epoch-level scoring algorithms.
 
 ## Circadian analysis
 
-Non-parametric circadian rhythm variables.
+Non-parametric and parametric circadian rhythm variables.
 
 - [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
   : Non-parametric circadian rhythm analysis (NPCRA)
 - [`compute_sri()`](https://zeitr.circadia-lab.uk/reference/compute_sri.md)
   : Sleep Regularity Index (SRI)
+- [`compute_lri()`](https://zeitr.circadia-lab.uk/reference/compute_lri.md)
+  : Light Regularity Index (LRI)
+- [`compute_cosinor()`](https://zeitr.circadia-lab.uk/reference/compute_cosinor.md)
+  : Cosinor rhythmometry (Cornelissen 2014)
 - [`compute_waso()`](https://zeitr.circadia-lab.uk/reference/compute_waso.md)
   : Compute WASO and nightly sleep statistics
 

@@ -1071,6 +1071,8 @@ circadian rhythm variables from the raw activity time series.</p>
 <span>  <span class="fu">mutate</span><span class="op">(</span>Description <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>    <span class="st">"Interdaily stability (0\u20131; higher = more consistent rhythm)"</span>,</span>
 <span>    <span class="st">"Intradaily variability (\u22650; higher = more fragmented rhythm)"</span>,</span>
+<span>    <span class="st">"Mean IS across 22 resolutions (divisors of 1440 min, 1\u201360 min)"</span>,</span>
+<span>    <span class="st">"Mean IV across 22 resolutions (divisors of 1440 min, 1\u201360 min)"</span>,</span>
 <span>    <span class="st">"Relative amplitude (0\u20131; contrast between M10 and L5)"</span>,</span>
 <span>    <span class="st">"Mean activity during the least-active 5 h window"</span>,</span>
 <span>    <span class="st">"Clock time of the L5 window onset (hh:mm)"</span>,</span>
@@ -1083,9 +1085,9 @@ circadian rhythm variables from the raw activity time series.</p>
 <span>               align <span class="op">=</span> <span class="st">"lrl"</span><span class="op">)</span></span></code></pre></div>
 <table class="table">
 <colgroup>
-<col width="12%">
+<col width="11%">
 <col width="13%">
-<col width="74%">
+<col width="75%">
 </colgroup>
 <thead><tr class="header">
 <th align="left">Variable</th>
@@ -1104,6 +1106,18 @@ rhythm)</td>
 <td align="right">0.9987</td>
 <td align="left">Intradaily variability (≥0; higher = more fragmented
 rhythm)</td>
+</tr>
+<tr class="odd">
+<td align="left">ISm</td>
+<td align="right">0.1663</td>
+<td align="left">Mean IS across 22 resolutions (divisors of 1440 min,
+1–60 min)</td>
+</tr>
+<tr class="even">
+<td align="left">IVm</td>
+<td align="right">0.6084</td>
+<td align="left">Mean IV across 22 resolutions (divisors of 1440 min,
+1–60 min)</td>
 </tr>
 <tr class="odd">
 <td align="left">RA</td>

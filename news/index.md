@@ -2,7 +2,227 @@
 
 ## zeitR 0.1.7.9000 (development)
 
+### ✨ New features
+
+- New
+  [`compute_lri()`](https://zeitr.circadia-lab.uk/reference/compute_lri.md)
+  – Light Regularity Index (Hand et al. 2023): day-to-day consistency in
+  light exposure timing, analogous to
+  [`compute_sri()`](https://zeitr.circadia-lab.uk/reference/compute_sri.md)
+  but applied to a binarized light-exposure signal. Ports the
+  `artvalencio/pyActigraphy` fork’s actual `LRI()` method
+  (`pyActigraphy/light/light_metrics.py`) exactly – found there after an
+  earlier investigation this same development cycle concluded (wrongly,
+  as it turned out) that `LRI` doesn’t exist anywhere in pyActigraphy,
+  having only checked the official `ghammad/pyActigraphy` repo (every
+  branch, full commit history) rather than the fork the reference
+  notebook’s Docker image actually installs. Verified by direct
+  execution that `LRI()`’s own inner logic and a direct call to `sri()`
+  (`pyActigraphy/sleep/scoring/sri.py`) give IDENTICAL results on the
+  same real light data, to full floating-point precision –
+  [`compute_lri()`](https://zeitr.circadia-lab.uk/reference/compute_lri.md)
+  reuses the already-verified `.sri_pyactigraphy()` directly rather than
+  duplicating the same formula under a different name.
+
+  A real discrepancy worth knowing about, not a guess: the reference
+  notebook’s own comment claims “pyActigraphy stores light data in
+  log10-transformed lux internally” and picks its default thresholds
+  accordingly (10/20/50/100/300 lux -\> log10 -\>
+  1.0/1.301/1.699/2.0/2.4771). This is not what the code actually does –
+  `RawATR`’s constructor passes the `LIGHT` column straight through with
+  no [`log10()`](https://rdrr.io/r/base/Log.html) call anywhere, and
+  real light values from actual ActTrust recordings confirm this
+  empirically (raw `LIGHT` ranges from 0 to over 20,000 in real data
+  checked this session, nowhere near the ~0-5 range `log10(lux)` would
+  produce). So the reference Python’s own `LRI_10`/`LRI_20`/etc. columns
+  almost certainly don’t measure what their names claim – thresholds of
+  ~1-2.5 applied to raw, untransformed light amount to “any detectable
+  light vs. darkness,” not “50 lux vs. below.”
+  [`compute_lri()`](https://zeitr.circadia-lab.uk/reference/compute_lri.md)
+  replicates the reference’s actual behaviour (raw threshold, no
+  transform) by default, for parity – matching what the real pipeline
+  computes, not what its own comments say it computes. A
+  `log_transform = TRUE` argument is available for the
+  probably-originally-intended `log10(lux)` behaviour instead.
+
+  Verified against a real execution of the actual reference environment
+  on all 4 real recordings available (`ID_0003`, `ID_0005`, `ID_0006`,
+  `ID_0007`): every `LRI_10`…`LRI_300` value matches exactly.
+
+- New
+  [`compute_cosinor()`](https://zeitr.circadia-lab.uk/reference/compute_cosinor.md)
+  – Cosinor rhythmometry (Cornelissen 2014): fits a single-harmonic
+  cosine model with a FIXED period (default 24h) to an
+  activity/light/temperature signal, returning the acrophase (peak
+  time), MESOR, and amplitude. Ports pyActigraphy’s actual `Cosinor`
+  class (`pyActigraphy/analysis/cosinor.py`) as it’s really used in the
+  reference notebook (Cell 16’s `_fit_cosinor()`, which locks `Period`
+  rather than fitting it – its own comment explains why: a free period
+  let the optimizer converge anywhere from 0.23h to 91.75h, making the
+  acrophase/period meaningless). With the period locked, the model is
+  linear in disguise (a standard cosinor-regression trick): expanding
+  `cos(ωx+φ) = cosφ·cos(ωx) - sinφ·sin(ωx)` turns the fit into an
+  ordinary linear regression, solved here via
+  [`qr.solve()`](https://rdrr.io/r/base/qr.html) rather than needing to
+  replicate pyActigraphy’s actual nonlinear optimizer (`lmfit`’s
+  Levenberg-Marquardt). Verified by direct execution that this
+  closed-form OLS solution matches `lmfit`’s real fit to floating-point
+  precision when the period is locked – not an approximation. Also
+  reproduces the notebook’s own documented sign-flip fix exactly (the
+  model’s peak occurs at `t_peak = -φ/ω`; the notebook’s prior,
+  unnegated version gave the anti-peak/trough, offset ~12h from the true
+  peak) and its `acrophase_time_neg` convention (`[-12, 12]`, matching
+  the `_om10_neg`/`_ol5_neg` pattern used elsewhere in the same notebook
+  for circular-safe clock-time comparison).
+
+  Implemented as a new standalone function rather than folded into
+  [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
+  (which is how Cell 16 bundles it) – a simpler design to scope given
+  the size of everything else ported this session; could be integrated
+  into
+  [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)’s
+  output later if that shape is preferred.
+
+- **[`compute_sri()`](https://zeitr.circadia-lab.uk/reference/compute_sri.md)**
+  gains `algo = "sadeh"`, `"ck"`, `"scripps"`, and `"roenneberg"`:
+  alternatives to the default `"vallim"` (state-column- based) SRI,
+  scoring raw `activity` via the Sadeh et al. (1994),
+  pyActigraphy-native Cole-Kripke, Scripps Clinic, and Roenneberg et al.
+  algorithms respectively – matching pyActigraphy’s actual `Sadeh()`/
+  `CK()`/`Scripps()`/`roenneberg()`/`SleepRegularityIndex()` exactly,
+  sourced directly from pyActigraphy’s real code
+  (`pyActigraphy/sleep/scoring_base.py`‘s
+  `_sadeh()`/`_cole_kripke()`/`CK()`/`_scripps()`/`Scripps()`;
+  `pyActigraphy/sleep/scoring/roenneberg.py`’s `roenneberg()` and its
+  sub-functions; `pyActigraphy/sleep/scoring/sri.py`’s `sri()`;
+  `pyActigraphy/sleep/scoring/utils.py`’s Webster rescoring rules,
+  `pearsonr()`, `correlation_series()`, `find_highest_peak_idx()`), not
+  reconstructed from documentation. All four share two precise details
+  that differ from the `"vallim"` path, both intentional and documented:
+  the SRI aggregation itself is a two-step average (per time-of-day slot
+  across days, then across slots) rather than `"vallim"`’s flat pooled
+  average over all 24h-apart pairs – these are only mathematically
+  equivalent when every time-of-day slot has the same number of valid
+  day-pairs (no partial first/last day); and there is no off-wrist
+  handling at all (`max_gap_min` has no effect), since pyActigraphy’s
+  own code has none for any of the four paths. `algo = "ck"` also
+  applies Webster’s (1982) rescoring rules afterward, matching
+  pyActigraphy’s default; `"scripps"`/`"roenneberg"` have no such step.
+  `"ck"` and `"scripps"` are structurally identical (same centered
+  rolling weighted dot product, same `D < threshold` = sleep polarity),
+  just different scale/window/threshold and the rescoring step; both
+  reproduce pandas’ edge-epoch behaviour exactly (`NaN < threshold`
+  evaluating to `False`, scoring those epochs a definite wake rather
+  than propagating `NA`).
+
+  `algo = "ck"`’s weights are a DIFFERENT set from the Condor-native
+  `ColeKripke` class already used elsewhere in zeitR’s pipeline
+  (`R/cole_kripke.R`) – the two share an algorithm family name but are
+  otherwise unrelated. The reference notebook’s actual call artificially
+  resamples already-1-minute data to 30-second bins before calling this;
+  verified by direct execution that this round-trip is a mathematical
+  no-op on genuinely-1-minute data (every artificial 30-second bin that
+  doesn’t align with a real timestamp becomes `0`, and since activity
+  counts are never negative, `max(original_value, 0)` always equals the
+  original value) – so this operates directly on native 1-minute
+  `activity` with no resampling needed, despite initial concern that
+  genuine sub-minute data would be required.
+
+  `algo = "roenneberg"` is by far the most involved of the four: a 24h
+  centered rolling-mean trend (allowing a partial window down to 12h at
+  the recording’s edges – pandas’ actual centered-window convention for
+  an even window size puts the extra element on the LEFT, confirmed
+  against real pandas output rather than assumed), a 15%-of-trend
+  threshold categorization, seed-finding (candidate sleep-onset runs at
+  least 30 min long), then an iterative correlation-based bout-cleaning
+  loop – each candidate onset tested against a family of triangular
+  ‘sleep bout ending at position i’ templates over the following 12h,
+  accepting the HIGHEST correlation peak as the bout’s offset (see the
+  bug fix below – an earlier version of this port accepted the FIRST
+  qualifying peak instead, a genuinely different, wrong algorithm).
+  `.consecutive_values()` (shared with Webster rescoring) needed a real
+  `NA`-safety fix for this caller specifically: Roenneberg’s categorized
+  series can genuinely contain `NA` (trend undefined at the edges), and
+  R’s own `NA == target` propagates `NA` unlike numpy’s
+  `np.equal(NaN, x)` evaluating to `False` – harmless for Webster
+  rescoring’s always-clean input, but would have silently corrupted
+  seed-finding here.
+
+  All four algorithm ports done, motivated by Julia’s real-cohort
+  validation report showing these pyActigraphy-derived SRI variants as
+  separate columns from `SRI_vallim`.
+
+- **[`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)**
+  gains `ISm`/`IVm` – the mean of `IS`/`IV` computed at every divisor of
+  1440 minutes between 1-60 min (22 resolutions), matching Cell 16’s
+  `_ISm_IVm_FREQS` loop exactly
+  (`vs_condor_py_pipeline_ fix30_jrsv.ipynb`). Unlike the main
+  `IS`/`IV`, missing bins at each resolution are omitted rather than
+  zero-filled, and a resolution is only excluded from the average if it
+  has 1 or fewer valid bins – if the underlying formula itself
+  degenerates (e.g. zero variance) at some resolution, that value is
+  still averaged in, exactly matching Python’s `try/except` wrapping the
+  per-frequency block rather than the returned value. Refactored the
+  existing hourly IS/IV computation into a shared
+  `.is_iv_at_resolution()` helper so both share one implementation.
+
 ### 🐛 Bug fixes
+
+- **`compute_sri(algo = "roenneberg")`**: was ported against the wrong
+  pyActigraphy source. The peak-finding step used
+  `find_first_peak_idx()` (from a local clone of the official
+  `ghammad/pyActigraphy` repo) – correct-looking, well-sourced code, but
+  the wrong fork: the actual Docker image the reference notebook runs in
+  (`circadiaBase_Docker/jupyter/Dockerfile`) installs
+  `pip install git+https://github.com/artvalencio/pyActigraphy`
+  specifically, whose `roenneberg.py` uses `find_highest_peak_idx()`
+  instead – a genuinely different algorithm (picks the single
+  best-correlated peak across the whole search window, not just the
+  first qualifying one it encounters), with two further precise
+  differences confirmed against that fork’s actual source: the internal
+  peak-testing window is `n_succ + 1`, not `n_succ`, and ties are broken
+  by re-searching the whole correlation array (not just the peak
+  candidates) for the first occurrence of the maximum value.
+
+  Caught by a real end-to-end comparison against 4 real participant
+  recordings: `find_first_peak_idx()` fragmented long sleep bouts into
+  several short ones, each stopping at a locally-good-enough peak, while
+  the real reference correctly finds one long, best-fit bout – every
+  other algorithm ported this session (Sadeh, CK, Scripps, Cosinor)
+  matched the real Python reference exactly on the same 4 recordings, an
+  important signal that this was a real, isolated bug rather than a
+  systemic issue with the whole batch of new algorithms. After the fix,
+  all four `SRI_*` variants plus `acrophase_time`/`MESOR`/`amplitude`
+  match a real execution of the actual reference environment exactly, on
+  all 4 recordings.
+
+  `.is_a_peak()` also needed a `NA`-safety fix surfaced by this same
+  investigation: a `NaN` correlation value (possible from `.pearsonr()`
+  on a zero-variance window) crashed R’s `if()` in the calling loop,
+  since R’s `NA > y` gives `NA` rather than numpy’s `NaN > y` giving
+  `False` – the same category of R/numpy comparison-semantics gap hit
+  several times already this session, handled the same way each time.
+
+- **[`detect_offwrist_bimodal()`](https://zeitr.circadia-lab.uk/reference/detect_offwrist_bimodal.md)**:
+  three separate bugs in the border-refinement and forbidden-zone logic,
+  found via a real off-wrist divergence on participant `ID_0003` (R
+  flagged 2018-08-11 19:44-20:38 as off-wrist; Python’s reference
+  pipeline did not). Root cause was the forbidden-zone computation – R
+  used an invented “middle 25%-75% quantile of the sleep block”
+  heuristic with no basis in the reference implementation, in place of
+  the actual rule (everything *except* the first/last hour of each
+  estimated-sleep block is off-limits to off-wrist candidates). This let
+  a short off-wrist period sitting near the edge of a long low-activity
+  block get rescued back in after the sleep-overlap filter had already
+  correctly rejected it. Two smaller threshold bugs in the border-search
+  step were fixed alongside it: the low-activity quantile used for the
+  border-validity gate was using the wrong quantile method, and that
+  same gate was comparing against a data-driven activity threshold where
+  the reference implementation uses a fixed constant. Verified against a
+  real execution of the reference pipeline on all 4 available
+  real-participant recordings (`ID_0003`, `ID_0005`, `ID_0006`,
+  `ID_0007`): off-wrist periods now match exactly, including recordings
+  with zero or a single detected period.
 
 - **[`run_pipeline_native()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native.md)
   /
@@ -67,28 +287,52 @@
   output now matches to 6 decimal places.
 
 - **[`classify_sleep_episodes()`](https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.md)**:
-  removed the classification-stage “Fix 25” filter (exclude episodes
-  starting at/after noon on the recording’s last calendar day), which
-  used to run as the function’s very first step. Checked the actual
-  production Python (Cell 3 of the fix29 notebook – the real
-  classification logic, not the superseded shared
-  `pipeline_functions.py`): it has no equivalent step at the
-  classification stage at all. Fix 25 only exists later, specific to the
-  CPD calculation (`nights_to_df()` in Cell 5/7), which
-  [`compute_cpd_metrics()`](https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.md)
-  already mirrors correctly. Applying it during classification too meant
-  R excluded real, complete sleep episodes before they ever got a chance
-  to be classified as `"main"`, whenever one simply happened to start on
-  the recording’s last calendar day – a likely contributor to the
-  cohort-wide `n_main` mismatch reported against the Python reference
-  (78.1% of participants matching). `.recover_fragmented_episodes()`
-  (Fix 26c) keeps its own independent last-day-noon guard;
-  `test-fix26c.R`’s existing interaction test already confirmed that
-  guard alone is sufficient, evidence the outer filter was redundant on
-  top of it, not just misplaced.
+  reinstated the classification-stage truncation filter (exclude
+  episodes starting at/after noon on the recording’s last calendar day)
+  as **Fix 29f**, after incorrectly removing it earlier in this same
+  development cycle. That removal was based on the fix29 notebook’s Cell
+  3, which genuinely has no classification-stage truncation filter – but
+  fix30 (the actual current production notebook, obtained after the
+  removal) shows Python re-added exactly this filter, with its own
+  comment explaining a real, confirmed bug: an 8th spurious “night” out
+  of a 7-day recording (ID_0138, a same-day 19:23-\>23:56 artifact
+  miscounted as a valid main night). Consistent with this, removing the
+  filter did not improve the cohort-wide `n_main` match rate against the
+  real Python reference at all (stayed at ~77-78%), since Python’s real
+  pipeline has the same filter all along. Reinstated with fix30’s exact
+  mechanics: the “last day” reference is `max(gts)` among the episodes
+  themselves, not the raw epoch data’s last timestamp (these usually
+  coincide but can diverge). `.recover_fragmented_episodes()` (Fix 26c)
+  keeps its own separate last-day-noon guard (based on the raw epoch
+  data), independently necessary since it constructs new candidates from
+  raw epoch scanning that this filter never sees.
+
+- **[`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)**:
+  no longer excludes off-wrist epochs (`state == 4`) by default before
+  computing any NPCRA variable. Checked the actual production Python
+  (Cell 16 of `vs_condor_py_pipeline_fix30_jrsv.ipynb`): every NPCRA
+  variable (`IS`, `IV`, `M10`, `L5`, `RA`) comes from
+  `_nonparam_metrics()`, always called with `mask_series=None` –
+  off-wrist periods’ raw device readings are used as-is, never deleted.
+  Real-cohort validation against Julia’s Python reference (383
+  participants) showed catastrophic (near-zero or negative) ICC on
+  M10/L5 onset across all three channels (pim/light/temp) – far worse
+  than everything else in the comparison; `IS`/`IV` were comparatively
+  fine (0.90-0.97 ICC), consistent with deleting epochs (creating index
+  gaps) mattering far more for a winner-take-all window search than for
+  a summary statistic averaged over the whole recording. New
+  `exclude_offwrist` argument (default `FALSE`, matching Python)
+  restores the previous behaviour as an opt-in.
 
 ### 📚 Documentation
 
+- [`vignette("sleep-analysis")`](https://zeitr.circadia-lab.uk/articles/sleep-analysis.md):
+  fixed a `R CMD build` failure – the NPCRA results table’s
+  `Description` column was hardcoded to 9 strings, but
+  [`compute_npcra()`](https://zeitr.circadia-lab.uk/reference/compute_npcra.md)
+  now returns 11 columns (`ISm`/`IVm`, added earlier this session) after
+  dropping `participant_id`. Added the two missing descriptions in the
+  correct column position.
 - New `.zenodo.json` for GitHub-Zenodo release archiving, mirroring
   `CITATION.cff`/`DESCRIPTION` authorship.
 
@@ -452,7 +696,7 @@
   [`run_pipeline_native_batch()`](https://zeitr.circadia-lab.uk/reference/run_pipeline_native_batch.md)
   gain a `parallel` argument. When `TRUE`, files are processed
   concurrently via
-  [`future.apply::future_lapply()`](https://future.apply.futureverse.org/reference/future_lapply.html)
+  [`future.apply::future_lapply()`](https://rdrr.io/pkg/future.apply/man/future_lapply.html)
   under whatever
   [`future::plan()`](https://future.futureverse.org/reference/plan.html)
   the caller has set

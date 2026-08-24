@@ -269,7 +269,11 @@ Default <code>4</code>.</p></dd>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
 
-<ol><li><p><strong>Fix 25</strong> – exclude truncated episodes at the recording end.</p></li>
+<ol><li><p><strong>Fix 29f</strong> – exclude episodes starting at/after noon on the
+latest classified night's calendar date (<code>max(gts)</code>), before any
+other classification step. Prevents a spurious end-of-recording
+artifact (device removed mid-day, not a real night) from being
+counted as a valid main night.</p></li>
 <li><p><strong>Fix 26a</strong> – infer adaptive nocturnal window from <code>int_temp</code>
 and <code>light</code>. Falls back to <code>nocturnal_onset_start</code>/<code>nocturnal_onset_end</code>
 if fewer than 2 candidate episodes pass the temperature and light filter.</p></li>

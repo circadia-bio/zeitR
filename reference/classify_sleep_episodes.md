@@ -114,7 +114,11 @@ or `"secondary"`) and `is_nap` (logical, `TRUE` when
 
 ## Details
 
-1.  **Fix 25** – exclude truncated episodes at the recording end.
+1.  **Fix 29f** – exclude episodes starting at/after noon on the latest
+    classified night's calendar date (`max(gts)`), before any other
+    classification step. Prevents a spurious end-of-recording artifact
+    (device removed mid-day, not a real night) from being counted as a
+    valid main night.
 
 2.  **Fix 26a** – infer adaptive nocturnal window from `int_temp` and
     `light`. Falls back to `nocturnal_onset_start`/`nocturnal_onset_end`

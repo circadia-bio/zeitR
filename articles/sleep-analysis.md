@@ -265,6 +265,8 @@ npcra |>
   mutate(Description = c(
     "Interdaily stability (0\u20131; higher = more consistent rhythm)",
     "Intradaily variability (\u22650; higher = more fragmented rhythm)",
+    "Mean IS across 22 resolutions (divisors of 1440 min, 1\u201360 min)",
+    "Mean IV across 22 resolutions (divisors of 1440 min, 1\u201360 min)",
     "Relative amplitude (0\u20131; contrast between M10 and L5)",
     "Mean activity during the least-active 5 h window",
     "Clock time of the L5 window onset (hh:mm)",
@@ -281,6 +283,8 @@ npcra |>
 |:---|---:|:---|
 | IS | 0.224 | Interdaily stability (0–1; higher = more consistent rhythm) |
 | IV | 0.9987 | Intradaily variability (≥0; higher = more fragmented rhythm) |
+| ISm | 0.1663 | Mean IS across 22 resolutions (divisors of 1440 min, 1–60 min) |
+| IVm | 0.6084 | Mean IV across 22 resolutions (divisors of 1440 min, 1–60 min) |
 | RA | 1 | Relative amplitude (0–1; contrast between M10 and L5) |
 | L5 | 0 | Mean activity during the least-active 5 h window |
 | L5_onset | 18:10 | Clock time of the L5 window onset (hh:mm) |

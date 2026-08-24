@@ -25,8 +25,10 @@
 <url><loc>https://zeitr.circadia-lab.uk/reference/classify_pa_intensity.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/classify_sleep_episodes.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_activity_counts.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_cosinor.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_cpd_metrics.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_lids.html</loc></url>
+<url><loc>https://zeitr.circadia-lab.uk/reference/compute_lri.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_npcra.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_sleep_metrics.html</loc></url>
 <url><loc>https://zeitr.circadia-lab.uk/reference/compute_sri.html</loc></url>

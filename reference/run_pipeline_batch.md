@@ -24,7 +24,7 @@ run_pipeline_batch(folder, pattern = "*.txt", parallel = FALSE, ...)
 - parallel:
 
   `logical(1)`. If `TRUE`, processes files in parallel using
-  [`future.apply::future_lapply()`](https://future.apply.futureverse.org/reference/future_lapply.html)
+  [`future.apply::future_lapply()`](https://rdrr.io/pkg/future.apply/man/future_lapply.html)
   (a `Suggests`-only dependency). Requires a
   [`future::plan()`](https://future.futureverse.org/reference/plan.html)
   to be set beforehand, e.g.
