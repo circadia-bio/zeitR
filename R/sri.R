@@ -1116,7 +1116,7 @@ compute_sri <- function(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim") {
 #' time-of-day, across all days in the recording -- computes
 #' `.sri_prob_stability()` within each time-of-day slot (across
 #' consecutive days at that slot, which are exactly 24h apart), then
-#' averages those per-slot values and rescales to [-100, 100]. This is
+#' averages those per-slot values and rescales to `[-100, 100]`. This is
 #' NOT mathematically equivalent to a flat pooled average over all pairs
 #' unless every slot has the same number of valid day-pairs (see
 #' `compute_sri()`'s Details).

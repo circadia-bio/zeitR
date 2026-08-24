@@ -728,10 +728,10 @@ below_prop <- function(x, thr) {
   below_prop(activity[(re + 1L):rns], activity_thr) > minimum_low_act_prop
 }
 
-#' @noRd
 #' NOTE: the 5th argument is Python's fixed self.low_activity_threshold
 #' (default 500), NOT the data-driven activity_thr/self.activity_threshold --
 #' these are two distinct Python attributes. Do not pass activity_thr here.
+#' @noRd
 .check_valid_border_mod <- function(act_med_low, temperature, temperature_threshold,
                                      act_median, low_activity_threshold, ri) {
   act_med_low[ri] == 1L ||
@@ -837,7 +837,7 @@ below_prop <- function(x, thr) {
 #' excluded, but candidates near its edges are still allowed through.
 #'
 #' Python: forbidden_start = min(s + win, n-1); forbidden_end = max(0, e - win)
-#'         forbidden_zone[forbidden_start:forbidden_end] = 1  (0-based, exclusive end)
+#'         `forbidden_zone[forbidden_start:forbidden_end]` = 1  (0-based, exclusive end)
 #' NOTE: an earlier R port substituted an unrelated middle-25%-75%-quartile
 #' heuristic here -- that formula does not appear anywhere in the Python
 #' source and never matched Python's forbidden zone for any sleep block

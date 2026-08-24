@@ -4,29 +4,39 @@
 \alias{compute_sri}
 \title{Sleep Regularity Index (SRI)}
 \usage{
-compute_sri(x, epoch_s = NULL, max_gap_min = 30)
+compute_sri(x, epoch_s = NULL, max_gap_min = 30, algo = "vallim")
 }
 \arguments{
 \item{x}{A \code{zeitr_recording}/\code{zeitr_result}, or a data frame / tibble with
-at least \code{datetime} and \code{state} columns. \code{state == 1} or \code{state == 7}
-is treated as sleep, \code{state == 4} as off-wrist (missing), and any other
-value as wake -- matching the coding already used across zeitR's
-pipeline output (\code{\link[=run_pipeline]{run_pipeline()}}, \code{\link[=run_pipeline_native]{run_pipeline_native()}},
-\code{\link[=export_hypnogram]{export_hypnogram()}}).}
+at least \code{datetime} and \code{state} columns (\code{algo = "vallim"}) or
+\code{datetime} and \code{activity} columns (\code{algo = "sadeh"}, \code{"ck"},
+\code{"scripps"}, or \code{"roenneberg"}). For \code{state}: \code{state == 1} or
+\code{state == 7} is treated as sleep, \code{state == 4} as off-wrist (missing),
+and any other value as wake -- matching the coding already used
+across zeitR's pipeline output (\code{\link[=run_pipeline]{run_pipeline()}},
+\code{\link[=run_pipeline_native]{run_pipeline_native()}}, \code{\link[=export_hypnogram]{export_hypnogram()}}).}
 
 \item{epoch_s}{\code{numeric(1)}. Epoch duration in seconds. If \code{NULL}
 (default), estimated automatically from the median inter-epoch interval.}
 
 \item{max_gap_min}{\code{numeric(1)}. Off-wrist gaps of this many minutes or
 less are interpolated rather than excluded. Default \code{30}, matching
-Fix 30 and Fix 14's 30-minute threshold elsewhere in the pipeline.}
+Fix 30 and Fix 14's 30-minute threshold elsewhere in the pipeline. Only
+used when \code{algo = "vallim"}.}
+
+\item{algo}{\code{character(1)}. Which sleep/wake source and SRI aggregation
+to use: \code{"vallim"} (default, uses the pipeline's own \code{state} column),
+\code{"sadeh"}, \code{"ck"}, \code{"scripps"}, or \code{"roenneberg"} (all four score raw
+\code{activity}). See Details for the precise differences beyond just the
+scoring algorithm.}
 }
 \value{
 A tibble with columns \code{participant_id}, \code{sri}, \code{n_pairs} (number
-of valid 24h-apart epoch comparisons used), and \code{n_epochs} (total
-epochs after off-wrist gap interpolation, before the 24h-pairing step).
-\code{sri} is \code{NA} if the recording is shorter than 24 h, or if no valid
-pairs remain after off-wrist exclusion.
+of valid 24h-apart epoch comparisons used; \code{NA} for \code{algo != "vallim"},
+whose aggregation isn't a single pooled pair count), and
+\code{n_epochs}. \code{sri} is \code{NA} if the recording is shorter than 24 h, or
+(for \code{algo = "vallim"}) if no valid pairs remain after off-wrist
+exclusion.
 }
 \description{
 Computes the Sleep Regularity Index (Phillips et al. 2017): a measure of
@@ -37,34 +47,103 @@ Ranges from -100 (perfectly inverted day-to-day) to +100 (perfectly
 regular); 0 corresponds to chance-level agreement.
 }
 \details{
-Ported from \strong{Fix 30} of the Python reference pipeline (\code{SRI_vallim}):
-rather than deriving sleep/wake from a pyActigraphy scoring algorithm
-(Sadeh, Cole-Kripke, Roenneberg, Scripps -- all of which showed
-substantially worse agreement with manual reference scoring in Julia's
-concordance analysis, ICC 0.19-0.67 vs 0.82 here), \code{compute_sri()} derives
-sleep/wake directly from the epoch-level \code{state} column already produced
-by zeitR's own pipelines (\code{\link[=run_pipeline]{run_pipeline()}} / \code{\link[=run_pipeline_native]{run_pipeline_native()}}) --
-the same classification \code{compute_sleep_metrics()} and
-\code{compute_cpd_metrics()} already treat as ground truth for this recording.
-
-Off-wrist handling mirrors Fix 30 exactly: off-wrist epochs
-(\code{state == 4}) are treated as missing. Gaps of \code{max_gap_min} minutes or
-less are interpolated (forward-filled from the last valid epoch, or
-back-filled from the next valid epoch when the gap starts at the very
-beginning of the recording); longer gaps are left as missing and excluded
-from the day-to-day comparison entirely, rather than being counted as a
-non-match.
-
+\code{algo = "vallim"} (default) ports \strong{Fix 30} of the Python reference
+pipeline (\code{SRI_vallim}): sleep/wake comes directly from the epoch-level
+\code{state} column already produced by zeitR's own pipelines
+(\code{\link[=run_pipeline]{run_pipeline()}} / \code{\link[=run_pipeline_native]{run_pipeline_native()}}) -- the same classification
+\code{compute_sleep_metrics()} and \code{compute_cpd_metrics()} already treat as
+ground truth for this recording. Off-wrist handling mirrors Fix 30
+exactly: off-wrist epochs (\code{state == 4}) are treated as missing. Gaps of
+\code{max_gap_min} minutes or less are interpolated (forward-filled from the
+last valid epoch, or back-filled from the next valid epoch when the gap
+starts at the very beginning of the recording); longer gaps are left as
+missing and excluded from the day-to-day comparison entirely, rather than
+being counted as a non-match. The aggregation is a single flat average
+over every valid 24h-apart epoch pair, pooled across the whole recording:
 \deqn{SRI = -100 + 200 \times \frac{1}{M}\sum_{t} \Psi(t, t + 24h)}
-
 where \eqn{\Psi(t, t+24h) = 1} if the sleep/wake state at epoch \eqn{t}
 matches the state 24 h later, \eqn{0} otherwise, and \eqn{M} is the number
-of epoch pairs where both epochs have a valid (non-missing) state.
+of epoch pairs where both epochs have a valid (non-missing) state. This
+matches Julia's own \code{compute_sri_vallim()} replica (also a flat pooled
+ratio, not a per-time-of-day average -- see below).
+
+\code{algo = "sadeh"} instead derives sleep/wake from the raw \code{activity}
+signal via the Sadeh et al. (1994) algorithm, matching pyActigraphy's
+actual \code{Sadeh()}/\code{SleepRegularityIndex()} (Cell 16 of
+\code{vs_condor_py_pipeline_fix30_jrsv.ipynb}) exactly -- both sourced from
+pyActigraphy's real code (\code{pyActigraphy/sleep/scoring_base.py},
+\verb{_sadeh()}; \code{pyActigraphy/sleep/scoring/sri.py}, \code{sri()}), not
+reconstructed from documentation. Two precise details that differ from
+the \code{"vallim"} path above:
+\itemize{
+\item \strong{Aggregation is a two-step average, not a flat pooled one.}
+pyActigraphy's \code{sri()} first groups epochs by time-of-day (hour,
+minute, second) across all days, averages day-to-day stability
+\emph{within} each time-of-day slot, and only then averages \emph{across}
+slots. This is mathematically different from a flat pooled average
+whenever slots have unequal numbers of valid day-pairs (e.g. a
+partial first/last day) -- both \code{"vallim"} and \code{"sadeh"} are ported
+faithfully to their own respective real source, not reconciled to
+use the same aggregation.
+\item \strong{No off-wrist handling.} Sadeh scores whatever raw activity it
+is given; there is no off-wrist masking/interpolation step in
+pyActigraphy's own code for this path. \code{max_gap_min} has no effect
+when \code{algo = "sadeh"}.
+}
+Sadeh's own edge behaviour is also reproduced exactly: \code{mean_W5}/\code{NAT}
+need a full centered 11-epoch window (5 before, self, 5 after) and are
+\code{NA} for the first/last 5 epochs; \code{sd_Last6} needs a full trailing
+6-epoch window (self + 5 before) and is \code{NA} for the first 5 epochs;
+\code{logAct} uses the \emph{following} epoch's activity (\code{shift(-1)}) and is \code{NA}
+for the last epoch. Where the resulting \code{PS} score is \code{NA}, pandas'
+\code{NaN > threshold} evaluates to \code{False} (not propagated as missing), so
+that epoch is scored wake (\code{0}), not excluded -- reproduced here
+explicitly, since R's \code{NA > threshold} gives \code{NA}, not \code{FALSE}.
+
+\code{algo = "ck"} derives sleep/wake via pyActigraphy's native Cole-Kripke
+implementation (\code{.CK()}, default \code{settings = "30sec_max_non_overlap"})
+-- a DIFFERENT weight set from the Condor-native \code{ColeKripke} class
+used elsewhere in zeitR's pipeline (\code{R/cole_kripke.R}); the two share an
+algorithm family name but are otherwise unrelated. Shares \code{"sadeh"}'s
+two-step SRI aggregation and lack of off-wrist handling (see above).
+Despite the reference notebook resampling to 30-second bins before
+calling this, that round-trip is a mathematical no-op on data that was
+only ever 1-minute resolution (verified by direct execution -- see
+\code{?.ck_native_score}), so this operates directly on native-resolution
+\code{activity} with no resampling needed. Also applies Webster's (1982)
+rescoring rules afterward, matching pyActigraphy's default. Uses the
+\emph{opposite} threshold polarity from Sadeh (\code{D < threshold} = sleep here,
+vs \code{PS > threshold} = sleep for Sadeh) -- both faithful to their own
+respective source.
+
+\code{algo = "scripps"} derives sleep/wake via pyActigraphy's native Scripps
+Clinic implementation (\code{Scripps()}/\verb{_scripps()}). Structurally identical
+to \code{algo = "ck"} -- same centered rolling weighted dot product, same
+\code{D < threshold} = sleep polarity, same two-step SRI aggregation and
+lack of off-wrist handling -- just a different scale/window/threshold,
+and no Webster rescoring step (pyActigraphy's \code{Scripps()} doesn't call
+\code{rescore()}, unlike \code{CK()}).
+
+\code{algo = "roenneberg"} derives sleep/wake via pyActigraphy's native
+Roenneberg et al. algorithm (\code{roenneberg()}) -- by far the most
+involved of the four: trend extraction (a 24h centered rolling mean,
+allowing a partial window down to 12h at the recording's edges), a
+15\%-of-trend threshold categorization, seed-finding (candidate
+sleep-onset runs at least 30 min long), then an iterative
+correlation-based bout-cleaning loop (each candidate onset is tested
+against a family of triangular "sleep bout ending at position i"
+templates over the following 12h, accepting the HIGHEST correlation
+peak as the bout's offset -- not simply the first qualifying one; see
+\code{?.find_highest_peak_idx} for a real version mismatch this caught).
+Shares the two-step SRI aggregation and lack of off-wrist handling
+with the other three raw-activity algorithms above. No rescoring step
+(rescoring is specific to \code{CK()}).
 }
 \examples{
 \dontrun{
 result <- run_pipeline_native("recordings/P001.txt", tz = "America/Sao_Paulo")
 compute_sri(result)
+compute_sri(result, algo = "sadeh")
 }
 }
 \references{
@@ -73,6 +152,10 @@ Picard, R. W., Lockley, S. W., Klerman, E. B., & Czeisler, C. A. (2017).
 Irregular sleep/wake patterns are associated with poorer academic
 performance and delayed circadian and sleep/wake timing. \emph{Scientific
 Reports}, 7, 3216. \doi{10.1038/s41598-017-03171-4}
+
+Sadeh, A., Sharkey, M., & Carskadon, M. A. (1994). Activity-Based
+Sleep-Wake Identification: An Empirical Test of Methodological Issues.
+\emph{Sleep}, 17(3), 201-207. \doi{10.1093/sleep/17.3.201}
 }
 \seealso{
 \code{\link[=compute_npcra]{compute_npcra()}}, \code{\link[=compute_sleep_metrics]{compute_sleep_metrics()}},
