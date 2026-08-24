@@ -1,4 +1,4 @@
-## zeitR 0.1.7.9000  (development)
+## zeitR 0.1.8  (2026-08)
 
 ### ✨ New features
 

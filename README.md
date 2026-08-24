@@ -45,8 +45,10 @@ Beyond the two pipelines, zeitR also estimates energy expenditure and classifies
 - 💤 **`detect_naps_crespo()`** — secondary sleep period detection (Crespo et al., 2012)
 - ⏱️ **`score_epochs_cole_kripke()`** — epoch-level wake/sleep scoring (Cole & Kripke, 1992)
 - 📊 **`compute_waso()`** — nightly TBT, TST, WASO, SOL, SOI, awakenings, sleep efficiency
-- 📐 **`compute_npcra()`** — non-parametric circadian rhythm analysis (IS, IV, RA, L5, M10)
-- 🌙 **`compute_sri()`** — Sleep Regularity Index (Phillips et al., 2017), from epoch-level sleep/wake state
+- 📐 **`compute_npcra()`** — non-parametric circadian rhythm analysis (IS, IV, ISm, IVm, RA, L5, M10)
+- 🌙 **`compute_sri()`** — Sleep Regularity Index (Phillips et al., 2017); epoch-level `state` by default, or Sadeh/Cole-Kripke/Scripps/Roenneberg scoring via `algo`
+- 💡 **`compute_lri()`** — Light Regularity Index (Hand et al., 2023), day-to-day consistency of light exposure timing
+- 🌗 **`compute_cosinor()`** — Cosinor rhythmometry (Cornelissen, 2014): acrophase, MESOR, amplitude from a fixed-period cosine fit
 - 🗂️ **`study_summary()`** — participant-level NPCRA summary across a whole study
 - 🗂️ **`study_sleep_metrics()`** — participant-level sleep-timing/chronotype summary (CPD, MSF/MSW, SJL) across a whole study
 - 📋 **`compute_sleep_metrics()`** — per-night sleep metrics split by day type (overall / workday / free day)
@@ -147,9 +149,13 @@ circ_sd_h(onset_h)    # within-person variability in sleep onset
 rec   <- read_acttrust("recordings/P001.txt", tz = "America/Sao_Paulo")
 npcra <- compute_npcra(rec)
 npcra
-#>   IS    IV    RA    L5 L5_onset   M10 M10_onset n_days
-#>   0.72  0.43  0.89  12.3    02:30  84.7     11:00    7.0
+#>   IS    IV   ISm   IVm   RA    L5 L5_onset   M10 M10_onset n_days
+#>   0.72  0.43 0.75  0.41  0.89  12.3    02:30  84.7     11:00    7.0
 ```
+
+`ISm`/`IVm` average `IS`/`IV` across every divisor of 1440 minutes between
+1-60 min (22 resolutions), matching pyActigraphy's own multi-resolution
+convention.
 
 ### Sleep Regularity Index
 
@@ -160,11 +166,58 @@ compute_sri(result)
 #>   P001             78.4    8640    10080
 ```
 
-Derives sleep/wake from the epoch-level `state` column zeitR's own pipelines
-already produce, rather than a pyActigraphy-style scoring algorithm -- see
-`?compute_sri` for the off-wrist gap-interpolation rules and why this
-approach showed substantially better agreement with manual reference
-scoring in validation.
+By default (`algo = "vallim"`), derives sleep/wake from the epoch-level
+`state` column zeitR's own pipelines already produce, rather than a
+pyActigraphy scoring algorithm -- see `?compute_sri` for the off-wrist
+gap-interpolation rules and why this showed substantially better
+agreement with manual reference scoring in validation.
+
+`algo = "sadeh"`, `"ck"`, `"scripps"`, and `"roenneberg"` instead score raw
+`activity` via pyActigraphy's own algorithms, each verified against a real
+execution of the actual reference environment:
+
+```r
+rec <- read_acttrust("recordings/P001.txt", tz = "America/Sao_Paulo")
+compute_sri(rec, algo = "roenneberg")
+```
+
+See `?compute_sri` for the precise differences between `"vallim"` and the
+four raw-activity algorithms (aggregation method, off-wrist handling).
+
+### Light Regularity Index
+
+```r
+rec <- read_acttrust("recordings/P001.txt", tz = "America/Sao_Paulo")
+compute_lri(rec)
+#>   participant_id LRI_10 LRI_20 LRI_50 LRI_100 LRI_300 n_epochs
+#>   P001             45.0   43.7   42.9    41.8    40.4    10080
+```
+
+Day-to-day consistency of light exposure timing (Hand et al., 2023),
+analogous to `compute_sri()` but applied to a binarized light-exposure
+signal at five default thresholds. See `?compute_lri` for a real
+discrepancy this port surfaced in the reference implementation itself
+(the thresholds are documented as log10-lux but applied to raw,
+untransformed light in the actual reference code) and why `compute_lri()`
+matches that real behaviour by default rather than the documented intent.
+
+### Cosinor rhythmometry
+
+```r
+rec <- read_acttrust("recordings/P001.txt", tz = "America/Sao_Paulo")
+compute_cosinor(rec)
+#>   participant_id acrophase_time acrophase_time_neg    MESOR amplitude period_min
+#>   P001                    15:00               -9.0  2082.68   1859.17       1440
+```
+
+Fits a fixed-24h-period cosine model (acrophase/MESOR/amplitude), matching
+pyActigraphy's actual `Cosinor` class as used in the reference pipeline
+(period locked, not fit -- a free period let the reference's own optimizer
+converge anywhere from 0.23h to 91.75h). Solved here via ordinary least
+squares rather than a nonlinear optimizer -- verified by direct execution
+to match the reference's real `lmfit`-based fit to floating-point
+precision when the period is locked, which it always is in practice. Pass
+`col = "light"` or `col = "int_temp"` to fit a different channel.
 
 ### LIDS -- ultradian sleep-cycle dynamics
 
@@ -259,6 +312,7 @@ caveats.
 |---|---|
 | `IS` | Interdaily stability — consistency of the 24 h rhythm across days (0–1) |
 | `IV` | Intradaily variability — fragmentation of the rest-activity rhythm (≥ 0) |
+| `ISm` / `IVm` | Mean `IS`/`IV` across 22 resolutions (every divisor of 1440 min between 1–60 min) |
 | `RA` | Relative amplitude — contrast between M10 and L5 (0–1) |
 | `L5` / `L5_onset` | Mean activity and onset of the least active 5 h window |
 | `M10` / `M10_onset` | Mean activity and onset of the most active 10 h window |
@@ -268,7 +322,25 @@ caveats.
 | Variable | Definition |
 |---|---|
 | `sri` | Sleep Regularity Index (Phillips et al., 2017) — day-to-day sleep/wake consistency; −100 (inverted) to +100 (perfectly regular), 0 = chance |
-| `n_pairs` | Number of valid 24h-apart epoch comparisons used |
+| `n_pairs` | Number of valid 24h-apart epoch comparisons used (`algo = "vallim"` only; `NA` for the four raw-activity algorithms, whose aggregation isn't a single pooled pair count) |
+
+Five algorithms available via `algo`: `"vallim"` (default, epoch-level `state`), `"sadeh"`, `"ck"`, `"scripps"`, `"roenneberg"` (raw `activity`, matching pyActigraphy's own scoring algorithms).
+
+### Light Regularity Index (`compute_lri()`)
+
+| Variable | Definition |
+|---|---|
+| `LRI_10`, `LRI_20`, `LRI_50`, `LRI_100`, `LRI_300` | Light Regularity Index (Hand et al., 2023) at five default thresholds — same −100/+100 scale and interpretation as `sri` |
+
+### Cosinor rhythmometry (`compute_cosinor()`)
+
+| Variable | Definition |
+|---|---|
+| `acrophase_time` | Clock time of the fitted rhythm's peak (`HH:MM`) |
+| `acrophase_time_neg` | Same, mapped to `[-12, 12]` for circular-safe comparison |
+| `MESOR` | Rhythm-adjusted mean |
+| `amplitude` | Half the peak-to-trough distance of the fitted cosine |
+| `period_min` | Fixed period used for the fit, in minutes (default `1440` = 24 h) |
 
 ### Nightly sleep statistics
 
@@ -344,7 +416,9 @@ zeitR/
 │   ├── cole_kripke.R         # score_epochs_cole_kripke()
 │   ├── waso.R                # compute_waso()
 │   ├── npcra.R               # compute_npcra()
-│   ├── sri.R                 # compute_sri()
+│   ├── sri.R                 # compute_sri() (vallim/sadeh/ck/scripps/roenneberg)
+│   ├── lri.R                 # compute_lri()
+│   ├── cosinor.R             # compute_cosinor()
 │   ├── study_summary.R       # study_summary()
 │   ├── study_sleep_metrics.R # study_sleep_metrics()
 │   ├── pa_intensity.R        # pa_equations(), estimate_ee(), classify_pa_intensity/counts()
@@ -422,7 +496,7 @@ If you use zeitR in your research, please cite it:
   author  = {França, Lucas and Leocadio-Miguel, Mario and Vallim, Julia Ribeiro da Silva},
   title   = {{zeitR}: Actigraphy Data Parsing and Analysis for R},
   year    = {2026},
-  version = {0.1.7},
+  version = {0.1.8},
   doi     = {10.5281/zenodo.21315925},
   url     = {https://github.com/circadia-bio/zeitR}
 }
