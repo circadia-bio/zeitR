@@ -12,3 +12,36 @@ jobs:
       repo: "zeitR"
     secrets:
       website-pat: ${{ secrets.WEBSITE_PAT }}
+
+  # update-website-doi only opens a PR when the concept DOI was just set
+  # (a package's first Zenodo archive). On every later release the DOI
+  # is already known, so nothing in zenodo.yml changes -- but the site's
+  # version number still needs a rebuild, since it's resolved live from
+  # Zenodo at render time and publish.yml only fires on push to main.
+  # This job opens an empty-commit PR on every release to guarantee that
+  # rebuild happens regardless of whether the DOI lookup found anything
+  # to change.
+  trigger-website-rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4
+        with:
+          repository: circadia-bio/website
+          token: ${{ secrets.WEBSITE_PAT }}
+
+      - name: Open empty-commit PR to trigger rebuild
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_PAT }}
+        run: |
+          git config user.name "circadia-bot"
+          git config user.email "actions@circadia-lab.uk"
+          BRANCH="zenodo-sync/zeitR-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git commit --allow-empty -m "🔧 chore(zenodo): sync zeitR after release"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Sync zeitR after release" \
+            --body "Triggered by a new GitHub release of [zeitR](https://github.com/circadia-bio/zeitR). No zenodo.yml changes needed -- this empty commit just triggers a rebuild so the products carousel picks up the new version number, resolved live from Zenodo at render time." \
+            --base main \
+            --head "$BRANCH"
