@@ -3,6 +3,7 @@ name: Notify website of Zenodo release
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   update-website-doi:
